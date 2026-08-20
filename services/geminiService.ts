@@ -4,7 +4,30 @@ import { AIReviewReport } from "../types";
 
 export type { AIReviewReport };
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+/**
+ * Lazily create the GoogleGenAI client only when an API key is present and an
+ * AI feature is actually invoked. Creating it at module load with an empty key
+ * throws ("API key must be set"), which would crash the whole app (white screen)
+ * even for non-AI pages like login/teacher/student views.
+ */
+function getApiKey(): string {
+  // Support both Node-style and Vite-style env exposure without crashing if
+  // `process` is undefined in the browser bundle.
+  const fromProcess =
+    typeof process !== "undefined" && process.env ? process.env.GEMINI_API_KEY : undefined;
+  return fromProcess || "";
+}
+
+let aiClient: GoogleGenAI | null = null;
+
+function getAiClient(): GoogleGenAI | null {
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
+  if (!aiClient) {
+    aiClient = new GoogleGenAI({ apiKey });
+  }
+  return aiClient;
+}
 
 /**
  * Analyzes a recommendation letter for risks and/or quality based on selected mode.
@@ -71,6 +94,13 @@ export async function analyzeRecommendationLetter(
   `;
 
   try {
+    const ai = getAiClient();
+    // No API key configured: fall back gracefully instead of crashing.
+    if (!ai) {
+      console.warn("[geminiService] GEMINI_API_KEY 未配置，返回本地降级审阅结果。");
+      throw new Error("MISSING_GEMINI_API_KEY");
+    }
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
