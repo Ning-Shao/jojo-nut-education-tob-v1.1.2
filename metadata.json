@@ -1,0 +1,8 @@
+{
+  "name": "Jojo Nut Education ToB v1.1.1【开发版】",
+  "description": "A comprehensive dashboard for international school college counseling teachers and students to manage applications, knowledge libraries, competitions, and progress.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
