@@ -836,6 +836,7 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student }) => {
               <Step6Timeline 
                 timelineEvents={timelineEvents}
                 setTimelineEvents={setTimelineEvents}
+                selectedSchools={selectedSchools}
                 onComplete={handleCompletePlanning}
               />
             )}

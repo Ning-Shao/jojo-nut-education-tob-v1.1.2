@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   LayoutGrid, 
   Map, 
@@ -29,10 +29,17 @@ import CampusKnowledgeBase from '../components/knowledge/CampusKnowledgeBase';
 import StudentProfile from '../components/student/StudentProfile';
 import StudentSettings from '../components/student/StudentSettings';
 import { useLanguage } from '../contexts/LanguageContext';
+import {
+  getStoredStudentTasks,
+  StudentTask,
+  TASK_STORAGE_KEY,
+} from '../components/student/studentTasks';
 
 interface StudentDashboardProps {
   onLogout: () => void;
 }
+
+const FORMAL_STUDENT_NAME = 'Alex Chen';
 
 // Student Specific Navigation Tabs
 type StudentTab = 'Dashboard' | 'My Plan' | 'Tasks' | 'Knowledge';
@@ -53,6 +60,18 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [planningInitialTab, setPlanningInitialTab] = useState<PlanningTab>('BasicInfo');
+  const [preferredName, setPreferredName] = useState(() => localStorage.getItem('student_preferred_name') || localStorage.getItem('student_profile_name') || 'Alex');
+  const [focusedTaskId, setFocusedTaskId] = useState<string | undefined>();
+  const [studentTasks, setStudentTasks] = useState<StudentTask[]>(getStoredStudentTasks);
+
+  useEffect(() => {
+    localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(studentTasks));
+  }, [studentTasks]);
+
+  const handlePreferredNameChange = (name: string) => {
+    setPreferredName(name);
+    localStorage.setItem('student_preferred_name', name);
+  };
 
   const navItems: NavItemDef[] = [
     { id: 'Dashboard', label: isEn ? 'Dashboard' : '首页', icon: <LayoutGrid className="w-4 h-4" /> },
@@ -80,7 +99,10 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) => {
         setViewState('plan');
         setPlanningInitialTab('BasicInfo'); // Reset to default when clicking nav
     }
-    else if (item.id === 'Tasks') setViewState('tasks');
+    else if (item.id === 'Tasks') {
+        setFocusedTaskId(undefined);
+        setViewState('tasks');
+    }
     else if (item.id === 'Knowledge') setViewState('knowledge-library');
   };
 
@@ -105,10 +127,13 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) => {
   const handleHomeClick = () => {
     setActiveTab('Dashboard');
     setViewState('dashboard');
+    setPlanningInitialTab('BasicInfo');
+    setIsProfileOpen(false);
     setIsMobileMenuOpen(false);
   };
 
-  const handleNavigateToTasks = () => {
+  const handleNavigateToTasks = (taskId?: string) => {
+    setFocusedTaskId(taskId);
     setActiveTab('Tasks');
     setViewState('tasks');
   };
@@ -123,10 +148,12 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) => {
           {/* Logo & Nav */}
           <div className="flex items-center">
             <button 
+              type="button"
               id="student-brand-home-btn"
               onClick={handleHomeClick}
               className="mr-8 flex items-center gap-2.5 group cursor-pointer hover:opacity-90 transition-all text-left focus:outline-none"
               title={isEn ? "Back to Dashboard" : "返回首页"}
+              aria-label={isEn ? "Back to student dashboard" : "返回学生首页"}
             >
                {/* Student Theme: Violet Logo */}
                <div className="w-8 h-8 bg-violet-600 group-hover:scale-105 rounded-lg flex items-center justify-center text-white font-bold shadow-lg shadow-violet-500/30 transition-transform">N</div>
@@ -187,12 +214,12 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) => {
                  className="flex items-center gap-2 sm:gap-3 pl-2 pr-1 py-1 rounded-full hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-white/10"
              >
                  <div className="text-right hidden sm:block">
-                   <p className="text-sm font-bold text-gray-800 dark:text-zinc-200 leading-none">Alex Chen</p>
+                   <p className="text-sm font-bold text-gray-800 dark:text-zinc-200 leading-none">{preferredName}</p>
                    <p className="text-[10px] text-gray-500 dark:text-zinc-500 mt-1 leading-none">Grade 11</p>
                  </div>
                  {/* Student Avatar: Violet Ring */}
                  <div className="w-8 h-8 sm:w-9 sm:h-9 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full flex items-center justify-center font-bold text-sm ring-2 ring-white dark:ring-zinc-900 shadow-sm">
-                   A
+                   {preferredName.trim().charAt(0).toUpperCase() || 'S'}
                  </div>
                  <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} />
              </button>
@@ -219,7 +246,8 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) => {
                  <div className="fixed inset-0 z-10" onClick={() => setIsProfileOpen(false)}></div>
                  <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-zinc-900 border border-gray-100 dark:border-white/10 rounded-xl shadow-xl dark:shadow-black/50 z-20 py-2 animate-in fade-in zoom-in-95 duration-200 ring-1 ring-black/5 dark:ring-white/5">
                      <div className="px-4 py-3 border-b border-gray-100 dark:border-white/5 mb-1">
-                       <p className="text-sm font-bold text-gray-900 dark:text-white">Alex Chen</p>
+                       <p className="text-sm font-bold text-gray-900 dark:text-white">{preferredName}</p>
+                       <p className="text-[10px] text-gray-400">{FORMAL_STUDENT_NAME}</p>
                        <p className="text-xs text-gray-500 dark:text-zinc-500">alex.c@student.nut.edu</p>
                      </div>
                      <button 
@@ -262,7 +290,7 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) => {
                           A
                        </div>
                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-gray-900 dark:text-white truncate">Alex Chen</p>
+                          <p className="text-xs font-bold text-gray-900 dark:text-white truncate">{preferredName}</p>
                           <p className="text-[10px] text-gray-500 dark:text-zinc-400 truncate">Grade 11 · Student</p>
                        </div>
                     </div>
@@ -344,6 +372,8 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) => {
 
          {viewState === 'dashboard' && (
             <StudentHome 
+              preferredName={preferredName}
+              tasks={studentTasks}
               onNavigateToEssays={handleNavigateToEssays} 
               onNavigateToPlan={handleNavigateToPlan}
               onNavigateToTasks={handleNavigateToTasks}
@@ -383,11 +413,18 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) => {
             </div>
          )}
 
-         {viewState === 'tasks' && <StudentTaskCenter />}
+         {viewState === 'tasks' && (
+            <StudentTaskCenter
+              tasks={studentTasks}
+              setTasks={setStudentTasks}
+              initialTaskId={focusedTaskId}
+              studentName={preferredName}
+            />
+         )}
 
          {viewState === 'profile' && (
             <div className="h-full overflow-y-auto custom-scrollbar">
-                <StudentProfile />
+            <StudentProfile formalName={FORMAL_STUDENT_NAME} preferredName={preferredName} onPreferredNameChange={handlePreferredNameChange} />
             </div>
          )}
 

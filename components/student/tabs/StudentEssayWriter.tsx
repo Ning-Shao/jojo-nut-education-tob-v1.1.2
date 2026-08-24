@@ -6,11 +6,19 @@ import {
   MessageSquare, Wand2, RefreshCw, Scissors, Type,
   AlertCircle, ArrowRight, Check, X, History,
   Languages, Lightbulb, BookOpen, ChevronDown, ChevronUp,
-  FileText, FileDown, Download, User, Copy, Quote, Send,
+  FileText, FileDown, Download, User, Send,
   AlertTriangle, Lock, Unlock, RotateCcw, Loader2
 } from '../../common/Icons';
 import { GoogleGenAI } from "@google/genai";
 import { useLanguage } from '../../../contexts/LanguageContext';
+import {
+  ensureEssayReview,
+  getEssayReview,
+  subscribeEssayReviews,
+  updateEssayReview,
+  SharedEssayReview
+} from '../../../services/essayReviewStore';
+import { publishStudentReviewEvent } from '../../../services/studentReviewEvents';
 
 // --- Types ---
 interface EssayTask {
@@ -46,29 +54,6 @@ interface InspirationIdea {
   description: string;
   matchReason: string;
 }
-
-interface TeacherBrief {
-  id: string;
-  author: string;
-  avatar: string;
-  date: string;
-  title: string;
-  content: string;
-  tags: string[];
-}
-
-// Mock Teacher Briefs
-const MOCK_BRIEFS: TeacherBrief[] = [
-  {
-    id: 'tb1',
-    author: 'Ms. Sarah',
-    avatar: 'https://api.dicebear.com/7.x/micah/svg?seed=Sarah&backgroundColor=ffdfbf',
-    date: '2 hours ago',
-    title: 'Essay Strategy: The Lego Metaphor',
-    content: "Alex, let's stick to the 'Lego' story we brainstormed. \n\nKey Points to Cover:\n1. The 'Collapse': Describe the failure vividly.\n2. The 'Debug': How you analyzed the structure (connect to CS logic).\n3. The 'Rebuild': It's not just about toys, it's about systems engineering.",
-    tags: ['Core Narrative', 'Structure']
-  }
-];
 
 // --- Mock Data ---
 const MOCK_ESSAYS: EssayTask[] = [
@@ -164,8 +149,9 @@ const StudentEssayWriter: React.FC = () => {
   
   // Layout State
   const [isZenMode, setIsZenMode] = useState(false);
+  const [isTaskPanelOpen, setIsTaskPanelOpen] = useState(false);
   const [rightPanelTab, setRightPanelTab] = useState<'Brief' | 'Inspiration' | 'Tools'>('Brief');
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
   const [isPromptExpanded, setIsPromptExpanded] = useState(true);
 
   // Editor State
@@ -196,6 +182,9 @@ const StudentEssayWriter: React.FC = () => {
 
   // History State (Local for demo)
   const [versions, setVersions] = useState<EssayVersion[]>([]);
+  const [sharedReview, setSharedReview] = useState<SharedEssayReview | null>(null);
+  const [isReviewDetailsOpen, setIsReviewDetailsOpen] = useState(false);
+  const [reviewMode, setReviewMode] = useState<'Original' | 'Teacher' | 'Diff' | 'History'>('Diff');
 
   const activeEssay = essays.find(e => e.id === activeEssayId) || essays[0];
   const wordCount = activeEssay.content.split(/\s+/).filter(Boolean).length;
@@ -208,6 +197,38 @@ const StudentEssayWriter: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [toastMessage]);
+
+  useEffect(() => {
+    MOCK_ESSAYS.forEach(essay => ensureEssayReview(essay.id, essay.content, essay.status));
+
+    const syncReview = (changedEssayId?: string) => {
+      if (changedEssayId && changedEssayId !== activeEssayId) return;
+      const review = getEssayReview(activeEssayId);
+      setSharedReview(review);
+      if (!review) return;
+      setVersions(review.versions.map(version => ({
+        ...version,
+        source: version.source as VersionSource,
+        wordCount: version.content.trim().split(/\s+/).filter(Boolean).length
+      })));
+      setEssays(previous => previous.map(essay => essay.id === activeEssayId ? {
+        ...essay,
+        status: review.status,
+        content: review.currentContent,
+        latestReturnNote: review.overallFeedback,
+        feedback: review.comments.map(comment => ({
+          id: comment.id,
+          originalText: comment.quote,
+          comment: comment.comment,
+          type: 'Clarity',
+          isResolved: false
+        }))
+      } : essay));
+    };
+
+    syncReview();
+    return subscribeEssayReviews(syncReview);
+  }, [activeEssayId]);
 
   // Click outside to close floating menu
   useEffect(() => {
@@ -227,6 +248,17 @@ const StudentEssayWriter: React.FC = () => {
     setInspirationIdeas([]);
   }, [activeEssayId]);
 
+  useEffect(() => {
+    const desktopAssistant = window.matchMedia('(min-width: 1024px)');
+    const syncSidePanels = (event: MediaQueryListEvent) => {
+      setIsRightPanelOpen(event.matches);
+      if (event.matches) setIsTaskPanelOpen(false);
+    };
+
+    desktopAssistant.addEventListener('change', syncSidePanels);
+    return () => desktopAssistant.removeEventListener('change', syncSidePanels);
+  }, []);
+
   const showToast = (msg: string) => setToastMessage(msg);
 
   // --- Handlers ---
@@ -234,6 +266,14 @@ const StudentEssayWriter: React.FC = () => {
   const handleContentChange = (newContent: string) => {
     if (isReadOnly) return;
     setEssays(prev => prev.map(e => e.id === activeEssayId ? { ...e, content: newContent } : e));
+    const saved = updateEssayReview(activeEssayId, review => ({
+      ...review,
+      currentContent: newContent,
+      lastModifiedBy: 'Student',
+      lastModifiedAt: new Date().toLocaleString(),
+      revisionNumber: review.revisionNumber + 1
+    }));
+    if (!saved) showToast(isEn ? 'Auto-save failed' : '自动保存失败，请重试');
     setIsSaving(true);
     const timeoutId = setTimeout(() => {
       setIsSaving(false);
@@ -261,6 +301,23 @@ const StudentEssayWriter: React.FC = () => {
     };
 
     setVersions(prev => [newVersion, ...prev]);
+    updateEssayReview(activeEssayId, review => ({
+      ...review,
+      currentContent: activeEssay.content,
+      versions: [{
+        id: newVersion.id,
+        versionNumber: newVersion.versionNumber,
+        content: newVersion.content,
+        author: newVersion.author,
+        source: newVersion.source,
+        note: newVersion.note,
+        updatedAt: newVersion.updatedAt,
+        timestamp: newVersion.timestamp
+      }, ...review.versions.filter(version => version.id !== newVersion.id)],
+      lastModifiedBy: 'Student',
+      lastModifiedAt: newVersion.updatedAt,
+      revisionNumber: review.revisionNumber + 1
+    }));
     return newVersion;
   };
 
@@ -275,11 +332,39 @@ const StudentEssayWriter: React.FC = () => {
 
   const handleConfirmSubmit = () => {
     const note = activeEssay.status === 'Returned' ? (isEn ? 'Resubmitted after revision' : '修改后重新提交') : (isEn ? 'Submitted for review' : '提交审阅');
-    createSnapshot('Student_Submit', note, 'Student');
+    const submittedVersion = createSnapshot('Student_Submit', note, 'Student');
     
     setEssays(prev => prev.map(e => 
       e.id === activeEssayId ? { ...e, status: 'Reviewing' } : e
     ));
+    const saved = updateEssayReview(activeEssayId, review => ({
+      ...review,
+      status: 'Reviewing',
+      currentContent: activeEssay.content,
+      lastModifiedBy: 'Student',
+      lastModifiedAt: new Date().toLocaleString(),
+      revisionNumber: review.revisionNumber + 1
+    }));
+    if (!saved) {
+      showToast(isEn ? 'Submission sync failed' : '提交同步失败，请重试');
+      return;
+    }
+
+    // 审核任务只由成功提交后的明确学生事件生成；版本 ID 作为事件幂等键。
+    publishStudentReviewEvent({
+      id: `essay-submitted:${activeEssayId}:${submittedVersion.id}`,
+      type: 'student.submitted',
+      entityType: 'essay',
+      entityId: activeEssayId,
+      studentId: 'alex-chen',
+      studentName: STUDENT_FULL_PROFILE.name,
+      studentAvatar: 'https://api.dicebear.com/7.x/micah/svg?seed=Alex&backgroundColor=ffdfbf',
+      subject: `${activeEssay.school} ${activeEssay.title}`,
+      createdBy: 'student:alex-chen',
+      createdAt: new Date().toISOString(),
+      // 仅记录事件发生时的界面语言用于审计；老师端展示语言由当前查看者决定。
+      locale: language,
+    });
     
     setIsSubmitModalOpen(false);
     showToast(isEn ? "Submitted successfully! Teacher notified." : "提交成功！已通知老师进行批改。");
@@ -329,6 +414,37 @@ const StudentEssayWriter: React.FC = () => {
             feedback: e.feedback.map(f => f.id === feedbackId ? { ...f, isResolved: true } : f)
         };
     }));
+  };
+
+  const focusTeacherComment = (start: number, end: number) => {
+    setIsReviewDetailsOpen(false);
+    setTimeout(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(start, end);
+    }, 50);
+  };
+
+  const renderContentDiff = (original: string, modified: string) => {
+    const originalWords = original.split(/(\s+)/);
+    const modifiedWords = modified.split(/(\s+)/);
+    let prefix = 0;
+    while (prefix < originalWords.length && prefix < modifiedWords.length && originalWords[prefix] === modifiedWords[prefix]) prefix += 1;
+    let suffix = 0;
+    while (
+      suffix < originalWords.length - prefix &&
+      suffix < modifiedWords.length - prefix &&
+      originalWords[originalWords.length - 1 - suffix] === modifiedWords[modifiedWords.length - 1 - suffix]
+    ) suffix += 1;
+    const originalMiddle = originalWords.slice(prefix, originalWords.length - suffix).join('');
+    const modifiedMiddle = modifiedWords.slice(prefix, modifiedWords.length - suffix).join('');
+    return (
+      <div className="whitespace-pre-wrap font-serif text-sm leading-loose text-gray-800">
+        {originalWords.slice(0, prefix).join('')}
+        {originalMiddle && <del className="rounded bg-red-100 px-1 text-red-700">{originalMiddle}</del>}
+        {modifiedMiddle && <ins className="ml-1 rounded bg-green-100 px-1 text-green-700 no-underline">{modifiedMiddle}</ins>}
+        {originalWords.slice(originalWords.length - suffix).join('')}
+      </div>
+    );
   };
 
   const handleDownload = () => {
@@ -519,6 +635,15 @@ const StudentEssayWriter: React.FC = () => {
       
       {toastMessage && <Toast message={toastMessage} onClose={() => setToastMessage(null)} />}
 
+      {(isTaskPanelOpen || isRightPanelOpen) && (
+        <button
+          type="button"
+          aria-label={isEn ? 'Close side panel' : '关闭侧边面板'}
+          onClick={() => { setIsTaskPanelOpen(false); setIsRightPanelOpen(false); }}
+          className="absolute inset-0 z-30 bg-black/30 backdrop-blur-[1px] lg:hidden"
+        />
+      )}
+
       {/* Floating Toolbar */}
       {floatingMenu.visible && (
         <div 
@@ -625,20 +750,24 @@ const StudentEssayWriter: React.FC = () => {
 
       {/* 1. LEFT SIDEBAR: Task List */}
       <div 
-        className={`bg-white dark:bg-zinc-900 border-r border-[#e5e0dc] dark:border-white/5 flex flex-col transition-all duration-300 ease-in-out
-            ${isZenMode ? 'w-0 opacity-0 overflow-hidden' : 'w-64 opacity-100'}
+        className={`absolute inset-y-0 left-0 z-40 w-64 bg-white dark:bg-zinc-900 border-r border-[#e5e0dc] dark:border-white/5 flex flex-col transition-all duration-300 ease-in-out md:relative md:inset-auto md:z-auto
+            ${isTaskPanelOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'}
+            ${isZenMode ? 'md:w-0 md:opacity-0 md:overflow-hidden' : 'md:w-64 md:opacity-100'}
         `}
       >
          <div className="p-4 border-b border-[#e5e0dc] dark:border-white/5 flex justify-between items-center bg-gray-50/50 dark:bg-white/5">
             <h3 className="font-bold text-gray-800 dark:text-zinc-200 text-sm flex items-center gap-2">
                <FileText className="w-4 h-4 text-violet-600" /> {isEn ? 'Essay Tasks' : '文书任务清单'}
             </h3>
+            <button type="button" onClick={() => setIsTaskPanelOpen(false)} className="p-1 text-gray-400 hover:text-gray-700 md:hidden" aria-label={isEn ? 'Close task list' : '关闭任务列表'}>
+              <X className="w-4 h-4" />
+            </button>
          </div>
          <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {essays.map(essay => (
                <div 
                   key={essay.id}
-                  onClick={() => setActiveEssayId(essay.id)}
+                  onClick={() => { setActiveEssayId(essay.id); setIsTaskPanelOpen(false); }}
                   className={`p-3 rounded-lg cursor-pointer border transition-all group relative
                      ${activeEssayId === essay.id 
                         ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-500/30' 
@@ -679,8 +808,11 @@ const StudentEssayWriter: React.FC = () => {
          
          {/* Top Bar */}
          <div className="border-b border-gray-100 dark:border-white/5 bg-white dark:bg-zinc-900 flex-shrink-0 z-20">
-            <div className="h-14 flex items-center justify-between px-6">
+            <div className="min-h-14 flex flex-wrap items-center gap-2 px-3 py-2 sm:px-6">
                <div className="flex items-center gap-3 min-w-0">
+                  <button onClick={() => setIsTaskPanelOpen(true)} className="p-2 text-gray-500 hover:text-violet-600 hover:bg-violet-50 rounded-lg md:hidden" title={isEn ? 'Essay tasks' : '文书任务'} aria-label={isEn ? 'Open essay tasks' : '打开文书任务列表'}>
+                    <FileText className="w-4 h-4" />
+                  </button>
                   {isZenMode && (
                       <button onClick={() => setIsZenMode(false)} className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded" title="Show Sidebar">
                           <ChevronRight className="w-4 h-4 text-gray-500"/>
@@ -695,9 +827,9 @@ const StudentEssayWriter: React.FC = () => {
                   </div>
                </div>
                
-               <div className="flex items-center gap-3 flex-shrink-0">
+               <div className="ml-auto flex flex-wrap items-center justify-end gap-1 sm:gap-2 flex-shrink-0">
                   {/* Status & Word Count */}
-                  <div className="flex items-center gap-2 text-xs text-gray-500 px-3 py-1 bg-gray-50 dark:bg-white/5 rounded-full">
+                  <div className="flex items-center gap-1 text-[11px] sm:text-xs text-gray-500 px-2 sm:px-3 py-1 bg-gray-50 dark:bg-white/5 rounded-full whitespace-nowrap">
                      <span className={`${wordCount > activeEssay.wordLimit ? 'text-red-500 font-bold' : ''}`}>{wordCount}</span>
                      <span className="text-gray-300">/</span>
                      <span>{activeEssay.wordLimit} words</span>
@@ -708,7 +840,7 @@ const StudentEssayWriter: React.FC = () => {
                       <button 
                          onClick={handleRequestSubmit}
                          disabled={isReadOnly}
-                         className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold shadow-sm transition-all
+                         className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-lg text-xs font-bold shadow-sm transition-all whitespace-nowrap
                            ${isReadOnly 
                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                              : 'bg-violet-600 text-white hover:bg-violet-700 hover:shadow-md'}
@@ -723,18 +855,23 @@ const StudentEssayWriter: React.FC = () => {
                       </button>
                   )}
 
-                  <div className="h-4 w-px bg-gray-200 dark:bg-white/10 mx-1"></div>
+                  <div className="hidden sm:block h-4 w-px bg-gray-200 dark:bg-white/10 mx-1"></div>
 
-                  <button onClick={handleSaveManual} disabled={isReadOnly} title={isEn ? "Save" : "保存"} className={`p-2 rounded-lg transition-colors ${isReadOnly ? 'text-gray-300' : 'text-gray-400 hover:text-primary-600 hover:bg-gray-100'}`}><Save className="w-4 h-4"/></button>
-                  <button onClick={handleDownload} title={isEn ? "Download Word" : "下载 Word"} className="p-2 text-gray-400 hover:text-primary-600 hover:bg-gray-100 rounded-lg transition-colors"><FileDown className="w-4 h-4"/></button>
+                  <button onClick={handleSaveManual} disabled={isReadOnly} title={isEn ? "Save" : "保存"} className={`hidden sm:block p-2 rounded-lg transition-colors ${isReadOnly ? 'text-gray-300' : 'text-gray-400 hover:text-primary-600 hover:bg-gray-100'}`}><Save className="w-4 h-4"/></button>
+                  <button onClick={handleDownload} title={isEn ? "Download Word" : "下载 Word"} className="hidden sm:block p-2 text-gray-400 hover:text-primary-600 hover:bg-gray-100 rounded-lg transition-colors"><FileDown className="w-4 h-4"/></button>
                   
                   <div className="h-4 w-px bg-gray-200 dark:bg-white/10 mx-1"></div>
 
                   <button onClick={() => setIsZenMode(!isZenMode)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors hidden sm:block">
                      {isZenMode ? <Minimize2 className="w-4 h-4"/> : <Maximize2 className="w-4 h-4"/>}
                   </button>
-                  <button onClick={() => setIsRightPanelOpen(!isRightPanelOpen)} className={`p-2 rounded-lg transition-colors ${isRightPanelOpen ? 'bg-gray-100 dark:bg-white/10 text-gray-900' : 'text-gray-400 hover:bg-gray-100'}`}>
+                  <button
+                     onClick={() => setIsRightPanelOpen(true)}
+                     className={`lg:hidden flex items-center gap-1.5 px-2 py-2 rounded-lg text-xs font-bold transition-colors ${isRightPanelOpen ? 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-300' : 'text-gray-500 hover:bg-gray-100'}`}
+                     title={isEn ? 'Open essay assistant' : '打开文书助手'}
+                  >
                      <MessageSquare className="w-4 h-4" />
+                     <span className="hidden sm:inline">{isEn ? 'Assistant' : '文书助手'}</span>
                   </button>
                </div>
             </div>
@@ -764,9 +901,105 @@ const StudentEssayWriter: React.FC = () => {
                     <AlertTriangle className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
                     <div>
                         <p className="text-sm font-bold text-purple-900 dark:text-purple-200">{isEn ? 'Teacher Request Revision' : '老师发回修改'}</p>
-                        <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">{activeEssay.latestReturnNote}</p>
+                        <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">
+                          {activeEssay.latestReturnNote || (isEn ? 'The teacher did not provide an overall comment for this round.' : '老师本轮未提供整体修改意见。')}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setIsReviewDetailsOpen(open => !open)}
+                          className="mt-2 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-purple-700"
+                        >
+                          {isReviewDetailsOpen ? (isEn ? 'Hide review details' : '收起审阅详情') : (isEn ? 'View review details' : '查看审阅详情')}
+                        </button>
                     </div>
                 </div>
+            )}
+
+            {activeEssay.status !== 'Returned' && sharedReview && Boolean(sharedReview.overallFeedback || sharedReview.comments.length || sharedReview.teacherModifiedContent) && (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100 bg-indigo-50 px-5 py-3 dark:border-indigo-500/20 dark:bg-indigo-900/20 sm:px-8">
+                <div>
+                  <p className="text-sm font-bold text-indigo-900 dark:text-indigo-200">{isEn ? 'Previous teacher review is available' : '可查看上一轮老师审阅记录'}</p>
+                  <p className="mt-0.5 text-xs text-indigo-600 dark:text-indigo-300">{isEn ? 'Comments and version history remain available after resubmission.' : '重新提交后，老师意见、文本批注和版本记录仍会保留。'}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsReviewDetailsOpen(open => !open)}
+                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700"
+                >
+                  {isReviewDetailsOpen ? (isEn ? 'Hide review details' : '收起审阅详情') : (isEn ? 'View review details' : '查看审阅详情')}
+                </button>
+              </div>
+            )}
+
+            {isReviewDetailsOpen && sharedReview && (
+              <section className="border-b border-violet-100 bg-white px-5 py-5 dark:border-white/10 dark:bg-zinc-900 sm:px-8">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-gray-900 dark:text-white">{isEn ? 'Teacher review details' : '老师审阅详情'}</h3>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {isEn ? 'Reviewer' : '修改老师'}：{sharedReview.reviewAuthor || 'Ms. Sarah'} · {isEn ? 'Reviewed' : '审阅时间'}：{sharedReview.reviewedAt || sharedReview.lastModifiedAt} · {sharedReview.versions[0]?.versionNumber || `V${sharedReview.revisionNumber}`}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1 rounded-lg bg-gray-100 p-1 dark:bg-white/5">
+                    {(['Original', 'Teacher', 'Diff', 'History'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setReviewMode(mode)}
+                        className={`rounded-md px-3 py-1.5 text-xs font-bold ${reviewMode === mode ? 'bg-white text-violet-700 shadow-sm dark:bg-zinc-800' : 'text-gray-500'}`}
+                      >
+                        {mode === 'Original' ? (isEn ? 'Original' : '学生原稿') : mode === 'Teacher' ? (isEn ? 'Teacher edit' : '老师修改稿') : mode === 'Diff' ? (isEn ? 'Compare' : '修改对比') : (isEn ? 'History' : '版本历史')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {reviewMode !== 'History' && (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
+                    {reviewMode === 'Original' && <p className="whitespace-pre-wrap font-serif text-sm leading-loose">{sharedReview.studentOriginalContent}</p>}
+                    {reviewMode === 'Teacher' && (
+                      <p className="whitespace-pre-wrap font-serif text-sm leading-loose">
+                        {sharedReview.teacherModifiedContent || (isEn ? 'The teacher did not directly edit the essay this round.' : '老师本轮未直接修改正文。')}
+                      </p>
+                    )}
+                    {reviewMode === 'Diff' && renderContentDiff(sharedReview.studentOriginalContent, sharedReview.teacherModifiedContent || sharedReview.studentOriginalContent)}
+                  </div>
+                )}
+
+                {reviewMode === 'History' && (
+                  <div className="space-y-2">
+                    {sharedReview.versions.length > 0 ? sharedReview.versions.map(version => (
+                      <article key={version.id} className="rounded-xl border border-gray-200 bg-white p-3 dark:border-white/10 dark:bg-zinc-800">
+                        <div className="flex flex-wrap justify-between gap-2 text-xs">
+                          <span className="font-bold text-gray-800 dark:text-white">{version.versionNumber} · {version.author}</span>
+                          <span className="text-gray-400">{version.updatedAt}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">{version.note || (isEn ? 'No version note' : '本版本未填写备注')}</p>
+                      </article>
+                    )) : <p className="text-sm text-gray-500">{isEn ? 'No version history yet.' : '暂无版本历史。'}</p>}
+                  </div>
+                )}
+
+                <div className="mt-4">
+                  <h4 className="mb-2 text-sm font-bold text-gray-900 dark:text-white">{isEn ? 'Inline comments' : '具体文本批注'}</h4>
+                  {sharedReview.comments.length > 0 ? (
+                    <div className="space-y-2">
+                      {sharedReview.comments.map(comment => (
+                        <button
+                          key={comment.id}
+                          type="button"
+                          onClick={() => focusTeacherComment(comment.start, comment.end)}
+                          className="block w-full rounded-xl border border-indigo-100 bg-indigo-50 p-3 text-left hover:border-indigo-300"
+                        >
+                          <p className="text-xs font-bold text-indigo-800">“{comment.quote}”</p>
+                          <p className="mt-1 text-sm text-gray-700">{comment.comment}</p>
+                          <p className="mt-2 text-[11px] text-gray-400">{comment.author} · {comment.createdAt} · {isEn ? 'Click to locate text' : '点击定位原文'}</p>
+                        </button>
+                      ))}
+                    </div>
+                  ) : <p className="text-sm text-gray-500">{isEn ? 'The teacher did not provide inline comments this round.' : '老师本轮未提供具体文本批注。'}</p>}
+                </div>
+              </section>
             )}
             
             {activeEssay.status === 'Finalized' && (
@@ -793,12 +1026,12 @@ const StudentEssayWriter: React.FC = () => {
 
       {/* 3. RIGHT SIDEBAR: The Copilot */}
       <div 
-         className={`bg-white dark:bg-zinc-900 border-l border-[#e5e0dc] dark:border-white/5 flex flex-col transition-all duration-300 ease-in-out shadow-[-4px_0_15px_rgba(0,0,0,0.02)]
-            ${isRightPanelOpen ? 'w-80 opacity-100 translate-x-0' : 'w-0 opacity-0 translate-x-full overflow-hidden'}
+         className={`absolute inset-y-0 right-0 z-40 w-80 max-w-[85vw] bg-white dark:bg-zinc-900 border-l border-[#e5e0dc] dark:border-white/5 flex flex-col transition-all duration-300 ease-in-out shadow-[-4px_0_15px_rgba(0,0,0,0.08)] lg:relative lg:inset-auto lg:z-auto lg:max-w-none lg:w-80 lg:translate-x-0 lg:opacity-100
+            ${isRightPanelOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
          `}
       >
          {/* Tabs */}
-         <div className="flex p-2 border-b border-gray-100 dark:border-white/5">
+         <div className="sticky top-0 z-10 flex flex-none items-center min-h-14 p-2 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-zinc-900">
             {[
                { id: 'Brief', icon: User, label: isEn ? 'Brief' : '指引' },
                { id: 'Inspiration', icon: Lightbulb, label: isEn ? 'Ideas' : '灵感' },
@@ -817,49 +1050,34 @@ const StudentEssayWriter: React.FC = () => {
                   <span>{tab.label}</span>
                </button>
             ))}
+            <button type="button" onClick={() => setIsRightPanelOpen(false)} className="ml-1 p-2 text-gray-400 hover:text-gray-700 lg:hidden" aria-label={isEn ? 'Close assistant' : '关闭助手'}>
+              <X className="w-4 h-4" />
+            </button>
          </div>
 
-         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+         <div className="min-h-0 flex-1 overflow-y-auto p-4 custom-scrollbar">
             
             {/* --- TAB 1: TEACHER BRIEF --- */}
             {rightPanelTab === 'Brief' && (
                <div className="space-y-4">
-                  {MOCK_BRIEFS.map(brief => (
-                     <div key={brief.id} className="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-500/20 rounded-xl p-4 shadow-sm relative group">
+                  {sharedReview?.overallFeedback ? (
+                     <div className="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-500/20 rounded-xl p-4 shadow-sm relative group">
                         <div className="flex items-center gap-3 mb-3 border-b border-indigo-200 dark:border-indigo-500/20 pb-2">
-                           <img src={brief.avatar} className="w-8 h-8 rounded-full border border-indigo-200" alt="avatar" />
+                           <img src="https://api.dicebear.com/7.x/micah/svg?seed=Sarah&backgroundColor=ffdfbf" className="w-8 h-8 rounded-full border border-indigo-200" alt="avatar" />
                            <div>
-                              <p className="text-xs font-bold text-indigo-900 dark:text-indigo-200">{brief.author}</p>
-                              <p className="text-[10px] text-indigo-500 dark:text-indigo-400">{brief.date}</p>
+                              <p className="text-xs font-bold text-indigo-900 dark:text-indigo-200">{sharedReview.reviewAuthor || 'Ms. Sarah'}</p>
+                              <p className="text-[10px] text-indigo-500 dark:text-indigo-400">{sharedReview.reviewedAt || sharedReview.lastModifiedAt}</p>
                            </div>
                         </div>
                         
-                        <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-2">{brief.title}</h4>
+                        <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-2">{isEn ? 'Revision guidance' : '本轮修改指引'}</h4>
                         <div className="text-xs text-gray-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap font-medium">
-                           {brief.content}
+                           {sharedReview.overallFeedback}
                         </div>
-
-                        <div className="flex flex-wrap gap-1.5 mt-3">
-                           {brief.tags.map(tag => (
-                              <span key={tag} className="text-[9px] bg-white dark:bg-zinc-800 px-2 py-0.5 rounded-full border border-indigo-100 dark:border-white/10 text-indigo-600 dark:text-indigo-300">#{tag}</span>
-                           ))}
-                        </div>
-
-                        {!isReadOnly && (
-                            <button 
-                            onClick={() => insertText(brief.content)}
-                            className="absolute top-3 right-3 p-1.5 bg-white dark:bg-zinc-800 rounded-lg text-indigo-500 hover:text-indigo-700 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
-                            title={isEn ? "Insert into editor" : "插入到编辑器"}
-                            >
-                            <Copy className="w-3.5 h-3.5" />
-                            </button>
-                        )}
                      </div>
-                  ))}
-                  
-                  {MOCK_BRIEFS.length === 0 && (
+                  ) : (
                      <div className="text-center py-10 text-gray-400 text-xs">
-                        {isEn ? 'No guidance from counselor yet.' : '暂无顾问指引。'}
+                        {isEn ? 'The teacher did not provide overall guidance this round.' : '老师本轮未提供整体修改指引。'}
                      </div>
                   )}
                </div>

@@ -1,27 +1,62 @@
 
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   Target, Calendar, CheckCircle, Clock, 
   TrendingUp, ArrowRight, Zap, BookOpen, 
   AlertCircle, Trophy, Sparkles 
 } from '../common/Icons';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { getStudentFinalSchools } from './studentSchoolList';
+import { formatStudentTaskDueDate, isStudentTaskPastDue, isTaskDueThisWeek, isTodayPending, StudentTask } from './studentTasks';
 
 interface StudentHomeProps {
+  preferredName: string;
+  tasks: StudentTask[];
   onNavigateToEssays?: () => void;
   onNavigateToPlan?: () => void;
-  onNavigateToTasks?: () => void;
+  onNavigateToTasks?: (taskId?: string) => void;
 }
 
 const StudentHome: React.FC<StudentHomeProps> = ({ 
+  preferredName,
+  tasks,
   onNavigateToEssays, 
   onNavigateToPlan, 
   onNavigateToTasks 
 }) => {
   const { language } = useLanguage();
   const isEn = language === 'en-US';
+  const schoolList = useMemo(() => getStudentFinalSchools(isEn), [isEn]);
+  const [dreamSchoolId, setDreamSchoolId] = useState(() => localStorage.getItem('student_dream_school_id') || '');
+  const [taskReminderTab, setTaskReminderTab] = useState<'today' | 'overdue' | 'review'>('today');
+  const dreamSchool = schoolList.find(school => school.id === dreamSchoolId) || schoolList.find(school => school.tier === 'Reach') || schoolList[0];
+  const taskStatusLabel = (status: StudentTask['status']) => isEn
+    ? status
+    : ({ Pending: '待处理', 'In Progress': '进行中', Completed: '已完成', Review: '待审核', Overdue: '已逾期' } as Record<StudentTask['status'], string>)[status];
+
+  useEffect(() => {
+    if (!dreamSchoolId && dreamSchool) {
+      setDreamSchoolId(dreamSchool.id);
+      localStorage.setItem('student_dream_school_id', dreamSchool.id);
+    }
+  }, [dreamSchool, dreamSchoolId]);
+
+  const handleDreamSchoolChange = (schoolId: string) => {
+    setDreamSchoolId(schoolId);
+    localStorage.setItem('student_dream_school_id', schoolId);
+  };
 
   // Mock Data
+  const completedTaskCount = tasks.filter(task => task.status === 'Completed').length;
+  const completionRate = tasks.length === 0 ? 0 : Math.round((completedTaskCount / tasks.length) * 100);
+  const weeklyTasks = useMemo(() => tasks.filter(isTaskDueThisWeek), [tasks]);
+  const taskReminderGroups = useMemo(() => ({
+    today: tasks.filter(isTodayPending),
+    overdue: tasks.filter(task => isStudentTaskPastDue(task)),
+    review: tasks.filter(task => task.status === 'Review'),
+  }), [tasks]);
+  const taskReminderItems = taskReminderGroups[taskReminderTab];
+
   const stats = [
     { 
       label: isEn ? 'Days to ED' : '距离早申截止', 
@@ -33,7 +68,7 @@ const StudentHome: React.FC<StudentHomeProps> = ({
     },
     { 
       label: isEn ? 'Task Completion' : '任务完成率', 
-      value: '85%', 
+      value: `${completionRate}%`,
       unit: '',
       icon: <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />,
       bg: 'bg-emerald-50 dark:bg-emerald-500/10',
@@ -41,18 +76,13 @@ const StudentHome: React.FC<StudentHomeProps> = ({
     },
     { 
       label: isEn ? 'Target School' : '梦校目标', 
-      value: 'CMU', 
-      unit: 'Reach',
+      value: dreamSchool?.uni.name || (isEn ? 'Not selected' : '未选择'),
+      unit: dreamSchool?.tier || '',
+      isDreamSchool: true,
       icon: <Target className="w-5 h-5 text-rose-600 dark:text-rose-400" />,
       bg: 'bg-rose-50 dark:bg-rose-500/10',
       border: 'border-rose-100 dark:border-rose-500/20'
     },
-  ];
-
-  const tasks = [
-    { id: 1, title: isEn ? 'Draft Personal Statement V2' : '完成主文书 V2 草稿', due: 'Today', tag: 'Essay', urgent: true },
-    { id: 2, title: isEn ? 'Submit Physics Recommendation Request' : '提交物理老师推荐信申请', due: 'Tomorrow', tag: 'Material', urgent: false },
-    { id: 3, title: isEn ? 'Review School List with Counselor' : '与顾问确认最终选校单', due: 'Fri', tag: 'Planning', urgent: false },
   ];
 
   const timeline = [
@@ -69,13 +99,13 @@ const StudentHome: React.FC<StudentHomeProps> = ({
       <div className="flex justify-between items-end mb-8">
         <div>
           <h1 className="text-3xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">
-            {isEn ? 'Ready to achieve, Alex? 🚀' : '准备好迎接挑战了吗，Alex? 🚀'}
+            {isEn ? `Ready to achieve, ${preferredName}? 🚀` : `准备好迎接挑战了吗，${preferredName}? 🚀`}
           </h1>
           <p className="text-gray-500 dark:text-zinc-400 text-sm flex items-center gap-2">
             {isEn ? (
-              <>You have <span className="font-bold text-violet-600 dark:text-violet-400">3</span> tasks due this week. Let's crush them!</>
+              <>You have <span className="font-bold text-violet-600 dark:text-violet-400">{weeklyTasks.length}</span> tasks due this week. Let's crush them!</>
             ) : (
-              <>本周有 <span className="font-bold text-violet-600 dark:text-violet-400">3</span> 项任务待办。保持专注，继续前进！</>
+              <>本周有 <span className="font-bold text-violet-600 dark:text-violet-400">{weeklyTasks.length}</span> 项任务待办。保持专注，继续前进！</>
             )}
           </p>
         </div>
@@ -95,10 +125,30 @@ const StudentHome: React.FC<StudentHomeProps> = ({
               <span className="text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider">{stat.label}</span>
               <div className="p-1.5 bg-white dark:bg-zinc-900 rounded-lg shadow-sm">{stat.icon}</div>
             </div>
-            <div className="flex items-baseline gap-1">
-              <span className="text-3xl font-black text-gray-900 dark:text-white">{stat.value}</span>
-              <span className="text-xs font-medium text-gray-500 dark:text-zinc-400">{stat.unit}</span>
-            </div>
+            {stat.isDreamSchool ? (
+              <div>
+                <select
+                  aria-label={isEn ? 'Choose dream school from my school list' : '从我的选校清单中选择梦校'}
+                  value={dreamSchool?.id || ''}
+                  onChange={(event) => handleDreamSchoolChange(event.target.value)}
+                  className="w-full min-w-0 rounded-lg border border-rose-200 bg-white/80 px-3 py-2 text-sm font-bold text-gray-900 outline-none transition-colors hover:border-rose-300 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:border-rose-500/20 dark:bg-zinc-900 dark:text-white"
+                >
+                  {schoolList.map(school => (
+                    <option key={school.id} value={school.id}>
+                      {school.uni.name} · {school.major} · {school.tier}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-[11px] text-rose-600 dark:text-rose-400">
+                  {isEn ? 'Selected from My Plan school list' : '选自“我的规划”选校清单'}
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-baseline gap-1">
+                <span className="text-3xl font-black text-gray-900 dark:text-white">{stat.value}</span>
+                <span className="text-xs font-medium text-gray-500 dark:text-zinc-400">{stat.unit}</span>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -169,42 +219,79 @@ const StudentHome: React.FC<StudentHomeProps> = ({
         {/* 4. Right Column: Tasks & Notices */}
         <div className="space-y-6">
            {/* Tasks Widget */}
-           <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-[#e5e0dc] dark:border-white/5 h-full">
+           <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-[#e5e0dc] dark:border-white/5 h-full min-h-[480px] flex flex-col">
               <div className="flex justify-between items-center mb-6">
-                 <h3 className="font-bold text-gray-800 dark:text-zinc-100 flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-amber-500" /> 
-                    {isEn ? 'Up Next' : '待办事项'}
+                 <h3 className="text-lg font-bold text-gray-900 dark:text-zinc-100">
+                    {isEn ? 'Tasks & Reminders' : '待办与提醒'}
                  </h3>
-                 <span className="text-xs bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full font-bold">3 Pending</span>
+                 <button
+                    type="button"
+                    onClick={() => onNavigateToTasks?.()}
+                    className="flex items-center gap-1 text-sm font-bold text-[#b0826d] hover:text-[#8f6856] transition-colors"
+                 >
+                    {isEn ? 'All Tasks' : '全部任务'} <ArrowRight className="w-4 h-4" />
+                 </button>
               </div>
-              
-              <div className="space-y-3">
-                 {tasks.map((task) => (
-                    <div key={task.id} className="group p-3 rounded-xl bg-gray-50 dark:bg-zinc-800/50 border border-gray-100 dark:border-white/5 hover:border-violet-200 dark:hover:border-violet-500/30 hover:bg-white dark:hover:bg-zinc-800 transition-all cursor-pointer">
-                       <div className="flex justify-between items-start mb-2">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${task.urgent ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
-                             {task.tag}
-                          </span>
-                          <span className={`text-xs font-medium flex items-center gap-1 ${task.due === 'Today' ? 'text-red-500' : 'text-gray-400'}`}>
-                             <Clock className="w-3 h-3" /> {task.due}
-                          </span>
-                       </div>
-                       <div className="flex items-center gap-3">
-                          <div className="w-5 h-5 rounded-full border-2 border-gray-300 dark:border-zinc-600 group-hover:border-violet-500 transition-colors"></div>
-                          <p className="text-sm font-medium text-gray-700 dark:text-zinc-300 line-clamp-2 group-hover:text-violet-700 dark:group-hover:text-violet-300 transition-colors">
-                             {task.title}
-                          </p>
-                       </div>
-                    </div>
+
+              <div className="grid grid-cols-3 rounded-xl bg-gray-50 dark:bg-zinc-800/70 p-1 mb-5">
+                 {([
+                    { id: 'today', label: isEn ? 'Today' : '今日待办' },
+                    { id: 'overdue', label: isEn ? 'Overdue' : '本周逾期' },
+                    { id: 'review', label: isEn ? 'In Review' : '待审核' },
+                 ] as const).map(tab => (
+                    <button
+                       key={tab.id}
+                       type="button"
+                       onClick={() => setTaskReminderTab(tab.id)}
+                       className={`min-w-0 rounded-lg px-2 py-2.5 text-sm font-bold transition-all ${taskReminderTab === tab.id ? 'bg-white dark:bg-zinc-700 text-[#9b6f5c] dark:text-[#d4a894] shadow-sm' : 'text-gray-500 dark:text-zinc-400 hover:text-gray-700 dark:hover:text-zinc-200'}`}
+                    >
+                       <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
+                          {tab.label}
+                          {taskReminderGroups[tab.id].length > 0 && (
+                             <span className={`min-w-5 h-5 px-1 rounded-full inline-flex items-center justify-center text-xs ${tab.id === 'overdue' ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400' : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-zinc-300'}`}>
+                                {taskReminderGroups[tab.id].length}
+                             </span>
+                          )}
+                       </span>
+                    </button>
                  ))}
               </div>
-              
-              <button 
-                 onClick={onNavigateToTasks}
-                 className="w-full mt-4 py-2 text-xs font-bold text-gray-500 dark:text-zinc-500 hover:text-violet-600 dark:hover:text-violet-400 flex items-center justify-center gap-1 transition-colors"
-              >
-                 {isEn ? 'View All Tasks' : '查看所有任务'} <ArrowRight className="w-3 h-3" />
-              </button>
+
+              <div className="h-80 overflow-y-auto pr-2 custom-scrollbar">
+                 {taskReminderItems.length > 0 ? (
+                    <div className="divide-y divide-gray-100 dark:divide-white/5">
+                       {taskReminderItems.map(task => (
+                          <button
+                             type="button"
+                             key={task.id}
+                             onClick={() => onNavigateToTasks?.(task.id)}
+                             className="group w-full text-left px-3 py-5 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500"
+                          >
+                             <div className="flex items-start justify-between gap-3">
+                                <p className="min-w-0 text-sm font-bold text-gray-900 dark:text-zinc-100 line-clamp-2 group-hover:text-[#9b6f5c] dark:group-hover:text-[#d4a894] transition-colors">
+                                   {task.title}
+                                </p>
+                                <span className="flex-shrink-0 rounded-md border border-violet-100 dark:border-violet-500/20 bg-violet-50 dark:bg-violet-500/10 px-2 py-1 text-xs font-bold text-violet-600 dark:text-violet-400">{taskStatusLabel(task.status)}</span>
+                             </div>
+                             <div className="mt-3 flex flex-wrap items-center gap-2">
+                                <span className="rounded-full bg-gray-100 dark:bg-zinc-800 px-3 py-1 text-xs text-gray-500 dark:text-zinc-400">{preferredName}</span>
+                                <span className="rounded-full bg-gray-100 dark:bg-zinc-800 px-3 py-1 text-xs text-gray-500 dark:text-zinc-400">
+                                   {task.assigner === 'Teacher' ? (isEn ? 'Teacher assigned' : '老师下发') : (isEn ? 'Self-created' : '学生自建')}
+                                </span>
+                                <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium ${isStudentTaskPastDue(task) ? 'border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'border-gray-200 dark:border-white/10 text-gray-500 dark:text-zinc-400'}`}>
+                                   <Clock className="w-3 h-3" /> {formatStudentTaskDueDate(task.dueDate, isEn)}
+                                </span>
+                             </div>
+                          </button>
+                       ))}
+                    </div>
+                 ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-gray-400 dark:text-zinc-600">
+                       <CheckCircle className="w-9 h-9 mb-3 text-gray-200 dark:text-zinc-700" />
+                       <p className="text-sm">{isEn ? 'No tasks in this view' : '当前没有相关任务'}</p>
+                    </div>
+                 )}
+              </div>
            </div>
         </div>
 

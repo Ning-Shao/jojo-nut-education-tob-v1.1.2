@@ -1,58 +1,58 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { ArrowRight, User, Clock, CheckCircle } from '../common/Icons';
-import { TodoItem } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
+import {
+  formatTeacherTaskDueDate,
+  formatTeacherTaskTitle,
+  getTeacherTaskEffectiveStatus,
+  isTeacherOverdueTodo,
+  isTeacherReviewTodo,
+  isTeacherTodayTodo,
+  TeacherTask,
+} from './teacherTasks';
 
 interface TaskListProps {
-  onViewAll?: () => void;
+  onViewAll?: (taskId?: string) => void;
+  tasks: TeacherTask[];
 }
 
-const TaskList: React.FC<TaskListProps> = ({ onViewAll }) => {
+const TaskList: React.FC<TaskListProps> = ({ onViewAll, tasks }) => {
   const [activeTab, setActiveTab] = useState<'today' | 'overdue' | 'approval'>('today');
   const { language } = useLanguage();
   const isEn = language === 'en-US';
 
-  // Enriched mock data to showcase filtering functionality
-  // Note: For a real app, data should come from DB. Here we mock translation.
-  const mockTodos: TodoItem[] = useMemo(() => [
-    // Today's tasks
-    { id: '1', title: isEn ? 'Review Alex Chen\'s College List' : '审核 Alex Chen 的选校名单', student: 'Alex Chen', due: 'Today', type: 'urgent', status: 'pending' },
-    { id: '2', title: isEn ? 'Check Emily\'s Portfolio Progress' : '跟进 Emily 的作品集进度', student: 'Emily Zhang', due: 'Today', type: 'pending', status: 'pending' },
-    
-    // Approval tasks (Can be Today or others)
-    { id: '3', title: isEn ? 'Sign Sarah Li\'s Rec Letter' : '签署 Sarah Li 的推荐信', student: 'Sarah Li', due: 'Today', type: 'approval', status: 'pending' },
-    { id: '4', title: isEn ? 'Approve Michael\'s Contest Fee' : '审批 Michael 的竞赛报名费', student: 'Michael Wu', due: 'Tomorrow', type: 'approval', status: 'pending' },
-
-    // Overdue tasks
-    { id: '5', title: isEn ? 'Follow up James\' TOEFL Score' : '跟进 James Wang 的标化成绩', student: 'James Wang', due: 'Yesterday', type: 'urgent', status: 'pending' },
-    { id: '6', title: isEn ? 'Collect G10 Parent Feedback' : '收集 G10 学生家长反馈表', student: 'Group G10', due: 'Yesterday', type: 'pending', status: 'pending' },
-    { id: '7', title: isEn ? 'Update G12 App Status' : '更新 G12 申请状态汇总', student: 'All G12', due: 'Last Week', type: 'urgent', status: 'pending' },
-  ], [isEn]);
-
   // Logic to filter tasks based on active tab
-  const filteredTodos = mockTodos.filter(todo => {
+  const filteredTodos = tasks.filter(todo => {
     if (activeTab === 'today') {
-      return todo.due === 'Today';
+      return isTeacherTodayTodo(todo);
     }
     if (activeTab === 'overdue') {
-      return ['Yesterday', 'Last Week'].includes(todo.due);
+      return isTeacherOverdueTodo(todo);
     }
     if (activeTab === 'approval') {
-      return todo.type === 'approval';
+      return isTeacherReviewTodo(todo);
     }
     return true;
   });
 
   // Calculate overdue count for the badge
-  const overdueCount = mockTodos.filter(t => ['Yesterday', 'Last Week'].includes(t.due)).length;
+  const overdueCount = tasks.filter(task => isTeacherOverdueTodo(task)).length;
+
+  const statusBadge = (todo: TeacherTask) => {
+    const status = getTeacherTaskEffectiveStatus(todo);
+    if (status === 'Review') return { label: isEn ? 'Review' : '待审批', className: 'bg-purple-50 text-purple-600 border-purple-100' };
+    if (status === 'Overdue') return { label: isEn ? 'Overdue' : '逾期', className: 'bg-red-50 text-red-600 border-red-100' };
+    if (status === 'Completed') return { label: isEn ? 'Completed' : '已完成', className: 'bg-green-50 text-green-600 border-green-100' };
+    return { label: isEn ? 'Pending' : '待处理', className: 'bg-gray-50 text-gray-600 border-gray-200' };
+  };
 
   return (
     <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-white/5 h-full flex flex-col transition-colors duration-300">
       <div className="flex justify-between items-center mb-6">
         <h3 className="font-bold text-gray-800 dark:text-zinc-100">{isEn ? 'Tasks & Reminders' : '待办与提醒'}</h3>
         <button 
-          onClick={onViewAll}
+          onClick={() => onViewAll?.()}
           className="text-sm text-primary-500 dark:text-primary-400 hover:text-primary-600 dark:hover:text-primary-300 flex items-center font-medium transition-colors"
         >
           {isEn ? 'View All' : '全部任务'} <ArrowRight className="w-4 h-4 ml-1" />
@@ -82,36 +82,45 @@ const TaskList: React.FC<TaskListProps> = ({ onViewAll }) => {
 
       <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar min-h-[200px]">
         {filteredTodos.length > 0 ? (
-          filteredTodos.map((todo) => (
+          filteredTodos.map((todo) => {
+            const badge = statusBadge(todo);
+            const displayTitle = formatTeacherTaskTitle(todo, isEn);
+            return (
             <div 
               key={todo.id} 
-              onClick={onViewAll}
+              onClick={() => onViewAll?.(todo.id)}
+              role="button"
+              tabIndex={0}
+              aria-label={isEn ? `Open task: ${displayTitle}` : `打开任务：${displayTitle}`}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') onViewAll?.(todo.id);
+              }}
               className="group flex items-start gap-3 p-3 rounded-xl border border-transparent hover:border-gray-200 dark:hover:border-white/10 hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-all cursor-pointer animate-in fade-in slide-in-from-right-4 duration-300"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-start">
-                   <p className="text-sm font-medium text-gray-800 dark:text-zinc-200 group-hover:text-primary-600 dark:group-hover:text-primary-300 transition-colors line-clamp-1">{todo.title}</p>
-                   {todo.type === 'approval' && <span className="text-[10px] bg-purple-50 text-purple-600 px-1.5 py-0.5 rounded border border-purple-100 whitespace-nowrap ml-2">{isEn ? 'APPR' : '审批'}</span>}
+                   <p className="text-sm font-medium text-gray-800 dark:text-zinc-200 group-hover:text-primary-600 dark:group-hover:text-primary-300 transition-colors line-clamp-1">{displayTitle}</p>
+                   <span className={`text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap ml-2 ${badge.className}`}>{badge.label}</span>
                 </div>
                 <div className="flex items-center gap-3 mt-1.5">
                   <span className="flex items-center text-xs text-gray-500 dark:text-zinc-400 bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded-full border border-transparent dark:border-white/5 truncate max-w-[100px]">
                     <User className="w-3 h-3 mr-1 flex-shrink-0" />
-                    {todo.student}
+                    {todo.studentName}
                   </span>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full border flex items-center gap-1 ${
-                    ['Yesterday', 'Last Week'].includes(todo.due)
+                    getTeacherTaskEffectiveStatus(todo) === 'Overdue'
                       ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-100 dark:border-red-500/20' 
-                      : todo.due === 'Today'
+                      : isTeacherTodayTodo(todo)
                         ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-100 dark:border-green-500/20'
                         : 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-500/20'
                   }`}>
                     <Clock className="w-3 h-3" />
-                    {todo.due}
+                    {formatTeacherTaskDueDate(todo.dueDate, isEn)}
                   </span>
                 </div>
               </div>
             </div>
-          ))
+          );})
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-zinc-500">
              <div className="w-12 h-12 rounded-full bg-gray-50 dark:bg-zinc-800/50 flex items-center justify-center mb-2">

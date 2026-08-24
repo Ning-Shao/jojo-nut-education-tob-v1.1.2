@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Settings, Bell, Lock, Globe, Moon, Sun, Monitor, Save } from '../common/Icons';
+import { Settings, Lock, Globe, Moon, Sun, Monitor, Save } from '../common/Icons';
 import { useLanguage, Language } from '../../contexts/LanguageContext';
 
 type ThemeMode = 'light' | 'dark' | 'system';
@@ -10,7 +10,6 @@ const translations = {
     title: '账户设置',
     tabs: {
       general: '通用设置',
-      notifications: '消息提醒',
       security: '安全与登录'
     },
     general: {
@@ -33,10 +32,6 @@ const translations = {
         }
       }
     },
-    notifications: {
-      title: '邮件与应用通知',
-      items: ['任务截止提醒 (Deadlines)', '顾问反馈通知', '新任务分配提醒', '院校动态更新']
-    },
     security: {
       title: '修改密码',
       current: '当前密码',
@@ -48,7 +43,6 @@ const translations = {
     title: 'Settings',
     tabs: {
       general: 'General',
-      notifications: 'Notifications',
       security: 'Security'
     },
     general: {
@@ -70,10 +64,6 @@ const translations = {
           system: 'System'
         }
       }
-    },
-    notifications: {
-      title: 'Email & App Notifications',
-      items: ['Task Deadline Alerts', 'Counselor Feedback', 'New Task Assignments', 'School Updates']
     },
     security: {
       title: 'Change Password',
@@ -133,7 +123,6 @@ const StudentSettings = () => {
           <nav className="space-y-1">
              {[
                { id: 'general', label: t.tabs.general, icon: <Settings className="w-4 h-4"/> },
-               { id: 'notifications', label: t.tabs.notifications, icon: <Bell className="w-4 h-4"/> },
                { id: 'security', label: t.tabs.security, icon: <Lock className="w-4 h-4"/> },
              ].map(item => (
                 <button
@@ -208,22 +197,6 @@ const StudentSettings = () => {
                             </button>
                          </div>
                       </div>
-                   </div>
-                </div>
-             </div>
-          )}
-
-          {activeTab === 'notifications' && (
-             <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
-                <div>
-                   <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">{t.notifications.title}</h3>
-                   <div className="space-y-3">
-                      {t.notifications.items.map((label, i) => (
-                         <label key={i} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-xl cursor-pointer border border-transparent hover:border-gray-200 dark:hover:border-white/10 transition-colors">
-                            <span className="text-sm text-gray-700 dark:text-zinc-300 font-medium">{label}</span>
-                            <input type="checkbox" defaultChecked={true} className="w-4 h-4 text-violet-600 rounded border-gray-300 dark:border-zinc-600 focus:ring-violet-500 dark:bg-zinc-700 transition-all" />
-                         </label>
-                      ))}
                    </div>
                 </div>
              </div>
