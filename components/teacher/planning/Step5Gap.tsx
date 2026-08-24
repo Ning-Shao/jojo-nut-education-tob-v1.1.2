@@ -27,14 +27,16 @@ const MetricRuler: React.FC<{
   unit?: string;
   min: number;
   max: number;
-  current: number;
-  reachAvg: number;
-  matchAvg: number;
-  safetyAvg: number;
+  current: number | null;
+  reachAvg: number | null;
+  matchAvg: number | null;
+  safetyAvg: number | null;
   isEn: boolean;
 }> = ({ label, unit = '', min, max, current, reachAvg, matchAvg, safetyAvg, isEn }) => {
   const range = max - min;
   const getPercent = (val: number) => Math.min(Math.max(((val - min) / range) * 100, 0), 100);
+  const hasCurrent = current !== null && Number.isFinite(current);
+  const hasTarget = [reachAvg, matchAvg, safetyAvg].some(value => value !== null && Number.isFinite(value));
 
   return (
     <div className="mb-10">
@@ -42,10 +44,11 @@ const MetricRuler: React.FC<{
         <span className="text-sm font-bold text-gray-700 flex items-center gap-2">
            {label}
            {/* Dynamic Status Badge */}
-           {current >= reachAvg && reachAvg > 0 && <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded">{isEn ? 'Met' : '达标'}</span>}
-           {current < reachAvg && reachAvg > 0 && <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded">{isEn ? 'Gap' : '差距'} {-1 * parseFloat((reachAvg - current).toFixed(1))}</span>}
+           {hasCurrent && reachAvg !== null && current >= reachAvg && <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded">{isEn ? 'Met' : '达标'}</span>}
+           {hasCurrent && reachAvg !== null && current < reachAvg && <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded">{isEn ? 'Gap' : '差距'} {-1 * parseFloat((reachAvg - current).toFixed(1))}</span>}
+           {(!hasCurrent || !hasTarget) && <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded">{isEn ? 'Data pending' : '待补充数据'}</span>}
         </span>
-        <span className="text-xl font-bold text-purple-600">{current}<span className="text-xs text-gray-400 font-normal ml-1">My Score</span></span>
+        <span className="text-xl font-bold text-purple-600">{hasCurrent ? current : (isEn ? 'N/A' : '暂无数据')}<span className="text-xs text-gray-400 font-normal ml-1">{isEn ? 'My Score' : '我的成绩'}</span></span>
       </div>
       
       <div className="relative h-12 select-none mt-2">
@@ -53,7 +56,7 @@ const MetricRuler: React.FC<{
         <div className="absolute top-1/2 left-0 w-full h-2 bg-gray-100 rounded-full transform -translate-y-1/2 border border-gray-200"></div>
         
         {/* Gap Bar: Connect Current to Reach if Gap exists */}
-        {reachAvg > current && reachAvg > 0 && (
+        {hasCurrent && reachAvg !== null && reachAvg > current && (
            <div 
               className="absolute top-1/2 h-1 bg-red-100 transform -translate-y-1/2 opacity-50 transition-all duration-500"
               style={{ 
@@ -70,8 +73,8 @@ const MetricRuler: React.FC<{
         </div>
 
         {/* Safety Marker (Green - Bottom) */}
-        {safetyAvg > 0 && (
-          <div 
+        {safetyAvg !== null && (
+          <div
             className="absolute top-1/2 transform -translate-y-1/2 flex flex-col items-center group transition-all z-10"
             style={{ left: `${getPercent(safetyAvg)}%` }}
           >
@@ -84,7 +87,7 @@ const MetricRuler: React.FC<{
         )}
 
         {/* Match Marker (Blue - Middle) */}
-        {matchAvg > 0 && (
+        {matchAvg !== null && (
           <div 
             className="absolute top-1/2 transform -translate-y-1/2 flex flex-col items-center group transition-all z-20"
             style={{ left: `${getPercent(matchAvg)}%` }}
@@ -98,7 +101,7 @@ const MetricRuler: React.FC<{
         )}
 
         {/* Reach Marker (Red - High) */}
-        {reachAvg > 0 && (
+        {reachAvg !== null && (
           <div 
             className="absolute top-1/2 transform -translate-y-1/2 flex flex-col items-center group transition-all z-30"
             style={{ left: `${getPercent(reachAvg)}%` }}
@@ -112,18 +115,19 @@ const MetricRuler: React.FC<{
         )}
 
         {/* Current Student Marker (Purple - Top) */}
-        <div 
-          className="absolute top-1/2 transform -translate-y-1/2 flex flex-col items-center z-40 transition-all duration-700 ease-out"
-          style={{ left: `${getPercent(current)}%` }}
-        >
-           <div className="w-4 h-4 rounded-full bg-purple-600 border-2 border-white shadow-[0_0_10px_rgba(147,51,234,0.5)] relative">
-              <div className="absolute -inset-1 bg-purple-500/20 rounded-full animate-ping"></div>
-           </div>
-           {/* Current Value Tooltip (Always Visible) */}
-           <div className="absolute -top-7 bg-purple-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded arrow-bottom">
-              You
-           </div>
-        </div>
+        {hasCurrent && (
+          <div
+            className="absolute top-1/2 transform -translate-y-1/2 flex flex-col items-center z-40 transition-all duration-700 ease-out"
+            style={{ left: `${getPercent(current)}%` }}
+          >
+             <div className="w-4 h-4 rounded-full bg-purple-600 border-2 border-white shadow-[0_0_10px_rgba(147,51,234,0.5)] relative">
+                <div className="absolute -inset-1 bg-purple-500/20 rounded-full animate-ping"></div>
+             </div>
+             <div className="absolute -top-7 bg-purple-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded arrow-bottom">
+                {isEn ? 'You' : '当前'}
+             </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -141,6 +145,7 @@ const QualitativeCard: React.FC<{
   const getColors = (l: string) => {
     if (l === 'Strong') return 'bg-green-100 text-green-700 border-green-200';
     if (l === 'Medium') return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+    if (l === 'Unknown') return 'bg-gray-100 text-gray-500 border-gray-200';
     return 'bg-red-100 text-red-700 border-red-200';
   };
 
@@ -154,7 +159,7 @@ const QualitativeCard: React.FC<{
              <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
           ) : (
              <span className={`text-xs px-2 py-0.5 rounded font-bold border ${getColors(level)}`}>
-                {level === 'Unknown' ? (isEn ? 'Analyzing' : '分析中') : level}
+                {level === 'Unknown' ? (isEn ? 'Data pending' : '待补充') : level}
              </span>
           )}
        </div>
@@ -164,7 +169,7 @@ const QualitativeCard: React.FC<{
                 <div className="h-2 bg-gray-100 rounded w-full"></div>
                 <div className="h-2 bg-gray-100 rounded w-3/4"></div>
              </div>
-          ) : analysis}
+          ) : (analysis || (isEn ? 'No verified data is available, so no assessment is shown.' : '暂无经核验的数据，因此不输出评估结论。'))}
        </div>
     </div>
   );
@@ -380,19 +385,22 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
   const tierStats = useMemo(() => {
     const calcTier = (tier: string) => {
       const schools = selectedSchools.filter(s => s.tier === tier);
-      if (schools.length === 0) return { gpa: 0, toefl: 0, sat: 0, count: 0 };
-      
-      const sum = schools.reduce((acc, curr) => ({
-        gpa: acc.gpa + curr.uni.avgGpa,
-        toefl: acc.toefl + curr.uni.minToefl,
-        sat: acc.sat + curr.uni.avgSat
-      }), { gpa: 0, toefl: 0, sat: 0 });
+      const average = (metric: 'gpa' | 'toefl' | 'toeflNew' | 'ielts' | 'sat' | 'act') => {
+        const values = schools
+          .map(school => school.requirementData?.[metric])
+          .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
+        if (values.length === 0) return null;
+        return values.reduce((sum, value) => sum + value, 0) / values.length;
+      };
 
       return {
-        gpa: parseFloat((sum.gpa / schools.length).toFixed(2)),
-        toefl: Math.round(sum.toefl / schools.length),
-        sat: Math.round(sum.sat / schools.length),
-        count: schools.length
+        gpa: average('gpa') === null ? null : Number(average('gpa')!.toFixed(2)),
+        toefl: average('toefl') === null ? null : Math.round(average('toefl')!),
+        toeflNew: average('toeflNew') === null ? null : Number(average('toeflNew')!.toFixed(1)),
+        ielts: average('ielts') === null ? null : Number(average('ielts')!.toFixed(1)),
+        sat: average('sat') === null ? null : Math.round(average('sat')!),
+        act: average('act') === null ? null : Number(average('act')!.toFixed(1)),
+        count: schools.filter(school => Boolean(school.requirementData)).length
       };
     };
 
@@ -402,6 +410,12 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
       safety: calcTier('Safety')
     };
   }, [selectedSchools]);
+
+  const validNumber = (value: unknown): number | null => {
+    if (value === '' || value === null || value === undefined) return null;
+    const parsed = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
 
   // 2. Trigger AI Analysis on Mount (or when inputs change)
   useEffect(() => {
@@ -659,7 +673,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                   <MetricRuler 
                      label="GPA (Weighted)" 
                      min={3.0} max={4.2} 
-                     current={currentStats.gpa}
+                     current={validNumber(currentStats.gpa)}
                      reachAvg={tierStats.reach.gpa}
                      matchAvg={tierStats.match.gpa}
                      safetyAvg={tierStats.safety.gpa}
@@ -670,7 +684,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                   <MetricRuler 
                      label={isEn ? 'A-Level (GPA Eq.)' : 'A-Level预估分 (GPA当量)'} 
                      min={3.0} max={4.2} 
-                     current={currentStats.gpa}
+                     current={validNumber(currentStats.gpa)}
                      reachAvg={tierStats.reach.gpa}
                      matchAvg={tierStats.match.gpa}
                      safetyAvg={tierStats.safety.gpa}
@@ -681,7 +695,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                   <MetricRuler 
                      label={isEn ? 'AP (GPA Eq.)' : 'AP成绩 (GPA当量)'} 
                      min={3.0} max={4.2} 
-                     current={currentStats.gpa}
+                     current={validNumber(currentStats.gpa)}
                      reachAvg={tierStats.reach.gpa}
                      matchAvg={tierStats.match.gpa}
                      safetyAvg={tierStats.safety.gpa}
@@ -692,7 +706,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                   <MetricRuler 
                      label={isEn ? 'IB (GPA Eq.)' : 'IB成绩 (GPA当量)'} 
                      min={3.0} max={4.2} 
-                     current={currentStats.gpa}
+                     current={validNumber(currentStats.gpa)}
                      reachAvg={tierStats.reach.gpa}
                      matchAvg={tierStats.match.gpa}
                      safetyAvg={tierStats.safety.gpa}
@@ -704,10 +718,10 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                   <MetricRuler 
                      label={isEn ? 'TOEFL (From Jan 2026)' : 'TOEFL (新版)'} 
                      min={0} max={6.0} 
-                     current={parseFloat(currentStats.toeflValue || '0')}
-                     reachAvg={parseFloat((tierStats.reach.toefl / 20).toFixed(1))}
-                     matchAvg={parseFloat((tierStats.match.toefl / 20).toFixed(1))}
-                     safetyAvg={parseFloat((tierStats.safety.toefl / 20).toFixed(1))}
+                     current={validNumber(currentStats.toeflValue)}
+                     reachAvg={tierStats.reach.toeflNew}
+                     matchAvg={tierStats.match.toeflNew}
+                     safetyAvg={tierStats.safety.toeflNew}
                      isEn={isEn}
                   />
                )}
@@ -716,7 +730,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                   <MetricRuler 
                      label={isEn ? 'TOEFL (Before Jan 2026)' : 'TOEFL (旧)'} 
                      min={80} max={120} 
-                     current={parseFloat(currentStats.oldToeflValue || '0')}
+                     current={validNumber(currentStats.oldToeflValue)}
                      reachAvg={tierStats.reach.toefl}
                      matchAvg={tierStats.match.toefl}
                      safetyAvg={tierStats.safety.toefl}
@@ -728,10 +742,10 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                   <MetricRuler 
                      label="IELTS" 
                      min={4.0} max={9.0} 
-                     current={parseFloat(currentStats.ieltsValue || '0')}
-                     reachAvg={parseFloat((tierStats.reach.toefl / 12).toFixed(1))}
-                     matchAvg={parseFloat((tierStats.match.toefl / 12).toFixed(1))}
-                     safetyAvg={parseFloat((tierStats.safety.toefl / 12).toFixed(1))}
+                     current={validNumber(currentStats.ieltsValue)}
+                     reachAvg={tierStats.reach.ielts}
+                     matchAvg={tierStats.match.ielts}
+                     safetyAvg={tierStats.safety.ielts}
                      isEn={isEn}
                   />
                )}
@@ -740,7 +754,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                   <MetricRuler 
                      label="SAT" 
                      min={1200} max={1600} 
-                     current={parseFloat(currentStats.satValue || '0')}
+                     current={validNumber(currentStats.satValue)}
                      reachAvg={tierStats.reach.sat}
                      matchAvg={tierStats.match.sat}
                      safetyAvg={tierStats.safety.sat}
@@ -752,10 +766,10 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                   <MetricRuler 
                      label="ACT" 
                      min={20} max={36} 
-                     current={parseFloat(currentStats.actValue || '0')}
-                     reachAvg={Math.round(tierStats.reach.sat / 40)}
-                     matchAvg={Math.round(tierStats.match.sat / 40)}
-                     safetyAvg={Math.round(tierStats.safety.sat / 40)}
+                     current={validNumber(currentStats.actValue)}
+                     reachAvg={tierStats.reach.act}
+                     matchAvg={tierStats.match.act}
+                     safetyAvg={tierStats.safety.act}
                      isEn={isEn}
                   />
                )}
@@ -765,7 +779,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                   <MetricRuler 
                      label="TOEFL / Language" 
                      min={80} max={120} 
-                     current={currentStats.toefl}
+                     current={validNumber(currentStats.toefl)}
                      reachAvg={tierStats.reach.toefl}
                      matchAvg={tierStats.match.toefl}
                      safetyAvg={tierStats.safety.toefl}
@@ -776,13 +790,72 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                   <MetricRuler 
                      label="SAT / Standardized" 
                      min={1200} max={1600} 
-                     current={currentStats.sat || 1200}
+                     current={validNumber(currentStats.sat)}
                      reachAvg={tierStats.reach.sat}
                      matchAvg={tierStats.match.sat}
                      safetyAvg={tierStats.safety.sat}
                      isEn={isEn}
                   />
                )}
+            </div>
+
+            <div className="mt-8 border-t border-gray-100 pt-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h4 className="text-xs font-bold uppercase tracking-wide text-gray-600">
+                  {isEn ? 'Requirement data details' : '院校要求数据明细'}
+                </h4>
+                <span className="text-[11px] text-gray-400">
+                  {isEn ? 'Only sourced records are included in gap calculations.' : '仅有明确来源的记录参与差距计算'}
+                </span>
+              </div>
+              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="w-full min-w-[760px] text-left text-xs">
+                  <thead className="bg-gray-50 text-gray-500">
+                    <tr>
+                      <th className="px-3 py-2.5">{isEn ? 'School / Major' : '院校 / 专业'}</th>
+                      <th className="px-3 py-2.5">{isEn ? 'Tier / Round' : '档位 / 轮次'}</th>
+                      <th className="px-3 py-2.5">{isEn ? 'Year' : '年份'}</th>
+                      <th className="px-3 py-2.5">{isEn ? 'Requirements' : '有效要求'}</th>
+                      <th className="px-3 py-2.5">{isEn ? 'Source' : '来源'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {selectedSchools.map((school) => {
+                      const data = school.requirementData;
+                      const metrics = data ? [
+                        data.gpa ? `GPA ${data.gpa}` : null,
+                        data.toefl ? `TOEFL ${data.toefl}` : null,
+                        data.toeflNew ? `TOEFL(New) ${data.toeflNew}` : null,
+                        data.ielts ? `IELTS ${data.ielts}` : null,
+                        data.sat ? `SAT ${data.sat}` : null,
+                        data.act ? `ACT ${data.act}` : null,
+                      ].filter(Boolean) : [];
+                      return (
+                        <tr key={school.id} className="bg-white align-top">
+                          <td className="px-3 py-3">
+                            <p className="font-bold text-gray-800">{school.uni.name}</p>
+                            <p className="mt-0.5 text-gray-500">{data?.major || school.major || (isEn ? 'Major pending' : '专业待补充')}</p>
+                          </td>
+                          <td className="px-3 py-3 text-gray-600">{school.tier} / {data?.round || (isEn ? 'Pending' : '待补充')}</td>
+                          <td className="px-3 py-3 text-gray-600">{data?.year || (isEn ? 'Pending' : '待补充')}</td>
+                          <td className="px-3 py-3">
+                            {metrics.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {metrics.map(metric => <span key={metric} className="rounded bg-primary-50 px-1.5 py-0.5 font-medium text-primary-700">{metric}</span>)}
+                              </div>
+                            ) : <span className="text-gray-400">{isEn ? 'No data' : '暂无数据'}</span>}
+                          </td>
+                          <td className="px-3 py-3">
+                            {data?.source ? (
+                              data.sourceUrl ? <a href={data.sourceUrl} target="_blank" rel="noreferrer" className="font-medium text-primary-600 hover:underline">{data.source}</a> : <span className="text-gray-600">{data.source}</span>
+                            ) : <span className="text-gray-400">{isEn ? 'Pending' : '待补充'}</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
          </section>
 

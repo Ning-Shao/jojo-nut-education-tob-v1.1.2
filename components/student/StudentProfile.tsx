@@ -4,7 +4,7 @@ import { User, Mail, Phone, MapPin, Camera, Save, X, GraduationCap } from '../co
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface StudentProfileData {
-  name: string;
+  preferredName: string;
   grade: string;
   bio: string;
   email: string;
@@ -13,13 +13,19 @@ interface StudentProfileData {
   studentId: string;
 }
 
-const StudentProfile = () => {
+interface StudentProfileProps {
+  formalName: string;
+  preferredName: string;
+  onPreferredNameChange: (name: string) => void;
+}
+
+const StudentProfile: React.FC<StudentProfileProps> = ({ formalName, preferredName, onPreferredNameChange }) => {
   const { language } = useLanguage();
   const isEn = language === 'en-US';
 
   const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState<StudentProfileData>({
-    name: 'Alex Chen',
+    preferredName,
     grade: 'Grade 11 • Class 3',
     bio: isEn 
       ? 'Aspiring Computer Scientist with a passion for robotics and AI. Loves building Legos and solving complex problems.' 
@@ -42,7 +48,10 @@ const StudentProfile = () => {
   };
 
   const handleSave = () => {
-    setProfile(formData);
+    const normalizedName = formData.preferredName.trim() || profile.preferredName;
+    const nextProfile = { ...formData, preferredName: normalizedName };
+    setProfile(nextProfile);
+    onPreferredNameChange(normalizedName);
     setIsEditing(false);
   };
 
@@ -66,7 +75,7 @@ const StudentProfile = () => {
                       <Camera className="w-6 h-6" />
                   </div>
               )}
-              A
+              {formalName.trim().charAt(0).toUpperCase() || 'S'}
            </div>
         </div>
       </div>
@@ -75,11 +84,16 @@ const StudentProfile = () => {
          <div className="flex-1">
             {isEditing ? (
                 <div className="space-y-2 w-full md:w-96 animate-in fade-in duration-300">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-gray-400">{isEn ? 'Formal name' : '正式姓名'}</p>
+                      <p className="text-xl font-black text-gray-900 dark:text-white">{formalName}</p>
+                    </div>
+                    <label className="block text-xs font-bold uppercase tracking-wide text-violet-600 dark:text-violet-400">{isEn ? 'Preferred name' : '偏好称呼'}</label>
                     <input 
-                        className="text-2xl font-bold text-gray-900 dark:text-white border-b border-gray-300 dark:border-zinc-700 focus:border-violet-500 outline-none bg-transparent w-full pb-1 transition-colors"
-                        value={formData.name}
-                        onChange={(e) => handleChange('name', e.target.value)}
-                        placeholder="Name"
+                        className="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-300 dark:border-zinc-700 focus:border-violet-500 outline-none bg-transparent w-full pb-1 transition-colors"
+                        value={formData.preferredName}
+                        onChange={(e) => handleChange('preferredName', e.target.value)}
+                        placeholder={isEn ? 'How should the app address you?' : '希望 App 如何称呼你？'}
                     />
                     <input 
                         className="text-gray-500 dark:text-zinc-400 border-b border-gray-300 dark:border-zinc-700 focus:border-violet-500 outline-none bg-transparent w-full text-sm pb-1 transition-colors"
@@ -90,7 +104,8 @@ const StudentProfile = () => {
                 </div>
             ) : (
                 <>
-                    <h1 className="text-2xl font-black text-gray-900 dark:text-white">{profile.name}</h1>
+                    <h1 className="text-2xl font-black text-gray-900 dark:text-white">{formalName}</h1>
+                    <p className="text-sm font-bold text-violet-600 dark:text-violet-400">{isEn ? 'Preferred name' : '偏好称呼'}：{profile.preferredName}</p>
                     <p className="text-gray-500 dark:text-zinc-400 font-medium">{profile.grade}</p>
                 </>
             )}
@@ -149,6 +164,11 @@ const StudentProfile = () => {
            <h3 className="font-bold text-gray-800 dark:text-zinc-100 mb-4">{isEn ? 'Contact Info' : '联系信息'}</h3>
            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
               <div className="space-y-1">
+                 <span className="text-xs font-bold text-gray-400 dark:text-zinc-500 uppercase flex items-center gap-1"><User className="w-3 h-3"/> {isEn ? 'Formal Name' : '正式姓名'}</span>
+                 <p className="text-sm font-medium text-gray-800 dark:text-zinc-200">{formalName}</p>
+                 <p className="text-[10px] text-gray-400">{isEn ? 'Bound to your student record; contact your counselor to change it.' : '已与学生档案绑定，如需修改请联系老师。'}</p>
+              </div>
+              <div className="space-y-1">
                  <span className="text-xs font-bold text-gray-400 dark:text-zinc-500 uppercase flex items-center gap-1"><Mail className="w-3 h-3"/> Email</span>
                  {isEditing ? (
                     <input className="w-full border-b border-gray-200 dark:border-zinc-700 bg-transparent text-sm py-1 focus:border-violet-500 outline-none" value={formData.email} onChange={e => handleChange('email', e.target.value)} />
@@ -168,9 +188,8 @@ const StudentProfile = () => {
               </div>
               <div className="space-y-1">
                  <span className="text-xs font-bold text-gray-400 dark:text-zinc-500 uppercase flex items-center gap-1"><GraduationCap className="w-3 h-3"/> Student ID</span>
-                 {isEditing ? (
-                    <input className="w-full border-b border-gray-200 dark:border-zinc-700 bg-transparent text-sm py-1 focus:border-violet-500 outline-none" value={formData.studentId} onChange={e => handleChange('studentId', e.target.value)} />
-                 ) : <p className="text-sm font-medium text-gray-800 dark:text-zinc-200 font-mono">{profile.studentId}</p>}
+                 <p className="text-sm font-medium text-gray-800 dark:text-zinc-200 font-mono">{profile.studentId}</p>
+                 <p className="text-[10px] text-gray-400">{isEn ? 'Read-only identity field' : '身份字段，不可自行修改'}</p>
               </div>
            </div>
         </div>

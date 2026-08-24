@@ -10,6 +10,7 @@ import {
 } from '../../common/Icons';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { SelectedSchool, TimelineEvent, UniversityDisplay } from '../../teacher/planning/PlanningData';
+import { getStudentFinalSchools } from '../studentSchoolList';
 
 // --- Sub-component: Metric Ruler for Quantitative Gaps ---
 const MetricRuler: React.FC<{
@@ -316,58 +317,7 @@ const StudentRoadmap: React.FC = () => {
   ];
 
   // --- 2. Execution Data ---
-  const mockUni = (name: string, logoSeed: string, rank: number): UniversityDisplay => ({
-    id: name, name, cnName: name, logo: `https://api.dicebear.com/7.x/initials/svg?seed=${logoSeed}&backgroundColor=f1f5f9`, 
-    rank, region: 'US', tags: [], avgGpa: 4.0, minToefl: 100, avgSat: 1500
-  });
-
-  const finalSchools: SelectedSchool[] = [
-    { 
-      id: 's1', 
-      uni: mockUni('Carnegie Mellon Univ.', 'CMU', 22), 
-      tier: 'Reach', 
-      major: 'Financial Engineering', 
-      requirements: 'TOEFL 105+ (S25+)\nSAT 1550+ (Math 800)', 
-      admissionAdvice: isEn ? 'Math competition (AIME+) is essential. Coding portfolio needed.' : '必须有高级别数学竞赛奖项 (AIME+)，且需提交编程作品集证明工程能力。',
-      deadlines: 'ED1: Nov 1\nRD: Jan 3' 
-    },
-    { 
-      id: 's2', 
-      uni: mockUni('Cornell University', 'Cornell', 12), 
-      tier: 'Reach', 
-      major: 'CS (Engineering)', 
-      requirements: 'SAT 1540+\nPhysics C Required', 
-      admissionAdvice: isEn ? 'High "Fit" required. Why Cornell essay must address specific labs/profs.' : '极度看重"匹配度"。Why Cornell 文书必须具体到实验室或教授，切忌泛泛而谈。',
-      deadlines: 'ED: Nov 1\nRD: Jan 2' 
-    },
-    { 
-      id: 's3', 
-      uni: mockUni('UIUC', 'UIUC', 35), 
-      tier: 'Match', 
-      major: 'Computer Engineering', 
-      requirements: 'GPA 3.8+\nTOEFL 100+', 
-      admissionAdvice: isEn ? 'CS is Reach level diff. CompE is slightly easier but still hard.' : 'CS 专业难度堪比藤校，CompE 相对容易但仍需过硬的理科成绩。',
-      deadlines: 'EA: Nov 1 (Priority)' 
-    },
-    { 
-      id: 's4', 
-      uni: mockUni('UC San Diego', 'UCSD', 28), 
-      tier: 'Match', 
-      major: 'Data Science', 
-      requirements: 'GPA 3.9 (Weighted)\nTest Blind', 
-      admissionAdvice: isEn ? 'College selection matters. PIQ essays focus on leadership.' : '七个学院的选择策略很重要。文书(PIQ)需侧重领导力与社区贡献。',
-      deadlines: 'RD: Nov 30 (Hard)' 
-    },
-    { 
-      id: 's5', 
-      uni: mockUni('Penn State', 'PSU', 60), 
-      tier: 'Safety', 
-      major: 'Engineering Undecided', 
-      requirements: 'Rolling Admission\nNo Essays', 
-      admissionAdvice: isEn ? 'Apply early (before Nov 1) to secure Main Campus.' : '尽早申请（11月1日前）以确保录取到主校区 (University Park)。',
-      deadlines: 'Priority: Nov 1' 
-    },
-  ];
+  const finalSchools = getStudentFinalSchools(isEn);
 
   // --- Gap Analysis Data (New Structure) ---
   const quantitativeStats = [

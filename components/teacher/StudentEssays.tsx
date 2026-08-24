@@ -16,6 +16,12 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import { saveAs } from "file-saver";
 import { FileItem } from './StudentMaterials';
+import {
+  ensureEssayReview,
+  getEssayReview,
+  subscribeEssayReviews,
+  updateEssayReview
+} from '../../services/essayReviewStore';
 
 interface StudentEssaysProps {
   student: StudentSummary;
@@ -194,10 +200,13 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   const [activeSuggestionId, setActiveSuggestionId] = useState<string | null>(null);
   const [hasScanned, setHasScanned] = useState(false);
   const [isDirectEditing, setIsDirectEditing] = useState(false);
+  const [isEditingPrompt, setIsEditingPrompt] = useState(false);
+  const [promptDraft, setPromptDraft] = useState('');
   
   // Editor Refs & Selection
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [selection, setSelection] = useState<{ start: number; end: number; text: string } | null>(null);
+  const [inlineCommentDraft, setInlineCommentDraft] = useState('');
 
   const handleStartEditing = () => {
     setIsDirectEditing(true);
@@ -275,12 +284,55 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   }, [toastMessage]);
 
   useEffect(() => {
+    INITIAL_ESSAYS.forEach(essay => {
+      ensureEssayReview(
+        essay.id,
+        essay.currentContent,
+        essay.status === 'Brainstorming' ? 'Drafting' : essay.status,
+        essay.versions.map(version => ({
+          id: version.id,
+          versionNumber: version.versionNumber,
+          content: version.content,
+          author: version.author,
+          source: version.source,
+          note: version.note,
+          updatedAt: version.updatedAt,
+          timestamp: version.timestamp
+        }))
+      );
+    });
+
+    const syncFromSharedReview = () => {
+      setEssays(previous => previous.map(essay => {
+        const review = getEssayReview(essay.id);
+        if (!review) return essay;
+        return {
+          ...essay,
+          status: review.status,
+          currentContent: review.currentContent,
+          lastSavedAt: review.lastModifiedAt,
+          versions: review.versions.map(version => ({
+            ...version,
+            source: version.source as VersionSource,
+            wordCount: version.content.trim().split(/\s+/).filter(Boolean).length
+          }))
+        };
+      }));
+    };
+
+    syncFromSharedReview();
+    return subscribeEssayReviews(syncFromSharedReview);
+  }, []);
+
+  useEffect(() => {
     setSuggestions([]);
     setHasScanned(false);
     setEssayScore(85);
     // Select the latest version by default if in history mode
     setSelectedVersionId(activeEssay.versions.length > 0 ? activeEssay.versions[0].id : null);
     setSelectedIdeaIds(new Set());
+    setIsEditingPrompt(false);
+    setPromptDraft('');
   }, [activeEssayId]);
 
   const showToast = (msg: string) => setToastMessage(msg);
@@ -291,8 +343,37 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     setEssays(prev => prev.map(e => e.id === activeEssayId ? { ...e, contextKeywords: val } : e));
   };
 
+  const handleStartPromptEdit = () => {
+    setPromptDraft(activeEssay.prompt);
+    setIsEditingPrompt(true);
+  };
+
+  const handleSavePrompt = () => {
+    setEssays(prev => prev.map(essay =>
+      essay.id === activeEssayId ? { ...essay, prompt: promptDraft.trim() } : essay
+    ));
+    setIsEditingPrompt(false);
+    showToast(isEn ? 'Task requirements updated' : '任务要求已更新');
+  };
+
+  const handleCancelPromptEdit = () => {
+    setPromptDraft('');
+    setIsEditingPrompt(false);
+  };
+
   const handleContentUpdate = (val: string) => {
     setEssays(prev => prev.map(e => e.id === activeEssayId ? { ...e, currentContent: val, lastSavedAt: isEn ? 'Saving...' : 'Saving...' } : e));
+    const saved = updateEssayReview(activeEssayId, review => ({
+      ...review,
+      currentContent: val,
+      teacherModifiedContent: val,
+      reviewAuthor: 'Ms. Sarah',
+      reviewedAt: new Date().toLocaleString(),
+      lastModifiedBy: 'Ms. Sarah',
+      lastModifiedAt: new Date().toLocaleString(),
+      revisionNumber: review.revisionNumber + 1
+    }));
+    if (!saved) showToast(isEn ? 'Auto-save failed' : '自动保存失败，请重试');
     // Simulate auto-save delay
     setTimeout(() => {
         setEssays(prev => prev.map(e => e.id === activeEssayId ? { ...e, lastSavedAt: isEn ? 'Just now' : '刚刚' } : e));
@@ -310,6 +391,34 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
         setSelection(null);
       }
     }
+  };
+
+  const handleAddInlineComment = () => {
+    if (!selection || !inlineCommentDraft.trim()) return;
+    const saved = updateEssayReview(activeEssayId, review => ({
+      ...review,
+      comments: [...review.comments, {
+        id: `comment-${Date.now()}`,
+        quote: selection.text,
+        comment: inlineCommentDraft.trim(),
+        start: selection.start,
+        end: selection.end,
+        author: 'Ms. Sarah',
+        createdAt: new Date().toLocaleString()
+      }],
+      reviewAuthor: 'Ms. Sarah',
+      reviewedAt: new Date().toLocaleString(),
+      lastModifiedBy: 'Ms. Sarah',
+      lastModifiedAt: new Date().toLocaleString(),
+      revisionNumber: review.revisionNumber + 1
+    }));
+    if (!saved) {
+      showToast(isEn ? 'Comment save failed' : '批注保存失败，请重试');
+      return;
+    }
+    setInlineCommentDraft('');
+    setSelection(null);
+    showToast(isEn ? 'Inline comment saved' : '文本批注已保存');
   };
 
   const handleAddContextToKeywords = (text: string) => {
@@ -465,6 +574,29 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     setEssays(prev => prev.map(e => 
       e.id === activeEssayId ? { ...e, versions: [newVersion, ...e.versions] } : e
     ));
+
+    const sharedVersion = {
+      id: newVersion.id,
+      versionNumber: newVersion.versionNumber,
+      content: newVersion.content,
+      author: newVersion.author,
+      source: newVersion.source,
+      note: newVersion.note,
+      updatedAt: newVersion.updatedAt,
+      timestamp: newVersion.timestamp
+    };
+    const saved = updateEssayReview(activeEssayId, review => ({
+      ...review,
+      currentContent: activeEssay.currentContent,
+      teacherModifiedContent: author === 'Teacher' ? activeEssay.currentContent : review.teacherModifiedContent,
+      versions: [sharedVersion, ...review.versions.filter(version => version.id !== sharedVersion.id)],
+      reviewAuthor: author === 'Teacher' ? 'Ms. Sarah' : review.reviewAuthor,
+      reviewedAt: author === 'Teacher' ? newVersion.updatedAt : review.reviewedAt,
+      lastModifiedBy: author === 'Teacher' ? 'Ms. Sarah' : author,
+      lastModifiedAt: newVersion.updatedAt,
+      revisionNumber: review.revisionNumber + 1
+    }));
+    if (!saved) showToast(isEn ? 'Version sync failed' : '版本同步失败，请重试');
     
     return newVersion;
   };
@@ -501,6 +633,23 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       e.id === activeEssayId ? { ...e, status: 'Returned' } : e
     ));
 
+    const saved = updateEssayReview(activeEssayId, review => ({
+      ...review,
+      status: 'Returned',
+      overallFeedback: returnNote.trim(),
+      currentContent: activeEssay.currentContent,
+      teacherModifiedContent: activeEssay.currentContent,
+      reviewAuthor: 'Ms. Sarah',
+      reviewedAt: new Date().toLocaleString(),
+      lastModifiedBy: 'Ms. Sarah',
+      lastModifiedAt: new Date().toLocaleString(),
+      revisionNumber: review.revisionNumber + 1
+    }));
+    if (!saved) {
+      showToast(isEn ? 'Return sync failed' : '退回同步失败，请重试');
+      return;
+    }
+
     setIsReturnModalOpen(false);
     setReturnNote('');
     showToast(isEn ? 'Returned to student for revision.' : '已退回给学生修改。');
@@ -515,6 +664,17 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       setEssays(prev => prev.map(e => 
         e.id === activeEssayId ? { ...e, status: 'Finalized' } : e
       ));
+      updateEssayReview(activeEssayId, review => ({
+        ...review,
+        status: 'Finalized',
+        currentContent: activeEssay.currentContent,
+        teacherModifiedContent: activeEssay.currentContent,
+        reviewAuthor: 'Ms. Sarah',
+        reviewedAt: new Date().toLocaleString(),
+        lastModifiedBy: 'Ms. Sarah',
+        lastModifiedAt: new Date().toLocaleString(),
+        revisionNumber: review.revisionNumber + 1
+      }));
       
       // 3. Generate Word Document
       try {
@@ -954,12 +1114,39 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
                  <div className="max-w-5xl mx-auto w-full">
                     {/* Prompt Display */}
                     <div className="mb-8 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                       <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2 uppercase tracking-wide">
-                          <FileText className="w-4 h-4 text-primary-600" /> {isEn ? 'Task Requirements & Prompt' : '任务要求与题目 (Prompt)'}
-                       </h3>
-                       <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 text-sm text-gray-700 font-serif leading-relaxed whitespace-pre-wrap">
-                          {activeEssay.prompt}
+                       <div className="mb-3 flex items-center justify-between gap-3">
+                         <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2 uppercase tracking-wide">
+                            <FileText className="w-4 h-4 text-primary-600" /> {isEn ? 'Task Requirements & Prompt' : '任务要求与题目 (Prompt)'}
+                         </h3>
+                         {isEditingPrompt ? (
+                           <div className="flex items-center gap-2">
+                             <button onClick={handleCancelPromptEdit} className="px-3 py-1.5 text-xs font-bold text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
+                               {isEn ? 'Cancel' : '取消'}
+                             </button>
+                             <button onClick={handleSavePrompt} className="px-3 py-1.5 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors flex items-center gap-1">
+                               <Save className="w-3.5 h-3.5" /> {isEn ? 'Save' : '保存'}
+                             </button>
+                           </div>
+                         ) : (
+                           <button onClick={handleStartPromptEdit} className="px-3 py-1.5 text-xs font-bold text-primary-700 hover:bg-primary-50 rounded-lg transition-colors flex items-center gap-1">
+                             <Edit className="w-3.5 h-3.5" /> {activeEssay.prompt ? (isEn ? 'Edit' : '修改') : (isEn ? 'Add' : '添加')}
+                           </button>
+                         )}
                        </div>
+                       {isEditingPrompt ? (
+                         <textarea
+                           autoFocus
+                           rows={5}
+                           value={promptDraft}
+                           onChange={(event) => setPromptDraft(event.target.value)}
+                           placeholder={isEn ? 'Add the essay prompt or task requirements...' : '请输入文书题目或具体任务要求…'}
+                           className="w-full p-4 bg-white rounded-lg border border-primary-300 text-sm text-gray-700 font-serif leading-relaxed resize-y outline-none focus:ring-2 focus:ring-primary-100"
+                         />
+                       ) : (
+                         <div className={`p-4 bg-gray-50 rounded-lg border border-gray-100 text-sm font-serif leading-relaxed whitespace-pre-wrap ${activeEssay.prompt ? 'text-gray-700' : 'text-gray-400 italic'}`}>
+                            {activeEssay.prompt || (isEn ? 'No task requirements yet. Click Add to provide them.' : '暂未添加任务要求，点击“添加”进行补充。')}
+                         </div>
+                       )}
                     </div>
                     {/* Input Area */}
                     <div className="bg-white p-1 rounded-xl border border-gray-200 shadow-sm mb-8 focus-within:ring-2 focus-within:ring-primary-100 focus-within:border-primary-300 transition-all">
@@ -1081,6 +1268,30 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
                                          <span>{isEn ? 'Done' : '完成编辑'}</span>
                                       </button>
                                    </div>
+                                   {selection && (
+                                      <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+                                         <p className="mb-2 text-xs font-bold text-indigo-800">
+                                            {isEn ? 'Comment on selected text' : '为选中文本添加批注'}：
+                                            <span className="ml-1 font-normal">“{selection.text}”</span>
+                                         </p>
+                                         <div className="flex gap-2">
+                                            <input
+                                               value={inlineCommentDraft}
+                                               onChange={(event) => setInlineCommentDraft(event.target.value)}
+                                               placeholder={isEn ? 'Enter a specific writing comment...' : '输入具体写作修改意见…'}
+                                               className="min-w-0 flex-1 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                                            />
+                                            <button
+                                               type="button"
+                                               onClick={handleAddInlineComment}
+                                               disabled={!inlineCommentDraft.trim()}
+                                               className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                            >
+                                               {isEn ? 'Save comment' : '保存批注'}
+                                            </button>
+                                         </div>
+                                      </div>
+                                   )}
                                    <textarea
                                       ref={textareaRef}
                                       autoFocus
@@ -1088,6 +1299,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
                                       className="w-full p-6 bg-white border-2 border-primary-300 focus:border-primary-500 rounded-2xl shadow-sm focus:ring-4 focus:ring-primary-500/15 outline-none text-gray-900 font-serif text-lg leading-loose resize-y transition-all"
                                       value={activeEssay.currentContent}
                                       onChange={(e) => handleContentUpdate(e.target.value)}
+                                      onSelect={handleSelect}
                                       onKeyDown={(e) => {
                                          if (e.key === 'Escape') {
                                             setIsDirectEditing(false);
