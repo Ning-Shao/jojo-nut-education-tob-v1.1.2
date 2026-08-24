@@ -29,6 +29,19 @@ export interface SelectedSchool {
   deadlines?: string;
   process?: string;
   portalLink?: string;
+  requirementData?: {
+    major: string;
+    round: string;
+    year: string;
+    source: string;
+    sourceUrl?: string;
+    gpa?: number;
+    toefl?: number;
+    toeflNew?: number;
+    ielts?: number;
+    sat?: number;
+    act?: number;
+  };
 }
 
 export interface CareerResult {

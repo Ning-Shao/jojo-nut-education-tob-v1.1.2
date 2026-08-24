@@ -4,7 +4,13 @@ import { AIReviewReport } from "../types";
 
 export type { AIReviewReport };
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+const getGeminiClient = () => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY is not configured');
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 /**
  * Analyzes a recommendation letter for risks and/or quality based on selected mode.
@@ -71,6 +77,7 @@ export async function analyzeRecommendationLetter(
   `;
 
   try {
+    const ai = getGeminiClient();
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,

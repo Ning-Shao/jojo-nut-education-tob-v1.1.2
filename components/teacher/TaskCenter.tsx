@@ -1,108 +1,33 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   CheckSquare, Search, Filter, Plus, Calendar, 
   Clock, AlertTriangle, User, MoreHorizontal, 
   CheckCircle, XCircle, ArrowRight, ListTodo,
   CheckCheck, RotateCcw, Flag, FileText, Check, Save,
-  Trash2, X, Bell, LayoutGrid
+  Trash2, X, Bell, Edit, LayoutGrid
 } from '../common/Icons';
+import TaskEditDialog, { TaskEditField } from '../common/TaskEditDialog';
+import { createTaskAuditEntry, TaskFieldChange } from '../common/taskAudit';
 import { mockStudents } from './StudentList';
 import { useLanguage } from '../../contexts/LanguageContext';
-
-// --- Types ---
-type TaskPriority = 'High' | 'Medium' | 'Low';
-type TaskStatus = 'Pending' | 'Completed' | 'Review' | 'Overdue';
-type TaskCategory = '建档' | '规划' | '考试' | '活动' | '材料' | '面试' | '申请' | 'Offer' | '复盘';
-
-interface Task {
-  id: string;
-  title: string;
-  studentName: string;
-  studentAvatar: string;
-  category: TaskCategory;
-  priority: TaskPriority;
-  dueDate: string; // ISO date string or "Today", "Yesterday"
-  status: TaskStatus;
-  assignee: string; // e.g. "Sarah"
-  description?: string;
-}
-
-// --- Mock Data ---
-const INITIAL_TASKS: Task[] = [
-  {
-    id: 't1',
-    title: '审核 Alex 的档案更新申请 (2条)',
-    description: '新增 TOEFL 成绩 (105) 与...',
-    studentName: 'Alex Chen',
-    studentAvatar: 'https://api.dicebear.com/7.x/micah/svg?seed=Alex&backgroundColor=ffdfbf',
-    category: '建档',
-    priority: 'High',
-    dueDate: 'Today',
-    status: 'Review', 
-    assignee: 'Sarah',
-  },
-  {
-    id: 't2',
-    title: '审核 Alex 的 Common App 主文书初稿',
-    description: '学生已提交 V1 版本，需重...',
-    studentName: 'Alex Chen',
-    studentAvatar: 'https://api.dicebear.com/7.x/micah/svg?seed=Alex&backgroundColor=ffdfbf',
-    category: '材料',
-    priority: 'High',
-    dueDate: 'Today',
-    status: 'Review', 
-    assignee: 'Sarah',
-  },
-  {
-    id: 't3',
-    title: '确认 Emily 的 RISD 作品集提交状态',
-    description: '申请截止日期临近',
-    studentName: 'Emily Zhang',
-    studentAvatar: 'https://api.dicebear.com/7.x/micah/svg?seed=Emily&backgroundColor=ffd5dc',
-    category: '申请',
-    priority: 'High',
-    dueDate: 'Today',
-    status: 'Pending',
-    assignee: 'Sarah',
-  },
-  {
-    id: 't4',
-    title: '签署推荐信 (Counselor Rec)',
-    description: 'David Liu - Common App',
-    studentName: 'David Liu',
-    studentAvatar: 'https://api.dicebear.com/7.x/micah/svg?seed=David&backgroundColor=e5e5e5',
-    category: '材料',
-    priority: 'High',
-    dueDate: 'Today',
-    status: 'Review', 
-    assignee: 'Sarah',
-  },
-  {
-    id: 't5',
-    title: '跟进 James Wang 的标化成绩',
-    description: '上次模考成绩未达标',
-    studentName: 'James Wang',
-    studentAvatar: 'https://api.dicebear.com/7.x/micah/svg?seed=James&backgroundColor=b6e3f4',
-    category: '考试',
-    priority: 'Medium',
-    dueDate: 'Yesterday',
-    status: 'Overdue',
-    assignee: 'Sarah',
-  },
-  {
-    id: 't6',
-    title: '更新 G12 申请状态汇总表',
-    description: '每周例行更新',
-    studentName: 'Grade 12 Group',
-    studentAvatar: '',
-    category: '规划',
-    priority: 'Medium',
-    dueDate: 'Tomorrow',
-    status: 'Pending',
-    assignee: 'Sarah',
-  },
-];
+import {
+  formatTeacherTaskDueDate,
+  formatTeacherTaskDescription,
+  formatTeacherTaskPriority,
+  formatTeacherTaskTitle,
+  getTeacherTaskTimingStatus,
+  getTeacherTaskEffectiveStatus,
+  isTeacherOverdueTodo,
+  isTeacherReviewTodo,
+  isTeacherTaskDueThisWeek,
+  isTeacherTodayTodo,
+  resolveTeacherReviewDeadline,
+  TeacherTask as Task,
+  TeacherTaskCategory as TaskCategory,
+  TeacherTaskPriority as TaskPriority,
+  TeacherTaskStatus as TaskStatus,
+} from './teacherTasks';
 
 const CATEGORIES: TaskCategory[] = ['建档', '规划', '考试', '活动', '材料', '面试', '申请', 'Offer', '复盘'];
 
@@ -115,15 +40,24 @@ const Toast = ({ message, onClose }: { message: string; onClose: () => void }) =
   </div>
 );
 
-const TaskCenter: React.FC = () => {
+interface TaskCenterProps {
+  tasks: Task[];
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+  initialTaskId?: string;
+}
+
+const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId }) => {
   // State
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
   const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'Today' | 'Week' | 'Overdue' | 'Review' | 'All'>('Today');
   const [selectedCategory, setSelectedCategory] = useState<string>('全部');
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
+  const [sourceContextTaskId, setSourceContextTaskId] = useState<string | null>(null);
+  const handledInitialTaskId = useRef<string | undefined>();
   
   // Delete Modal State
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
@@ -151,6 +85,28 @@ const TaskCenter: React.FC = () => {
     }
   }, [toastMessage]);
 
+  useEffect(() => {
+    if (!initialTaskId || handledInitialTaskId.current === initialTaskId) return;
+    handledInitialTaskId.current = initialTaskId;
+    setActiveTab('All');
+    setSelectedCategory('全部');
+    setSearchQuery('');
+    const target = tasks.find(task => task.id === initialTaskId);
+    if (!target) {
+      setFocusedTaskId(null);
+      setDetailTaskId(null);
+      setSourceContextTaskId(initialTaskId);
+      setToastMessage(isEn ? `The source task (${initialTaskId}) is no longer available.` : `来源任务（${initialTaskId}）已失效或不存在，已保留来源上下文。`);
+      return;
+    }
+    setSourceContextTaskId(null);
+    setFocusedTaskId(target.id);
+    setDetailTaskId(target.id);
+    window.setTimeout(() => {
+      document.getElementById(`teacher-task-${target.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 0);
+  }, [initialTaskId, isEn, tasks]);
+
   // Helper: Date format getters
   const getTodayStr = () => new Date().toISOString().split('T')[0];
   const getTomorrowStr = () => {
@@ -158,6 +114,10 @@ const TaskCenter: React.FC = () => {
     d.setDate(d.getDate() + 1);
     return d.toISOString().split('T')[0];
   };
+
+  // “今日待办”是待处理视图：今天截止且尚未完成。
+  // 列表与左侧计数共用此条件，避免完成后仍显示在今日待办中。
+  const isTodayTodo = isTeacherTodayTodo;
 
   // Helper: Translate Category
   const translateCategory = (cat: string) => {
@@ -177,58 +137,39 @@ const TaskCenter: React.FC = () => {
       return map[cat] || cat;
   };
 
+  const getStatusLabel = (status: TaskStatus) => {
+    const workflowStatus = status === 'Overdue' ? 'Pending' : status;
+    if (isEn) return workflowStatus;
+    return ({ Pending: '待处理', Review: '待审核', Completed: '已完成' } as Record<Exclude<TaskStatus, 'Overdue'>, string>)[workflowStatus];
+  };
+
+  const getTimingStatusLabel = (task: Task) => {
+    const timingStatus = getTeacherTaskTimingStatus(task);
+    if (isEn) return ({ NO_DEADLINE: 'No deadline', OVERDUE: 'Overdue', DUE_TODAY: 'Due today', UPCOMING: 'Upcoming' } as const)[timingStatus];
+    return ({ NO_DEADLINE: '无截止时间', OVERDUE: '已逾期', DUE_TODAY: '今日到期', UPCOMING: '未到期' } as const)[timingStatus];
+  };
+
   // Filtering Logic
   const filteredTasks = tasks.filter(task => {
     // 1. Tab Filter
     let matchesTab = true;
-    const today = getTodayStr();
 
     if (activeTab === 'Today') {
-        matchesTab = task.dueDate === 'Today' || task.dueDate === today;
+        matchesTab = isTodayTodo(task);
     }
-    if (activeTab === 'Overdue') matchesTab = task.status === 'Overdue';
-    if (activeTab === 'Review') matchesTab = task.status === 'Review';
-    if (activeTab === 'Week') matchesTab = task.dueDate !== 'Last Week' && task.status !== 'Completed';
+    if (activeTab === 'Overdue') matchesTab = isTeacherOverdueTodo(task);
+    if (activeTab === 'Review') matchesTab = isTeacherReviewTodo(task);
+    if (activeTab === 'Week') matchesTab = isTeacherTaskDueThisWeek(task);
     
     // 2. Category Filter
     const matchesCategory = selectedCategory === '全部' || task.category === selectedCategory;
 
     // 3. Search
-    const matchesSearch = task.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    const matchesSearch = formatTeacherTaskTitle(task, isEn).toLowerCase().includes(searchQuery.toLowerCase()) ||
                           task.studentName.toLowerCase().includes(searchQuery.toLowerCase());
 
     return matchesTab && matchesCategory && matchesSearch;
   });
-
-  // Batch Selection Logic
-  const toggleSelectAll = () => {
-    if (selectedTaskIds.size === filteredTasks.length) {
-      setSelectedTaskIds(new Set());
-    } else {
-      setSelectedTaskIds(new Set(filteredTasks.map(t => t.id)));
-    }
-  };
-
-  const toggleSelectTask = (id: string) => {
-    const newSet = new Set(selectedTaskIds);
-    if (newSet.has(id)) {
-      newSet.delete(id);
-    } else {
-      newSet.add(id);
-    }
-    setSelectedTaskIds(newSet);
-  };
-
-  const handleBatchComplete = () => {
-    setTasks(prev => prev.map(t => selectedTaskIds.has(t.id) ? { ...t, status: 'Completed' } : t));
-    setSelectedTaskIds(new Set());
-    setToastMessage(isEn ? `Completed ${selectedTaskIds.size} tasks` : `已批量完成 ${selectedTaskIds.size} 个任务`);
-  };
-
-  const handleBatchDelete = () => {
-    if (selectedTaskIds.size === 0) return;
-    setDeleteConfirmation({ isOpen: true, taskIds: Array.from(selectedTaskIds) });
-  };
 
   const handleCreateTask = () => {
     if (!newTaskForm.title || !newTaskForm.studentId) {
@@ -245,10 +186,12 @@ const TaskCenter: React.FC = () => {
       studentAvatar: student ? student.avatarUrl : '',
       category: newTaskForm.category,
       priority: newTaskForm.priority,
-      dueDate: newTaskForm.dueDate || 'Today',
+      dueDate: newTaskForm.dueDate || getTodayStr(),
       status: 'Pending',
       assignee: 'Sarah',
-      description: newTaskForm.description
+      description: newTaskForm.description,
+      source: 'manual',
+      auditHistory: [],
     };
 
     setTasks([newTask, ...tasks]);
@@ -274,24 +217,95 @@ const TaskCenter: React.FC = () => {
     const idsToDelete = new Set(deleteConfirmation.taskIds);
     setTasks(prev => prev.filter(t => !idsToDelete.has(t.id)));
     
-    // Clear selection if any deleted task was selected
-    setSelectedTaskIds(prev => {
-      const next = new Set(prev);
-      for (const id of idsToDelete) {
-        next.delete(id);
-      }
-      return next;
-    });
-
     setDeleteConfirmation({ isOpen: false, taskIds: [] });
     setToastMessage(isEn ? 'Task deleted' : '任务已删除');
   };
 
   // Core Complete Handler (Single)
   const handleCompleteTask = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'Completed' } : t));
+    setTasks(prev => prev.map(t => t.id === id ? {
+      ...t,
+      status: 'Completed',
+      completedFromStatus: t.status,
+      auditHistory: [...(t.auditHistory || []), createTaskAuditEntry(isEn ? 'Sarah (Teacher)' : 'Sarah（教师）', 'teacher', [{ field: '状态', before: getTeacherTaskEffectiveStatus(t), after: 'Completed' }])],
+    } : t));
+    setActiveTab('All');
     setToastMessage(isEn ? 'Task Completed' : '任务已完成');
   }
+
+  const handleUndoCompleteTask = (id: string) => {
+    setTasks(prev => prev.map(t => {
+      if (t.id !== id || t.status !== 'Completed') return t;
+      const restoredStatus = t.completedFromStatus || 'Pending';
+      const restoredEffectiveStatus = getTeacherTaskEffectiveStatus({ ...t, status: restoredStatus });
+      return {
+        ...t,
+        status: restoredStatus,
+        completedFromStatus: undefined,
+        auditHistory: [...(t.auditHistory || []), createTaskAuditEntry(isEn ? 'Sarah (Teacher)' : 'Sarah（教师）', 'teacher', [{ field: '状态', before: 'Completed', after: restoredEffectiveStatus }])],
+      };
+    }));
+    setActiveTab('All');
+    setToastMessage(isEn ? 'Completion undone; original status restored' : '已撤销完成，任务恢复到原状态');
+  };
+
+  const editingTask = tasks.find(task => task.id === editingTaskId);
+  const detailTask = tasks.find(task => task.id === detailTaskId);
+
+  const getTeacherEditFields = (task: Task): TaskEditField[] => {
+    const isSystemReview = task.source === 'system-review';
+    const fields: TaskEditField[] = [
+      { key: 'title', label: isEn ? 'Task title' : '任务内容', value: formatTeacherTaskTitle(task, isEn), disabled: isSystemReview },
+      { key: 'studentName', label: isEn ? 'Student' : '关联学生', value: task.studentName, type: 'select', disabled: isSystemReview, options: mockStudents.map(student => ({ value: student.name, label: student.name })) },
+      { key: 'category', label: isEn ? 'Category' : '业务类型', value: task.category, type: 'select', disabled: isSystemReview, options: CATEGORIES.map(category => ({ value: category, label: translateCategory(category) })) },
+      { key: 'dueDate', label: isEn ? 'Due date' : '截止时间', value: task.dueDate },
+      { key: 'priority', label: isEn ? 'Priority' : '优先级', value: task.priority, type: 'select', options: (['High', 'Medium', 'Low'] as TaskPriority[]).map(value => ({ value, label: formatTeacherTaskPriority(value, isEn) })) },
+      { key: 'assignee', label: isEn ? 'Assignee' : '负责人', value: task.assignee },
+      { key: 'description', label: isEn ? 'Description' : '任务说明', value: formatTeacherTaskDescription(task, isEn) || '', type: 'textarea', disabled: isSystemReview },
+    ];
+    if (isSystemReview) {
+      fields.push(
+        { key: 'sourceEventId', label: isEn ? 'Source event ID' : '来源事件 ID', value: task.sourceEventId || '', disabled: true },
+        { key: 'createdBy', label: isEn ? 'Created by' : '事件发起人', value: task.createdBy || '', disabled: true },
+        { key: 'createdAt', label: isEn ? 'Created at' : '事件发生时间', value: task.createdAt || '', disabled: true },
+      );
+    }
+    return fields;
+  };
+
+  const saveTeacherTaskEdit = (values: Record<string, string>) => {
+    if (!editingTask) return;
+    const isSystemReview = editingTask.source === 'system-review';
+    const allowedKeys = isSystemReview
+      ? ['dueDate', 'priority', 'assignee']
+      : ['title', 'studentName', 'category', 'dueDate', 'priority', 'assignee', 'description'];
+    const labels: Record<string, string> = { title: '任务内容', studentName: '关联学生', category: '业务类型', dueDate: '截止时间', priority: '优先级', assignee: '负责人', description: '任务说明' };
+    const changes: TaskFieldChange[] = allowedKeys.flatMap(key => {
+      const before = String(editingTask[key as keyof Task] || '');
+      return before === values[key] ? [] : [{ field: labels[key], before, after: values[key] }];
+    });
+    if (changes.length === 0) {
+      setEditingTaskId(null);
+      return;
+    }
+    const selectedStudent = mockStudents.find(student => student.name === values.studentName);
+    const audit = createTaskAuditEntry(isEn ? 'Sarah (Teacher)' : 'Sarah（教师）', 'teacher', changes);
+    setTasks(previous => previous.map(task => task.id === editingTask.id ? {
+      ...task,
+      title: isSystemReview ? task.title : values.title,
+      studentName: isSystemReview ? task.studentName : values.studentName,
+      studentAvatar: isSystemReview ? task.studentAvatar : (selectedStudent?.avatarUrl || task.studentAvatar),
+      category: isSystemReview ? task.category : values.category as TaskCategory,
+      dueDate: values.dueDate,
+      reviewDeadlineAt: isSystemReview ? resolveTeacherReviewDeadline(values.dueDate) : task.reviewDeadlineAt,
+      priority: values.priority as TaskPriority,
+      assignee: values.assignee,
+      description: isSystemReview ? task.description : values.description,
+      auditHistory: [...(task.auditHistory || []), audit],
+    } : task));
+    setEditingTaskId(null);
+    setToastMessage(isEn ? 'Task updated' : '任务已更新，修改记录已保存');
+  };
 
   // Helper: Priority Color
   const getPriorityColor = (p: TaskPriority) => {
@@ -356,10 +370,10 @@ const TaskCenter: React.FC = () => {
                 <label className="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase mb-3 block px-1">{isEn ? 'Task Views' : '任务视图'}</label>
                 <div className="space-y-1">
                    {[
-                      { id: 'Today', label: isEn ? 'Today' : '今日待办', icon: <ListTodo className="w-4 h-4" />, count: filteredTasks.filter(t => activeTab === 'Today' ? true : (t.dueDate === 'Today' || t.dueDate === getTodayStr()) && t.status !== 'Completed').length },
-                      { id: 'Week', label: isEn ? 'This Week' : '本周任务', icon: <Calendar className="w-4 h-4" />, count: tasks.filter(t => t.dueDate !== 'Last Week' && t.status !== 'Completed').length },
-                      { id: 'Overdue', label: isEn ? 'Overdue' : '已逾期', icon: <AlertTriangle className="w-4 h-4" />, count: tasks.filter(t => t.status === 'Overdue').length, alert: true },
-                      { id: 'Review', label: isEn ? 'Pending Approval' : '待审批', icon: <CheckCheck className="w-4 h-4" />, count: tasks.filter(t => t.status === 'Review').length, info: true },
+                      { id: 'Today', label: isEn ? 'Today' : '今日待办', icon: <ListTodo className="w-4 h-4" />, count: tasks.filter(task => isTodayTodo(task)).length },
+                      { id: 'Week', label: isEn ? 'This Week' : '本周任务', icon: <Calendar className="w-4 h-4" />, count: tasks.filter(task => isTeacherTaskDueThisWeek(task)).length },
+                      { id: 'Overdue', label: isEn ? 'Overdue' : '已逾期', icon: <AlertTriangle className="w-4 h-4" />, count: tasks.filter(task => isTeacherOverdueTodo(task)).length, alert: true },
+                      { id: 'Review', label: isEn ? 'Pending Approval' : '待审批', icon: <CheckCheck className="w-4 h-4" />, count: tasks.filter(task => isTeacherReviewTodo(task)).length, info: true },
                       { id: 'All', label: isEn ? 'All Tasks' : '全部任务', icon: <CheckSquare className="w-4 h-4" />, count: tasks.length },
                    ].map((tab) => (
                       <button 
@@ -451,57 +465,58 @@ const TaskCenter: React.FC = () => {
              </div>
           </div>
 
+          {sourceContextTaskId && (
+            <div className="mx-6 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
+              <p className="font-bold">{isEn ? 'Source task unavailable' : '来源任务已失效'}</p>
+              <p className="mt-1 text-xs">{isEn ? `The dashboard requested task ${sourceContextTaskId}, but it is no longer in the task dataset. The source ID is retained for troubleshooting.` : `首页请求打开任务 ${sourceContextTaskId}，但该任务已不在任务数据中。来源任务 ID 已保留，便于继续追查。`}</p>
+            </div>
+          )}
+
           {/* Task List Table */}
           <div className="flex-1 overflow-y-auto custom-scrollbar">
              <table className="w-full text-left border-collapse">
                 <thead className="bg-gray-50 dark:bg-zinc-900/50 sticky top-0 z-10 text-xs font-semibold text-gray-500 dark:text-zinc-500 uppercase">
                    <tr>
-                      <th className="px-6 py-3 w-12 border-b border-gray-100 dark:border-white/5">
-                         <input 
-                           type="checkbox" 
-                           checked={selectedTaskIds.size > 0 && selectedTaskIds.size === filteredTasks.length}
-                           onChange={toggleSelectAll}
-                           className="rounded border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-[#b0826d] focus:ring-[#b0826d] cursor-pointer" 
-                         />
-                      </th>
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5 w-1/3">{isEn ? 'Task Content' : '任务内容'}</th>
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Student' : '关联学生'}</th>
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5 text-center">{isEn ? 'Category' : '分类'}</th>
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Deadline' : '截止时间'}</th>
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Priority' : '优先级'}</th>
+                      <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Timing' : '时效状态'}</th>
+                      <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Workflow' : '流程状态'}</th>
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5 text-right">{isEn ? 'Operation' : '操作'}</th>
                    </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-white/5">
-                   {filteredTasks.map(task => (
-                      <tr key={task.id} className={`group transition-colors ${selectedTaskIds.has(task.id) ? 'bg-[#f5ebe6]/40 dark:bg-primary-900/10' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}>
-                         <td className="px-6 py-4">
-                            <input 
-                              type="checkbox" 
-                              checked={selectedTaskIds.has(task.id)}
-                              onChange={() => toggleSelectTask(task.id)}
-                              className="rounded border-gray-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-[#b0826d] focus:ring-[#b0826d] cursor-pointer" 
-                            />
-                         </td>
+                   {filteredTasks.map(task => {
+                      const displayTitle = formatTeacherTaskTitle(task, isEn);
+                      const displayDescription = formatTeacherTaskDescription(task, isEn);
+                      return (
+                      <tr
+                        id={`teacher-task-${task.id}`}
+                        key={task.id}
+                        onClick={() => { setFocusedTaskId(task.id); setDetailTaskId(task.id); }}
+                        className={`group cursor-pointer transition-all ${focusedTaskId === task.id ? 'bg-amber-50 ring-2 ring-inset ring-amber-300 dark:bg-amber-500/10 dark:ring-amber-500/40' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                      >
                          <td className="px-6 py-4">
                             <div className="flex items-start gap-3">
                                <div className="mt-0.5">
-                                  {task.status === 'Review' ? (
+                                  {getTeacherTaskEffectiveStatus(task) === 'Review' ? (
                                      <FileText className="w-4 h-4 text-orange-500" />
-                                  ) : task.status === 'Completed' ? (
+                                  ) : getTeacherTaskEffectiveStatus(task) === 'Completed' ? (
                                      <CheckCircle className="w-4 h-4 text-green-500" />
-                                  ) : task.status === 'Overdue' ? (
+                                  ) : getTeacherTaskEffectiveStatus(task) === 'Overdue' ? (
                                      <AlertTriangle className="w-4 h-4 text-red-500" />
                                   ) : (
                                      <Clock className="w-4 h-4 text-gray-400" />
                                   )}
                                </div>
                                <div>
-                                  <p className={`text-sm font-bold ${task.status === 'Completed' ? 'text-gray-400 dark:text-zinc-600 line-through' : 'text-gray-900 dark:text-zinc-200'}`}>
-                                     {task.title}
+                                  <p className={`text-sm font-bold ${getTeacherTaskEffectiveStatus(task) === 'Completed' ? 'text-gray-400 dark:text-zinc-600 line-through' : 'text-gray-900 dark:text-zinc-200'}`}>
+                                     {displayTitle}
                                   </p>
-                                  {task.description && (
-                                     <p className="text-xs text-gray-500 dark:text-zinc-500 mt-1 line-clamp-1">{task.description}</p>
+                                  {displayDescription && (
+                                     <p className="text-xs text-gray-500 dark:text-zinc-500 mt-1 line-clamp-1">{displayDescription}</p>
                                   )}
                                </div>
                             </div>
@@ -526,8 +541,8 @@ const TaskCenter: React.FC = () => {
                             </div>
                          </td>
                          <td className="px-6 py-4">
-                            <div className={`flex items-center gap-1.5 text-sm font-medium ${task.status === 'Overdue' ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-zinc-400'}`}>
-                               {task.dueDate}
+                            <div className={`flex items-center gap-1.5 text-sm font-medium ${getTeacherTaskTimingStatus(task) === 'OVERDUE' ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-zinc-400'}`}>
+                               {formatTeacherTaskDueDate(task.dueDate, isEn)}
                             </div>
                          </td>
                          <td className="px-6 py-4">
@@ -536,18 +551,50 @@ const TaskCenter: React.FC = () => {
                                task.priority === 'Medium' ? 'bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/20' :
                                'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20'
                             }`}>
-                               {task.priority}
+                               {formatTeacherTaskPriority(task.priority, isEn)}
                             </span>
+                         </td>
+                         <td className="px-6 py-4">
+                            <span className={`text-sm font-medium whitespace-nowrap ${getTeacherTaskTimingStatus(task) === 'OVERDUE' ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-zinc-400'}`}>{getTimingStatusLabel(task)}</span>
+                         </td>
+                         <td className="px-6 py-4">
+                            <div className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-zinc-400 whitespace-nowrap">
+                               {task.status === 'Review' ? (
+                                  <FileText className="w-4 h-4 text-orange-500" />
+                               ) : task.status === 'Completed' ? (
+                                  <CheckCircle className="w-4 h-4 text-green-500" />
+                               ) : (
+                                  <Clock className="w-4 h-4 text-gray-400" />
+                               )}
+                               {getStatusLabel(task.status)}
+                            </div>
                          </td>
                          <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
-                               {task.status !== 'Completed' && (
+                               <button
+                                 onClick={(e) => { e.stopPropagation(); setEditingTaskId(task.id); }}
+                                 className="w-8 h-8 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-full text-[#9b6f5c] hover:bg-[#f5ebe6] dark:hover:bg-primary-500/10 transition-colors shadow-sm"
+                                 title={isEn ? 'Edit task' : '编辑任务'}
+                                 aria-label={isEn ? `Edit ${displayTitle}` : `编辑任务：${displayTitle}`}
+                               >
+                                 <Edit className="w-4 h-4" />
+                               </button>
+                               {getTeacherTaskEffectiveStatus(task) !== 'Completed' ? (
                                    <button 
                                      onClick={(e) => { e.stopPropagation(); handleCompleteTask(task.id); }}
                                      className="w-8 h-8 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-full text-green-600 hover:bg-green-50 dark:hover:bg-green-500/10 transition-colors shadow-sm group/btn"
                                      title={isEn ? "Complete" : "完成"}
                                    >
                                       <Check className="w-4 h-4 transform group-hover/btn:scale-110 transition-transform" />
+                                   </button>
+                               ) : (
+                                   <button
+                                     onClick={(e) => { e.stopPropagation(); handleUndoCompleteTask(task.id); }}
+                                     className="w-8 h-8 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-full text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors shadow-sm group/btn"
+                                     title={isEn ? "Undo completion" : "撤销完成"}
+                                     aria-label={isEn ? `Undo completion for ${displayTitle}` : `撤销完成：${displayTitle}`}
+                                   >
+                                     <RotateCcw className="w-4 h-4 transform group-hover/btn:-rotate-45 transition-transform" />
                                    </button>
                                )}
                                <button 
@@ -560,11 +607,11 @@ const TaskCenter: React.FC = () => {
                             </div>
                          </td>
                       </tr>
-                   ))}
+                   );})}
                    
                    {filteredTasks.length === 0 && (
                       <tr>
-                         <td colSpan={7} className="px-6 py-16 text-center text-gray-400 dark:text-zinc-600">
+                         <td colSpan={8} className="px-6 py-16 text-center text-gray-400 dark:text-zinc-600">
                             <div className="flex justify-center mb-3">
                                <CheckSquare className="w-12 h-12 text-gray-200 dark:text-zinc-700" />
                             </div>
@@ -576,36 +623,57 @@ const TaskCenter: React.FC = () => {
              </table>
           </div>
 
-          {/* Batch Actions Bar (Floating) */}
-          {selectedTaskIds.size > 0 && (
-             <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-900 dark:bg-white text-white dark:text-zinc-900 px-6 py-3 rounded-xl shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-4 z-50">
-                <span className="font-bold text-sm">{isEn ? `Selected ${selectedTaskIds.size}` : `已选择 ${selectedTaskIds.size} 项`}</span>
-                <div className="h-4 w-px bg-gray-700 dark:bg-zinc-200"></div>
-                <div className="flex items-center gap-2">
-                   <button 
-                     onClick={handleBatchComplete}
-                     className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-800 dark:hover:bg-zinc-100 rounded-lg text-sm font-medium transition-colors"
-                   >
-                      <CheckCircle className="w-4 h-4" /> {isEn ? 'Complete' : '批量完成'}
-                   </button>
-                   {/* Batch Delete Button */}
-                   <button 
-                     onClick={handleBatchDelete}
-                     className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-800 dark:hover:bg-zinc-100 rounded-lg text-sm font-medium transition-colors text-red-300 dark:text-red-500 hover:text-red-200 dark:hover:text-red-600"
-                   >
-                      <Trash2 className="w-4 h-4" /> {isEn ? 'Delete' : '批量删除'}
-                   </button>
-                </div>
-                <button 
-                  onClick={() => setSelectedTaskIds(new Set())}
-                  className="ml-2 text-gray-400 dark:text-zinc-400 hover:text-white dark:hover:text-zinc-900"
-                >
-                   <XCircle className="w-5 h-5" />
-                </button>
-             </div>
-          )}
-
        </div>
+
+       {detailTask && (
+         <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm" onClick={() => setDetailTaskId(null)}>
+           <div role="dialog" aria-modal="true" aria-labelledby="teacher-task-detail-title" className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-900" onClick={event => event.stopPropagation()}>
+             <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5 dark:border-white/5">
+               <div>
+                 <div className="mb-2 flex items-center gap-2">
+                   <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">{isEn ? 'Source: dashboard task list' : '来源：首页待办'}</span>
+                   <span className="text-xs text-gray-400">ID: {detailTask.id}</span>
+                 </div>
+                 <h3 id="teacher-task-detail-title" className="text-lg font-bold text-gray-900 dark:text-white">{isEn ? 'Task details' : '任务详情'}</h3>
+               </div>
+               <button onClick={() => setDetailTaskId(null)} aria-label={isEn ? 'Close task details' : '关闭任务详情'} className="text-gray-400 transition-colors hover:text-gray-700 dark:hover:text-zinc-200">
+                 <XCircle className="h-5 w-5" />
+               </button>
+             </div>
+             <div className="space-y-5 px-6 py-5">
+               <div>
+                 <p className="text-xs font-bold uppercase tracking-wide text-gray-400">{isEn ? 'Title' : '任务标题'}</p>
+                 <p className="mt-1 font-bold text-gray-900 dark:text-zinc-100">{formatTeacherTaskTitle(detailTask, isEn)}</p>
+                 {formatTeacherTaskDescription(detailTask, isEn) && <p className="mt-2 text-sm text-gray-500 dark:text-zinc-400">{formatTeacherTaskDescription(detailTask, isEn)}</p>}
+               </div>
+               <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                 <div><p className="text-xs text-gray-400">{isEn ? 'Student' : '关联学生'}</p><p className="mt-1 font-medium text-gray-800 dark:text-zinc-200">{detailTask.studentName}</p></div>
+                 <div><p className="text-xs text-gray-400">{isEn ? 'Timing status' : '时效状态'}</p><p className="mt-1 font-medium text-gray-800 dark:text-zinc-200">{getTimingStatusLabel(detailTask)}</p></div>
+                 <div><p className="text-xs text-gray-400">{isEn ? 'Workflow status' : '流程状态'}</p><p className="mt-1 font-medium text-gray-800 dark:text-zinc-200">{getStatusLabel(detailTask.status)}</p></div>
+                 <div><p className="text-xs text-gray-400">{isEn ? 'Category' : '分类'}</p><p className="mt-1 font-medium text-gray-800 dark:text-zinc-200">{translateCategory(detailTask.category)}</p></div>
+                 <div><p className="text-xs text-gray-400">{isEn ? 'Deadline' : '截止时间'}</p><p className="mt-1 font-medium text-gray-800 dark:text-zinc-200">{formatTeacherTaskDueDate(detailTask.dueDate, isEn)}</p></div>
+                 <div><p className="text-xs text-gray-400">{isEn ? 'Priority' : '优先级'}</p><p className="mt-1 font-medium text-gray-800 dark:text-zinc-200">{formatTeacherTaskPriority(detailTask.priority, isEn)}</p></div>
+                 <div><p className="text-xs text-gray-400">{isEn ? 'Assignee' : '负责人'}</p><p className="mt-1 font-medium text-gray-800 dark:text-zinc-200">{detailTask.assignee || (isEn ? 'Unassigned' : '未分配')}</p></div>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
+
+       {editingTask && (
+         <TaskEditDialog
+           key={editingTask.id}
+           title={formatTeacherTaskTitle(editingTask, isEn)}
+           fields={getTeacherEditFields(editingTask)}
+           auditHistory={editingTask.auditHistory || []}
+           restrictionNote={editingTask.source === 'system-review'
+             ? (isEn ? 'System-generated review task: only priority, due date, and assignee can be edited. Task content, student, category, status, and description are locked.' : '系统自动生成的审核任务：仅允许修改优先级、截止时间和负责人；任务内容、关联学生、分类、状态及说明均锁定。')
+             : (isEn ? 'Authorized teachers can edit task fields. Status changes remain controlled by the task action buttons.' : '有权限教师可编辑任务字段；状态仍通过任务操作按钮变更。')}
+           isEn={isEn}
+           onClose={() => setEditingTaskId(null)}
+           onSave={saveTeacherTaskEdit}
+         />
+       )}
 
        {/* --- NEW TASK MODAL --- */}
        {isNewTaskModalOpen && (
@@ -680,14 +748,14 @@ const TaskCenter: React.FC = () => {
                                 onClick={() => setNewTaskForm({...newTaskForm, dueDate: getTodayStr()})} 
                                 className="text-[10px] bg-gray-100 dark:bg-zinc-700 hover:bg-gray-200 dark:hover:bg-zinc-600 px-2 py-1 rounded text-gray-600 dark:text-zinc-300 transition-colors"
                               >
-                                {isEn ? 'Today' : 'Today'}
+                                {isEn ? 'Today' : '今天'}
                               </button>
                               <button 
                                 type="button"
                                 onClick={() => setNewTaskForm({...newTaskForm, dueDate: getTomorrowStr()})} 
                                 className="text-[10px] bg-gray-100 dark:bg-zinc-700 hover:bg-gray-200 dark:hover:bg-zinc-600 px-2 py-1 rounded text-gray-600 dark:text-zinc-300 transition-colors"
                               >
-                                {isEn ? 'Tmrw' : 'Tmrw'}
+                                {isEn ? 'Tomorrow' : '明天'}
                               </button>
                            </div>
                         </div>
@@ -699,9 +767,9 @@ const TaskCenter: React.FC = () => {
                            value={newTaskForm.priority}
                            onChange={(e) => setNewTaskForm({...newTaskForm, priority: e.target.value as TaskPriority})}
                         >
-                           <option value="High">🔥 {isEn ? 'High' : '高 (High)'}</option>
-                           <option value="Medium">⚡️ {isEn ? 'Medium' : '中 (Medium)'}</option>
-                           <option value="Low">🌱 {isEn ? 'Low' : '低 (Low)'}</option>
+                           <option value="High">🔥 {formatTeacherTaskPriority('High', isEn)}</option>
+                           <option value="Medium">⚡️ {formatTeacherTaskPriority('Medium', isEn)}</option>
+                           <option value="Low">🌱 {formatTeacherTaskPriority('Low', isEn)}</option>
                         </select>
                      </div>
                   </div>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { TimelineEvent, OFFICIAL_TEMPLATES, TimelineTemplate } from './PlanningData';
+import { TimelineEvent, OFFICIAL_TEMPLATES, TimelineTemplate, SelectedSchool } from './PlanningData';
 import { 
   Plus, Trash2, Edit, Calendar, Clock, CheckCircle, 
   AlertCircle, X, Save, User, Users, Briefcase, 
@@ -11,10 +11,11 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 interface Step6Props {
   timelineEvents: TimelineEvent[];
   setTimelineEvents: React.Dispatch<React.SetStateAction<TimelineEvent[]>>;
+  selectedSchools: SelectedSchool[];
   onComplete?: () => void;
 }
 
-const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents, onComplete }) => {
+const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents, selectedSchools, onComplete }) => {
   const { language } = useLanguage();
   const isEn = language === 'en-US';
 
@@ -96,6 +97,34 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
   };
   
   const hasOfficialEvents = useMemo(() => timelineEvents.some(e => e.isOfficial), [timelineEvents]);
+
+  const schoolsByRegion = useMemo(() => {
+      const groups: Record<string, string[]> = {};
+      selectedSchools.forEach((school: SelectedSchool) => {
+          const region = school.uni.region;
+          if (!groups[region]) groups[region] = [];
+          if (!groups[region].includes(school.uni.name)) groups[region].push(school.uni.name);
+      });
+      return groups;
+  }, [selectedSchools]);
+
+  const recommendedTemplateIds = useMemo(() => {
+      return new Set(
+          OFFICIAL_TEMPLATES
+              .filter(template => Boolean(schoolsByRegion[template.region]?.length))
+              .map(template => template.id)
+      );
+  }, [schoolsByRegion]);
+
+  const orderedTemplates = useMemo(() => {
+      return [...OFFICIAL_TEMPLATES].sort((a, b) => {
+          return Number(recommendedTemplateIds.has(b.id)) - Number(recommendedTemplateIds.has(a.id));
+      });
+  }, [recommendedTemplateIds]);
+
+  const importedTemplateIds = useMemo(() => {
+      return new Set(timelineEvents.map(event => event.templateId).filter(Boolean) as string[]);
+  }, [timelineEvents]);
 
   // Calculate view range
   const viewRange = useMemo(() => {
@@ -241,6 +270,7 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
 
   // Template Handlers
   const handleTemplateSelection = (id: string) => {
+      if (importedTemplateIds.has(id)) return;
       const newSet = new Set(selectedTemplateIds);
       if (newSet.has(id)) {
           newSet.delete(id);
@@ -250,23 +280,39 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
       setSelectedTemplateIds(newSet);
   };
 
+  const handleOpenTemplateModal = () => {
+      const recommendedNotImported = [...recommendedTemplateIds].filter(id => !importedTemplateIds.has(id));
+      setSelectedTemplateIds(new Set(recommendedNotImported));
+      setIsTemplateModalOpen(true);
+  };
+
   const handleImportTemplates = () => {
       const templatesToImport = OFFICIAL_TEMPLATES.filter(t => selectedTemplateIds.has(t.id));
-      
-      let newEvents: TimelineEvent[] = [];
-      templatesToImport.forEach(tpl => {
-          const events = tpl.events.map(e => ({
-              ...e,
-              id: `tpl-${tpl.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              status: 'Pending',
-              assignee: 'Student',
-              isMilestone: true,
-              templateId: tpl.id
-          } as TimelineEvent));
-          newEvents = [...newEvents, ...events];
-      });
 
-      setTimelineEvents(prev => [...prev, ...newEvents]);
+      setTimelineEvents(prev => {
+          const eventKey = (event: Pick<TimelineEvent, 'title' | 'startDate' | 'region' | 'channel'>) =>
+              [event.title.trim().toLowerCase(), event.startDate, event.region || '', event.channel || ''].join('|');
+          const existingKeys = new Set(prev.map(eventKey));
+          const newEvents: TimelineEvent[] = [];
+
+          templatesToImport.forEach(tpl => {
+              tpl.events.forEach(event => {
+                  const key = eventKey(event);
+                  if (existingKeys.has(key)) return;
+                  existingKeys.add(key);
+                  newEvents.push({
+                      ...event,
+                      id: `tpl-${tpl.id}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+                      status: 'Pending',
+                      assignee: 'Student',
+                      isMilestone: true,
+                      templateId: tpl.id
+                  } as TimelineEvent);
+              });
+          });
+
+          return newEvents.length ? [...prev, ...newEvents] : prev;
+      });
       setIsTemplateModalOpen(false);
       setSelectedTemplateIds(new Set());
   };
@@ -316,7 +362,7 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
             </div>
             <div className="flex gap-3">
                 <button 
-                    onClick={() => setIsTemplateModalOpen(true)}
+                    onClick={handleOpenTemplateModal}
                     className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-indigo-100 transition-colors"
                 >
                     <Download className="w-4 h-4" /> {isEn ? 'Import Official' : '导入官方'}
@@ -429,7 +475,7 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                     </div>
                 </div>
                 <button 
-                    onClick={() => setIsTemplateModalOpen(true)}
+                    onClick={handleOpenTemplateModal}
                     className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm hover:bg-indigo-700 transition-colors"
                 >
                     {isEn ? 'Import Now' : '立即导入'}
@@ -931,18 +977,52 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                     
                     {/* Body */}
                     <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
+                        <div className={`mb-5 rounded-xl border px-4 py-3 ${selectedSchools.length > 0 ? 'border-indigo-200 bg-indigo-50' : 'border-amber-200 bg-amber-50'}`}>
+                            <p className={`text-sm font-bold ${selectedSchools.length > 0 ? 'text-indigo-900' : 'text-amber-900'}`}>
+                                {selectedSchools.length > 0
+                                    ? (isEn ? 'Prioritized from the student school list' : '已优先匹配学生选校清单')
+                                    : (isEn ? 'No schools in the student school list' : '学生选校清单暂无院校')}
+                            </p>
+                            <p className={`mt-1 text-xs leading-relaxed ${selectedSchools.length > 0 ? 'text-indigo-700' : 'text-amber-700'}`}>
+                                {selectedSchools.length > 0
+                                    ? (isEn
+                                        ? `${selectedSchools.map(school => school.uni.name).join(', ')}. Matching templates are listed first and preselected.`
+                                        : `${selectedSchools.map(school => school.uni.name).join('、')}。匹配模板已置顶并自动勾选。`)
+                                    : (isEn
+                                        ? 'Showing all system official templates. Add schools to the Final List to receive prioritized recommendations.'
+                                        : '当前展示全部系统官方模板；请先在“选校清单”添加院校，以获得优先推荐。')}
+                            </p>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {OFFICIAL_TEMPLATES.map(tpl => {
+                            {orderedTemplates.map(tpl => {
                                 const isSelected = selectedTemplateIds.has(tpl.id);
+                                const matchedSchools = schoolsByRegion[tpl.region] || [];
+                                const isRecommended = matchedSchools.length > 0;
+                                const isImported = importedTemplateIds.has(tpl.id);
                                 return (
                                     <div 
                                         key={tpl.id} 
-                                        className={`relative border-2 rounded-xl p-5 cursor-pointer transition-all bg-white group
+                                        className={`relative border-2 rounded-xl p-5 transition-all bg-white group
+                                            ${isImported ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}
                                             ${isSelected 
                                                 ? 'border-indigo-500 shadow-md ring-1 ring-indigo-500' 
-                                                : 'border-gray-200 hover:border-indigo-300 hover:shadow-sm'}`}
+                                                : isRecommended
+                                                    ? 'border-indigo-200 hover:border-indigo-400 hover:shadow-sm'
+                                                    : 'border-gray-200 hover:border-indigo-300 hover:shadow-sm'}`}
                                         onClick={() => handleTemplateSelection(tpl.id)}
                                     >
+                                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                                            {isRecommended && (
+                                                <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-[11px] font-bold text-indigo-700">
+                                                    {isEn ? 'From school list' : '来自选校清单'}
+                                                </span>
+                                            )}
+                                            {isImported && (
+                                                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                                                    {isEn ? 'Imported' : '已导入'}
+                                                </span>
+                                            )}
+                                        </div>
                                         <div className="flex justify-between items-start mb-3">
                                             <div className="flex items-start gap-3">
                                                 <span className="text-3xl">{getRegionFlag(tpl.region)}</span>
@@ -962,6 +1042,13 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                                         <p className="text-sm text-gray-500 mb-4 leading-relaxed">
                                             {tpl.description}
                                         </p>
+
+                                        {isRecommended && (
+                                            <p className="mb-4 rounded-lg bg-indigo-50 px-3 py-2 text-xs leading-relaxed text-indigo-700">
+                                                <span className="font-bold">{isEn ? 'Matched schools: ' : '匹配院校：'}</span>
+                                                {matchedSchools.join(isEn ? ', ' : '、')}
+                                            </p>
+                                        )}
 
                                         <div className="space-y-2">
                                             {tpl.events.slice(0, 3).map((e, i) => (

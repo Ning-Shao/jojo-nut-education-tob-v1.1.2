@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   LayoutGrid, 
   Users, 
@@ -38,6 +38,14 @@ import ReviewAnalytics from '../components/teacher/ReviewAnalytics';
 import UserProfile from '../components/teacher/UserProfile';
 import AccountSettings from '../components/teacher/AccountSettings';
 import { useLanguage } from '../contexts/LanguageContext';
+import {
+  getStoredTeacherTasks,
+  isTeacherTodayTodo,
+  reconcileReviewTasks,
+  TEACHER_TASK_STORAGE_KEY,
+  TeacherTask,
+} from '../components/teacher/teacherTasks';
+import { getStoredStudentReviewEvents, subscribeStudentReviewEvents } from '../services/studentReviewEvents';
 
 // Helper type for navigation structure
 interface NavItemDef {
@@ -64,10 +72,23 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [reportConfig, setReportConfig] = useState<{studentId: string, template: 'transcript'} | null>(null);
+  const [focusedTaskId, setFocusedTaskId] = useState<string | undefined>();
+  const [teacherTasks, setTeacherTasks] = useState<TeacherTask[]>(() =>
+    reconcileReviewTasks(getStoredTeacherTasks(), getStoredStudentReviewEvents()),
+  );
+
+  useEffect(() => {
+    localStorage.setItem(TEACHER_TASK_STORAGE_KEY, JSON.stringify(teacherTasks));
+  }, [teacherTasks]);
+
+  useEffect(() => subscribeStudentReviewEvents(() => {
+    setTeacherTasks(current => reconcileReviewTasks(current, getStoredStudentReviewEvents()));
+  }), []);
 
   const { language } = useLanguage();
 
   const isEn = language === 'en-US';
+  const todayTodoCount = teacherTasks.filter(task => isTeacherTodayTodo(task)).length;
 
   const navItems: NavItemDef[] = [
     { id: '首页', label: isEn ? 'Dashboard' : '首页', icon: <LayoutGrid className="w-4 h-4" /> },
@@ -98,7 +119,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
     if (item.id === '首页') setViewState('dashboard');
     else if (item.id === '学生管理') setViewState('list');
-    else if (item.id === '任务中心') setViewState('tasks');
+    else if (item.id === '任务中心') {
+      setFocusedTaskId(undefined);
+      setViewState('tasks');
+    }
     else if (item.id === '报告中心') setViewState('reports');
     else if (item.id === '复盘报表') setViewState('review');
     else if (item.children) {
@@ -148,10 +172,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
     setSelectedStudentId(null);
   };
 
-  const handleViewTasks = () => {
+  const handleViewTasks = (taskId?: string) => {
     setActiveTab('任务中心');
     setViewState('tasks');
     setSelectedStudentId(null);
+    setFocusedTaskId(taskId);
   };
 
   const handleViewReview = () => {
@@ -407,9 +432,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
                 </h1>
                 <p className="text-gray-500 dark:text-zinc-400 text-sm">
                   {isEn ? (
-                    <>It's Early Application sprint week. You have <span className="font-bold text-accent-600 dark:text-orange-400">3</span> urgent tasks today.</>
+                    <>It's Early Application sprint week. You have <span className="font-bold text-accent-600 dark:text-orange-400">{todayTodoCount}</span> tasks to handle today.</>
                   ) : (
-                    <>本周是早申冲刺周，您有 <span className="font-bold text-accent-600 dark:text-orange-400">3</span> 项紧急任务需要今日处理。</>
+                    <>本周是早申冲刺周，您有 <span className="font-bold text-accent-600 dark:text-orange-400">{todayTodoCount}</span> 项任务需要今日处理。</>
                   )}
                 </p>
               </div>
@@ -432,7 +457,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
               <div className="xl:col-span-1 space-y-6">
                  <div className="h-[420px]">
-                    <TaskList onViewAll={handleViewTasks} />
+                    <TaskList tasks={teacherTasks} onViewAll={handleViewTasks} />
                  </div>
                  <div className="h-auto">
                     <ReviewSnapshot onDetailClick={handleViewReview} />
@@ -495,7 +520,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
         {viewState === 'tasks' && (
            <div className="h-full overflow-hidden">
-              <TaskCenter />
+              <TaskCenter tasks={teacherTasks} setTasks={setTeacherTasks} initialTaskId={focusedTaskId} />
            </div>
         )}
 
