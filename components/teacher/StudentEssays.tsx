@@ -30,6 +30,8 @@ interface StudentEssaysProps {
 
 // --- Data Types ---
 type ViewMode = 'Brainstorm' | 'Drafting' | 'History';
+type ReviewPanelTab = 'Comments' | 'Feedback' | 'AI';
+type ReviewSaveState = 'saved' | 'saving' | 'error';
 
 type VersionSource = 'Student_Submit' | 'Teacher_Save' | 'AI_Generate' | 'System_Restore' | 'Teacher_Return' | 'Teacher_Finalize';
 
@@ -207,6 +209,12 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [selection, setSelection] = useState<{ start: number; end: number; text: string } | null>(null);
   const [inlineCommentDraft, setInlineCommentDraft] = useState('');
+  const [reviewPanelTab, setReviewPanelTab] = useState<ReviewPanelTab>('Comments');
+  const [sharedReview, setSharedReview] = useState<ReturnType<typeof getEssayReview>>(() => getEssayReview(INITIAL_ESSAYS[0].id));
+  const [overallFeedbackDraft, setOverallFeedbackDraft] = useState('');
+  const [reviewSaveState, setReviewSaveState] = useState<ReviewSaveState>('saved');
+  const [reviewHasUnsavedChanges, setReviewHasUnsavedChanges] = useState(false);
+  const reviewWorkspaceRef = useRef<HTMLDivElement>(null);
 
   const handleStartEditing = () => {
     setIsDirectEditing(true);
@@ -268,6 +276,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   );
 
   const activeEssay = essays.find(e => e.id === activeEssayId) || essays[0];
+  const hasUnsavedReviewChanges = reviewHasUnsavedChanges || reviewSaveState === 'error' || inlineCommentDraft.trim().length > 0;
 
   // Derived System Context
   const systemContextItems = [
@@ -325,6 +334,53 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   }, []);
 
   useEffect(() => {
+    const syncReviewWorkspace = (changedEssayId?: string) => {
+      if (changedEssayId && changedEssayId !== activeEssayId) return;
+      const review = getEssayReview(activeEssayId);
+      setSharedReview(review);
+      setOverallFeedbackDraft(review?.overallFeedback || '');
+    };
+
+    syncReviewWorkspace();
+    return subscribeEssayReviews(syncReviewWorkspace);
+  }, [activeEssayId]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedReviewChanges) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    const handleExternalNavigation = (event: MouseEvent) => {
+      if (!hasUnsavedReviewChanges) return;
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest('button, a')) return;
+      if (reviewWorkspaceRef.current?.contains(target)) return;
+
+      const shouldLeave = window.confirm(
+        isEn
+          ? 'This review contains unsaved feedback or comments. Leave without saving?'
+          : '当前审阅仍有未保存的整体反馈或批注，确定离开吗？'
+      );
+      if (shouldLeave) {
+        setReviewHasUnsavedChanges(false);
+        setInlineCommentDraft('');
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('click', handleExternalNavigation, true);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('click', handleExternalNavigation, true);
+    };
+  }, [hasUnsavedReviewChanges, isEn]);
+
+  useEffect(() => {
     setSuggestions([]);
     setHasScanned(false);
     setEssayScore(85);
@@ -333,9 +389,39 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     setSelectedIdeaIds(new Set());
     setIsEditingPrompt(false);
     setPromptDraft('');
+    setSelection(null);
+    setInlineCommentDraft('');
+    setReviewPanelTab('Comments');
+    setReviewHasUnsavedChanges(false);
+    setReviewSaveState('saved');
   }, [activeEssayId]);
 
   const showToast = (msg: string) => setToastMessage(msg);
+
+  const confirmDiscardReviewChanges = () => {
+    if (!hasUnsavedReviewChanges) return true;
+    return window.confirm(
+      isEn
+        ? 'This review contains unsaved feedback or comments. Discard them and continue?'
+        : '当前审阅仍有未保存的整体反馈或批注，是否放弃修改并继续？'
+    );
+  };
+
+  const handleSelectEssay = (essayId: string) => {
+    if (essayId === activeEssayId) return;
+    if (!confirmDiscardReviewChanges()) return;
+    setReviewHasUnsavedChanges(false);
+    setInlineCommentDraft('');
+    setActiveEssayId(essayId);
+  };
+
+  const handleChangeView = (mode: ViewMode) => {
+    if (mode === activeView) return;
+    if (!confirmDiscardReviewChanges()) return;
+    setReviewHasUnsavedChanges(false);
+    setInlineCommentDraft('');
+    setActiveView(mode);
+  };
 
   // --- Core Handlers ---
 
@@ -362,6 +448,8 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   };
 
   const handleContentUpdate = (val: string) => {
+    setReviewSaveState('saving');
+    setReviewHasUnsavedChanges(true);
     setEssays(prev => prev.map(e => e.id === activeEssayId ? { ...e, currentContent: val, lastSavedAt: isEn ? 'Saving...' : 'Saving...' } : e));
     const saved = updateEssayReview(activeEssayId, review => ({
       ...review,
@@ -373,10 +461,16 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       lastModifiedAt: new Date().toLocaleString(),
       revisionNumber: review.revisionNumber + 1
     }));
-    if (!saved) showToast(isEn ? 'Auto-save failed' : '自动保存失败，请重试');
+    if (!saved) {
+      setReviewSaveState('error');
+      showToast(isEn ? 'Auto-save failed' : '自动保存失败，请重试');
+      return;
+    }
     // Simulate auto-save delay
     setTimeout(() => {
         setEssays(prev => prev.map(e => e.id === activeEssayId ? { ...e, lastSavedAt: isEn ? 'Just now' : '刚刚' } : e));
+        setReviewSaveState('saved');
+        setReviewHasUnsavedChanges(false);
     }, 1000);
   };
 
@@ -387,6 +481,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       const text = activeEssay.currentContent.substring(start, end);
       if (text.trim().length > 0) {
         setSelection({ start, end, text });
+        setReviewPanelTab('Comments');
       } else {
         setSelection(null);
       }
@@ -395,6 +490,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 
   const handleAddInlineComment = () => {
     if (!selection || !inlineCommentDraft.trim()) return;
+    setReviewSaveState('saving');
     const saved = updateEssayReview(activeEssayId, review => ({
       ...review,
       comments: [...review.comments, {
@@ -413,12 +509,48 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       revisionNumber: review.revisionNumber + 1
     }));
     if (!saved) {
+      setReviewSaveState('error');
+      setReviewHasUnsavedChanges(true);
       showToast(isEn ? 'Comment save failed' : '批注保存失败，请重试');
       return;
     }
+    setReviewSaveState('saved');
+    setReviewHasUnsavedChanges(false);
     setInlineCommentDraft('');
     setSelection(null);
     showToast(isEn ? 'Inline comment saved' : '文本批注已保存');
+  };
+
+  const saveReviewDraft = (showSuccessToast = true) => {
+    setReviewSaveState('saving');
+    const saved = updateEssayReview(activeEssayId, review => ({
+      ...review,
+      currentContent: activeEssay.currentContent,
+      teacherModifiedContent: activeEssay.currentContent,
+      overallFeedback: overallFeedbackDraft.trim(),
+      reviewAuthor: 'Ms. Sarah',
+      reviewedAt: new Date().toLocaleString(),
+      lastModifiedBy: 'Ms. Sarah',
+      lastModifiedAt: new Date().toLocaleString(),
+      revisionNumber: review.revisionNumber + 1
+    }));
+
+    if (!saved) {
+      setReviewSaveState('error');
+      setReviewHasUnsavedChanges(true);
+      showToast(isEn ? 'Review draft save failed' : '审阅草稿保存失败，请重试');
+      return false;
+    }
+
+    setReviewSaveState('saved');
+    setReviewHasUnsavedChanges(false);
+    if (showSuccessToast) showToast(isEn ? 'Review draft saved' : '审阅草稿已保存');
+    return true;
+  };
+
+  const handleSaveOverallFeedback = () => {
+    if (!saveReviewDraft(false)) return;
+    showToast(isEn ? 'Overall feedback saved' : '整体反馈已保存');
   };
 
   const handleAddContextToKeywords = (text: string) => {
@@ -615,7 +747,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   // --- WORKFLOW HANDLERS (Ping-Pong) ---
 
   const handleReturnForRevision = () => {
-    // Open modal to get revision feedback note
+    setReturnNote(overallFeedbackDraft);
     setIsReturnModalOpen(true);
   };
 
@@ -650,6 +782,8 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       return;
     }
 
+    setReviewSaveState('saved');
+    setReviewHasUnsavedChanges(false);
     setIsReturnModalOpen(false);
     setReturnNote('');
     showToast(isEn ? 'Returned to student for revision.' : '已退回给学生修改。');
@@ -657,6 +791,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 
   const handleFinalize = async () => {
     if (confirm(isEn ? 'Finalize this essay? This will lock the document and save a copy to Materials.' : '确认定稿？文档将被锁定，并自动保存 Word 文件至学生资料夹。')) {
+      if (!saveReviewDraft(false)) return;
       // 1. Create Final Snapshot
       createSnapshot('Teacher_Finalize', 'Final Approved Version', 'Teacher');
 
@@ -664,7 +799,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       setEssays(prev => prev.map(e => 
         e.id === activeEssayId ? { ...e, status: 'Finalized' } : e
       ));
-      updateEssayReview(activeEssayId, review => ({
+      const saved = updateEssayReview(activeEssayId, review => ({
         ...review,
         status: 'Finalized',
         currentContent: activeEssay.currentContent,
@@ -675,6 +810,12 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
         lastModifiedAt: new Date().toLocaleString(),
         revisionNumber: review.revisionNumber + 1
       }));
+      if (!saved) {
+        setReviewSaveState('error');
+        setReviewHasUnsavedChanges(true);
+        showToast(isEn ? 'Finalize failed' : '定稿保存失败，请重试');
+        return;
+      }
       
       // 3. Generate Word Document
       try {
@@ -802,6 +943,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 
   const handleScanEssay = async () => {
     if (!activeEssay.currentContent.trim()) return;
+    setReviewPanelTab('AI');
     setIsAiLoading(true);
     setSuggestions([]);
     setActiveSuggestionId(null);
@@ -966,7 +1108,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   };
 
   return (
-     <div className="flex h-full gap-0 animate-in fade-in slide-in-from-bottom-2 relative bg-[#f9f8f6]">
+     <div ref={reviewWorkspaceRef} className="flex h-full gap-0 animate-in fade-in slide-in-from-bottom-2 relative bg-[#f9f8f6]">
         
         {toastMessage && <Toast message={toastMessage} onClose={() => setToastMessage(null)} />}
 
@@ -986,7 +1128,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
               {essays.map(essay => (
                  <div 
                     key={essay.id}
-                    onClick={() => setActiveEssayId(essay.id)}
+                    onClick={() => handleSelectEssay(essay.id)}
                     className={`p-3 rounded-lg cursor-pointer transition-all border group relative
                        ${activeEssayId === essay.id ? 'bg-primary-50 border-primary-200 shadow-sm' : 'bg-white border-transparent hover:bg-gray-50 hover:border-gray-200'}
                     `}
@@ -1085,7 +1227,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
                     {(['Brainstorm', 'Drafting', 'History'] as ViewMode[]).map(mode => (
                         <button
                             key={mode}
-                            onClick={() => setActiveView(mode)}
+                            onClick={() => handleChangeView(mode)}
                             className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2
                                 ${activeView === mode 
                                     ? 'bg-white text-primary-700 shadow-sm' 
@@ -1102,6 +1244,24 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 
                  {/* Status Indicator */}
                  <div className="flex items-center gap-3">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                        reviewSaveState === 'saving'
+                          ? 'border-blue-200 bg-blue-50 text-blue-700'
+                          : reviewSaveState === 'error'
+                            ? 'border-red-200 bg-red-50 text-red-700'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      }`}
+                      aria-live="polite"
+                    >
+                      {reviewSaveState === 'saving' ? (
+                        <><RefreshCw className="h-3 w-3 animate-spin" />{isEn ? 'Saving' : '正在保存'}</>
+                      ) : reviewSaveState === 'error' ? (
+                        <><AlertCircle className="h-3 w-3" />{isEn ? 'Save failed' : '保存失败'}</>
+                      ) : (
+                        <><CheckCircle className="h-3 w-3" />{isEn ? 'Saved' : '已保存'}</>
+                      )}
+                    </span>
                     <span className="text-xs text-gray-400 font-medium">{isEn ? 'Current Status:' : '当前状态:'}</span>
                     {renderStatusBadge()}
                  </div>
@@ -1243,8 +1403,8 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 
            {/* --- VIEW: DRAFTING --- */}
            {activeView === 'Drafting' && (
-              <div className="flex-1 flex h-full">
-                 <div className="flex-1 flex flex-col h-full bg-[#fcfcfc] relative">
+              <div className="flex flex-1 flex-col h-full min-h-0 overflow-hidden xl:flex-row">
+                 <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[#fcfcfc]">
                     <div className="flex-1 overflow-y-auto relative" onClick={() => setActiveSuggestionId(null)}>
                        <div className="max-w-3xl mx-auto py-12 px-8 min-h-full">
                           <div className="relative z-0 min-h-[60vh] outline-none">
@@ -1338,7 +1498,14 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
                     </div>
 
                     {/* Bottom Action Bar */}
-                    <div className="absolute bottom-6 right-8 z-20 flex gap-3">
+                    <div className="absolute bottom-4 right-4 z-20 flex max-w-[calc(100%-2rem)] flex-wrap justify-end gap-2 xl:bottom-6 xl:right-8 xl:gap-3">
+                       <button
+                          type="button"
+                          onClick={() => saveReviewDraft(true)}
+                          className="flex items-center gap-2 rounded-full bg-primary-600 px-5 py-3 text-sm font-bold text-white shadow-lg transition-all hover:bg-primary-700"
+                       >
+                          <Save className="h-4 w-4" /> {isEn ? 'Save Review Draft' : '保存审阅草稿'}
+                       </button>
                        <div className="relative">
                           {isCreatingVersion ? (
                              <div className="absolute bottom-full right-0 mb-3 w-72 bg-white rounded-xl shadow-xl border border-gray-200 p-3 animate-in slide-in-from-bottom-2">
@@ -1360,7 +1527,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
                                 onClick={() => setIsCreatingVersion(true)}
                                 className="flex items-center gap-2 px-5 py-3 bg-white border border-gray-200 text-gray-700 rounded-full shadow-lg hover:border-primary-400 hover:text-primary-600 transition-all font-bold text-sm"
                              >
-                                <GitCommit className="w-4 h-4" /> {isEn ? 'Save Version' : 'Save Version'}
+                                <GitCommit className="w-4 h-4" /> {isEn ? 'Create Version' : '创建版本'}
                              </button>
                           )}
                        </div>
@@ -1376,39 +1543,122 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
                     </div>
                  </div>
 
-                 {/* Right Sidebar (Suggestions) */}
-                 <div className="w-[340px] flex-shrink-0 bg-white border-l border-gray-200 flex flex-col h-full shadow-[-4px_0_15px_rgba(0,0,0,0.02)] z-20">
-                    <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                       <div>
-                          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Overall Score</p>
-                          <div className="flex items-baseline gap-1">
-                             <span className="text-3xl font-bold text-gray-900">{hasScanned ? essayScore : '--'}</span>
-                             <span className="text-sm text-gray-400">/ 100</span>
+                 {/* Review Sidebar */}
+                 <div className="z-20 flex h-[300px] w-full flex-shrink-0 flex-col border-t border-gray-200 bg-white shadow-[0_-4px_15px_rgba(0,0,0,0.02)] xl:h-full xl:w-[360px] xl:border-l xl:border-t-0 xl:shadow-[-4px_0_15px_rgba(0,0,0,0.02)]">
+                    <div className="grid grid-cols-3 gap-1 border-b border-gray-100 bg-gray-50 p-2">
+                       {([
+                          ['Comments', isEn ? 'Comments' : '批注', MessageCircle],
+                          ['Feedback', isEn ? 'Overall feedback' : '整体反馈', FileText],
+                          ['AI', isEn ? 'AI suggestions' : 'AI建议', Bot]
+                       ] as const).map(([tab, label, Icon]) => (
+                          <button
+                             key={tab}
+                             type="button"
+                             onClick={() => setReviewPanelTab(tab)}
+                             className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-bold transition-colors ${
+                                reviewPanelTab === tab
+                                   ? 'bg-white text-primary-700 shadow-sm ring-1 ring-gray-200'
+                                   : 'text-gray-500 hover:bg-white/70 hover:text-gray-700'
+                             }`}
+                          >
+                             <Icon className="h-3.5 w-3.5" />
+                             <span>{label}</span>
+                             {tab === 'Comments' && sharedReview?.comments.length ? (
+                                <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] text-indigo-700">{sharedReview.comments.length}</span>
+                             ) : null}
+                          </button>
+                       ))}
+                    </div>
+
+                    {reviewPanelTab === 'Comments' && (
+                       <div className="flex-1 overflow-y-auto bg-gray-50/50 p-4">
+                          {sharedReview?.comments.length ? (
+                             <div className="space-y-3">
+                                {sharedReview.comments.map(comment => (
+                                   <div key={comment.id} className="rounded-xl border border-indigo-100 bg-white p-3 shadow-sm">
+                                      <p className="mb-2 border-l-2 border-indigo-300 pl-2 text-xs italic text-gray-500">“{comment.quote}”</p>
+                                      <p className="text-sm leading-relaxed text-gray-800">{comment.comment}</p>
+                                      <div className="mt-2 flex items-center justify-between text-[10px] text-gray-400">
+                                         <span>{comment.author}</span>
+                                         <span>{comment.createdAt}</span>
+                                      </div>
+                                   </div>
+                                ))}
+                             </div>
+                          ) : (
+                             <div className="flex h-full min-h-36 flex-col items-center justify-center px-6 text-center">
+                                <MessageCircle className="mb-3 h-8 w-8 text-gray-300" />
+                                <p className="text-xs leading-relaxed text-gray-500">
+                                   {isEn ? 'Select text in editing mode to add a specific comment.' : '进入编辑模式并选中文字，即可添加与原文关联的具体批注。'}
+                                </p>
+                             </div>
+                          )}
+                       </div>
+                    )}
+
+                    {reviewPanelTab === 'Feedback' && (
+                       <div className="flex flex-1 flex-col gap-3 overflow-y-auto bg-gray-50/50 p-4">
+                          <div>
+                             <h3 className="text-sm font-bold text-gray-800">{isEn ? 'Overall feedback' : '整体反馈'}</h3>
+                             <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                                {isEn ? 'Saved independently from returning or finalizing the essay.' : '整体反馈可以独立保存，不会自动退回学生或确认定稿。'}
+                             </p>
+                          </div>
+                          <textarea
+                             value={overallFeedbackDraft}
+                             onChange={(event) => {
+                                setOverallFeedbackDraft(event.target.value);
+                                setReviewHasUnsavedChanges(true);
+                             }}
+                             placeholder={isEn ? 'Summarize strengths, priorities, and the next revision direction...' : '填写整体评价、修改重点和下一轮建议…'}
+                             className="min-h-36 flex-1 resize-y rounded-xl border border-gray-200 bg-white p-3 text-sm leading-relaxed outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100"
+                          />
+                          <button
+                             type="button"
+                             onClick={handleSaveOverallFeedback}
+                             disabled={!reviewHasUnsavedChanges && overallFeedbackDraft === (sharedReview?.overallFeedback || '')}
+                             className="flex items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                             <Save className="h-4 w-4" /> {isEn ? 'Save feedback' : '保存整体反馈'}
+                          </button>
+                       </div>
+                    )}
+
+                    {reviewPanelTab === 'AI' && (
+                       <div className="flex min-h-0 flex-1 flex-col">
+                          <div className="flex items-center justify-between border-b border-gray-100 p-4">
+                             <div>
+                                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Overall Score</p>
+                                <div className="flex items-baseline gap-1">
+                                   <span className="text-3xl font-bold text-gray-900">{hasScanned ? essayScore : '--'}</span>
+                                   <span className="text-sm text-gray-400">/ 100</span>
+                                </div>
+                             </div>
+                             <div className={`flex h-12 w-12 items-center justify-center rounded-full border-4 ${hasScanned ? 'border-primary-100' : 'border-gray-100'}`}>
+                                <span className={`font-bold ${hasScanned ? 'text-primary-600' : 'text-gray-300'}`}>{hasScanned ? 'B+' : '-'}</span>
+                             </div>
+                          </div>
+                          <div className="flex-1 space-y-4 overflow-y-auto bg-gray-50/50 p-4">
+                             {!hasScanned && (
+                                <div className="px-6 py-16 text-center">
+                                   <Sparkles className="mx-auto mb-3 h-8 w-8 text-gray-300"/>
+                                   <p className="text-xs text-gray-500">{isEn ? 'AI suggestions are optional. Click “AI Critique” when needed.' : 'AI建议为可选能力，需要时再点击“AI 深度批改”。'}</p>
+                                </div>
+                             )}
+                             {suggestions.map((sug) => (
+                                <div key={sug.id} onClick={() => setActiveSuggestionId(sug.id)} className={`cursor-pointer rounded-xl border bg-white p-4 ${activeSuggestionId === sug.id ? 'border-primary-500 shadow-md ring-1 ring-primary-500' : 'border-gray-200'}`}>
+                                   <div className="mb-2 flex justify-between">
+                                      <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${getSuggestionColor(sug.type).bg} ${getSuggestionColor(sug.type).text}`}>{sug.type}</span>
+                                   </div>
+                                   <p className="mb-1 text-xs text-gray-500 line-through">{sug.originalText}</p>
+                                   <p className="text-sm font-bold text-gray-800">{sug.suggestedText}</p>
+                                   <p className="mt-2 text-xs italic text-gray-500">{sug.shortReason}</p>
+                                   <button onClick={(event) => { event.stopPropagation(); handleApplySuggestion(sug); }} className="mt-3 w-full rounded bg-green-50 py-1.5 text-xs font-bold text-green-700 hover:bg-green-100">{isEn ? 'Apply' : '应用建议'}</button>
+                                </div>
+                             ))}
                           </div>
                        </div>
-                       <div className={`w-12 h-12 rounded-full border-4 flex items-center justify-center ${hasScanned ? 'border-primary-100' : 'border-gray-100'}`}>
-                          <span className={`font-bold ${hasScanned ? 'text-primary-600' : 'text-gray-300'}`}>{hasScanned ? 'B+' : '-'}</span>
-                       </div>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50">
-                        {!hasScanned && (
-                           <div className="text-center py-20 px-6">
-                              <Sparkles className="w-8 h-8 text-gray-300 mx-auto mb-3"/>
-                              <p className="text-xs text-gray-500">{isEn ? 'Click "AI Critique" to start analysis' : '点击“AI 深度批改”开始诊断'}</p>
-                           </div>
-                        )}
-                        {suggestions.map((sug) => (
-                           <div key={sug.id} onClick={() => setActiveSuggestionId(sug.id)} className={`bg-white rounded-xl p-4 border cursor-pointer ${activeSuggestionId === sug.id ? 'border-primary-500 shadow-md ring-1 ring-primary-500' : 'border-gray-200'}`}>
-                              <div className="flex justify-between mb-2">
-                                 <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${getSuggestionColor(sug.type).bg} ${getSuggestionColor(sug.type).text}`}>{sug.type}</span>
-                              </div>
-                              <p className="text-xs text-gray-500 line-through mb-1">{sug.originalText}</p>
-                              <p className="text-sm font-bold text-gray-800">{sug.suggestedText}</p>
-                              <p className="text-xs text-gray-500 mt-2 italic">{sug.shortReason}</p>
-                              <button onClick={(e) => {e.stopPropagation(); handleApplySuggestion(sug)}} className="mt-3 w-full py-1.5 bg-green-50 text-green-700 rounded text-xs font-bold hover:bg-green-100">Apply</button>
-                           </div>
-                        ))}
-                    </div>
+                    )}
                  </div>
               </div>
            )}
