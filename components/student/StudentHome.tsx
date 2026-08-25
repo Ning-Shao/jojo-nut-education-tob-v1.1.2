@@ -32,7 +32,7 @@ const StudentHome: React.FC<StudentHomeProps> = ({
   const dreamSchool = schoolList.find(school => school.id === dreamSchoolId) || schoolList.find(school => school.tier === 'Reach') || schoolList[0];
   const taskStatusLabel = (status: StudentTask['status']) => isEn
     ? status
-    : ({ Pending: '待处理', 'In Progress': '进行中', Completed: '已完成', Review: '待审核', Overdue: '已逾期' } as Record<StudentTask['status'], string>)[status];
+    : ({ Pending: '待处理', Returned: '已退回', Completed: '已完成', Cancelled: '已取消', Review: '待审核', Overdue: '已逾期' } as Record<StudentTask['status'], string>)[status];
 
   useEffect(() => {
     if (!dreamSchoolId && dreamSchool) {
@@ -49,9 +49,9 @@ const StudentHome: React.FC<StudentHomeProps> = ({
   // Mock Data
   const completedTaskCount = tasks.filter(task => task.status === 'Completed').length;
   const completionRate = tasks.length === 0 ? 0 : Math.round((completedTaskCount / tasks.length) * 100);
-  const weeklyTasks = useMemo(() => tasks.filter(isTaskDueThisWeek), [tasks]);
+  const weeklyTasks = useMemo(() => tasks.filter(task => isTaskDueThisWeek(task)), [tasks]);
   const taskReminderGroups = useMemo(() => ({
-    today: tasks.filter(isTodayPending),
+    today: tasks.filter(task => isTodayPending(task)),
     overdue: tasks.filter(task => isStudentTaskPastDue(task)),
     review: tasks.filter(task => task.status === 'Review'),
   }), [tasks]);

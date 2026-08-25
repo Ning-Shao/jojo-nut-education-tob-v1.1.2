@@ -21,6 +21,7 @@ import {
   isTeacherOverdueTodo,
   isTeacherReviewTodo,
   isTeacherTaskDueThisWeek,
+  isTeacherTaskTerminal,
   isTeacherTodayTodo,
   resolveTeacherReviewDeadline,
   TeacherTask as Task,
@@ -140,13 +141,25 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
   const getStatusLabel = (status: TaskStatus) => {
     const workflowStatus = status === 'Overdue' ? 'Pending' : status;
     if (isEn) return workflowStatus;
-    return ({ Pending: '待处理', Review: '待审核', Completed: '已完成' } as Record<Exclude<TaskStatus, 'Overdue'>, string>)[workflowStatus];
+    return ({ Pending: '待处理', Review: '待审核', Completed: '已完成', Cancelled: '已取消' } as Record<Exclude<TaskStatus, 'Overdue'>, string>)[workflowStatus];
   };
 
   const getTimingStatusLabel = (task: Task) => {
     const timingStatus = getTeacherTaskTimingStatus(task);
-    if (isEn) return ({ NO_DEADLINE: 'No deadline', OVERDUE: 'Overdue', DUE_TODAY: 'Due today', UPCOMING: 'Upcoming' } as const)[timingStatus];
-    return ({ NO_DEADLINE: '无截止时间', OVERDUE: '已逾期', DUE_TODAY: '今日到期', UPCOMING: '未到期' } as const)[timingStatus];
+    if (isEn) return ({ NO_DEADLINE: 'No deadline', OVERDUE: 'Overdue', DUE_TODAY: 'Due today', DUE_THIS_WEEK: 'Due this week', UPCOMING: 'Upcoming' } as const)[timingStatus];
+    return ({ NO_DEADLINE: '无截止时间', OVERDUE: '已逾期', DUE_TODAY: '今日到期', DUE_THIS_WEEK: '本周到期', UPCOMING: '未到期' } as const)[timingStatus];
+  };
+
+  const renderStatusBadges = (task: Task) => {
+    const workflowStatus = getTeacherTaskEffectiveStatus(task);
+    if (workflowStatus === 'Completed' || workflowStatus === 'Cancelled') {
+      return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${workflowStatus === 'Completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-100 text-gray-600'}`}>{getStatusLabel(workflowStatus)}</span>;
+    }
+    const timingStatus = getTeacherTaskTimingStatus(task);
+    return <div className="flex flex-wrap gap-1.5 whitespace-nowrap">
+      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${timingStatus === 'OVERDUE' ? 'border-red-200 bg-red-50 text-red-700' : timingStatus === 'DUE_TODAY' ? 'border-orange-200 bg-orange-50 text-orange-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>{getTimingStatusLabel(task)}</span>
+      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${workflowStatus === 'Review' ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-gray-200 bg-white text-gray-700'}`}>{getStatusLabel(workflowStatus)}</span>
+    </div>;
   };
 
   // Filtering Logic
@@ -482,8 +495,7 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5 text-center">{isEn ? 'Category' : '分类'}</th>
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Deadline' : '截止时间'}</th>
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Priority' : '优先级'}</th>
-                      <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Timing' : '时效状态'}</th>
-                      <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Workflow' : '流程状态'}</th>
+                      <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Status' : '状态'}</th>
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5 text-right">{isEn ? 'Operation' : '操作'}</th>
                    </tr>
                 </thead>
@@ -505,7 +517,7 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
                                      <FileText className="w-4 h-4 text-orange-500" />
                                   ) : getTeacherTaskEffectiveStatus(task) === 'Completed' ? (
                                      <CheckCircle className="w-4 h-4 text-green-500" />
-                                  ) : getTeacherTaskEffectiveStatus(task) === 'Overdue' ? (
+                                  ) : getTeacherTaskTimingStatus(task) === 'OVERDUE' ? (
                                      <AlertTriangle className="w-4 h-4 text-red-500" />
                                   ) : (
                                      <Clock className="w-4 h-4 text-gray-400" />
@@ -554,21 +566,7 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
                                {formatTeacherTaskPriority(task.priority, isEn)}
                             </span>
                          </td>
-                         <td className="px-6 py-4">
-                            <span className={`text-sm font-medium whitespace-nowrap ${getTeacherTaskTimingStatus(task) === 'OVERDUE' ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-zinc-400'}`}>{getTimingStatusLabel(task)}</span>
-                         </td>
-                         <td className="px-6 py-4">
-                            <div className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-zinc-400 whitespace-nowrap">
-                               {task.status === 'Review' ? (
-                                  <FileText className="w-4 h-4 text-orange-500" />
-                               ) : task.status === 'Completed' ? (
-                                  <CheckCircle className="w-4 h-4 text-green-500" />
-                               ) : (
-                                  <Clock className="w-4 h-4 text-gray-400" />
-                               )}
-                               {getStatusLabel(task.status)}
-                            </div>
-                         </td>
+                         <td className="px-6 py-4">{renderStatusBadges(task)}</td>
                          <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
                                <button
@@ -579,7 +577,7 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
                                >
                                  <Edit className="w-4 h-4" />
                                </button>
-                               {getTeacherTaskEffectiveStatus(task) !== 'Completed' ? (
+                               {!isTeacherTaskTerminal(task) ? (
                                    <button 
                                      onClick={(e) => { e.stopPropagation(); handleCompleteTask(task.id); }}
                                      className="w-8 h-8 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-full text-green-600 hover:bg-green-50 dark:hover:bg-green-500/10 transition-colors shadow-sm group/btn"
@@ -587,7 +585,7 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
                                    >
                                       <Check className="w-4 h-4 transform group-hover/btn:scale-110 transition-transform" />
                                    </button>
-                               ) : (
+                               ) : getTeacherTaskEffectiveStatus(task) === 'Completed' ? (
                                    <button
                                      onClick={(e) => { e.stopPropagation(); handleUndoCompleteTask(task.id); }}
                                      className="w-8 h-8 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-full text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors shadow-sm group/btn"
@@ -596,7 +594,7 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
                                    >
                                      <RotateCcw className="w-4 h-4 transform group-hover/btn:-rotate-45 transition-transform" />
                                    </button>
-                               )}
+                               ) : null}
                                <button 
                                  onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.id); }}
                                  className="w-8 h-8 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-red-500 dark:text-red-400 rounded-full hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors shadow-sm group/btn"
@@ -611,7 +609,7 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
                    
                    {filteredTasks.length === 0 && (
                       <tr>
-                         <td colSpan={8} className="px-6 py-16 text-center text-gray-400 dark:text-zinc-600">
+                         <td colSpan={7} className="px-6 py-16 text-center text-gray-400 dark:text-zinc-600">
                             <div className="flex justify-center mb-3">
                                <CheckSquare className="w-12 h-12 text-gray-200 dark:text-zinc-700" />
                             </div>

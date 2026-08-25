@@ -2,7 +2,8 @@ import { TaskAuditEntry, TaskSource } from '../common/taskAudit';
 import { StudentReviewEvent } from '../../services/studentReviewEvents';
 
 export type TeacherTaskPriority = 'High' | 'Medium' | 'Low';
-export type TeacherTaskStatus = 'Pending' | 'Completed' | 'Review' | 'Overdue';
+export type TeacherTaskStatus = 'Pending' | 'Completed' | 'Cancelled' | 'Review' | 'Overdue';
+export type TeacherTaskWorkflowStatus = Exclude<TeacherTaskStatus, 'Overdue'>;
 export type TeacherTaskCategory = '建档' | '规划' | '考试' | '活动' | '材料' | '面试' | '申请' | 'Offer' | '复盘';
 
 export interface TeacherTask {
@@ -98,6 +99,7 @@ export const getStoredTeacherTasks = (): TeacherTask[] => {
     const stored = saved ? JSON.parse(saved) as TeacherTask[] : INITIAL_TEACHER_TASKS;
     return stored.filter(task => task.status !== 'Review' || Boolean(task.sourceEventId && task.createdBy && task.createdAt)).map(task => ({
       ...task,
+      status: task.status === 'Overdue' ? 'Pending' : task.status,
       dueDate: normalizeTeacherTaskDueDate(task.dueDate),
       source: task.source || (task.status === 'Review' ? 'system-review' : 'manual'),
       auditHistory: task.auditHistory || [],
@@ -170,16 +172,16 @@ export const resolveTeacherReviewDeadline = (dueDate: string, now: Date = new Da
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 };
 
-// 所有状态视图共用的唯一解析规则。Review 与 Overdue 任一时刻只会返回其一。
+// 流程状态与时效状态是两个独立维度。历史 Overdue 值只迁移为 Pending，
+// 不能再覆盖 Review 等真实流程状态。
 export const getTeacherTaskEffectiveStatus = (
   task: TeacherTask,
-  now: Date = new Date(),
-): TeacherTaskStatus => {
-  if (task.status !== 'Review') return task.status;
-  if (!task.reviewDeadlineAt) return 'Review';
-  const deadline = new Date(task.reviewDeadlineAt);
-  if (Number.isNaN(deadline.getTime())) return 'Review';
-  return now.getTime() > deadline.getTime() ? 'Overdue' : 'Review';
+  _now: Date = new Date(),
+): TeacherTaskWorkflowStatus => task.status === 'Overdue' ? 'Pending' : task.status;
+
+export const isTeacherTaskTerminal = (task: TeacherTask) => {
+  const workflowStatus = getTeacherTaskEffectiveStatus(task);
+  return workflowStatus === 'Completed' || workflowStatus === 'Cancelled';
 };
 
 const getLocalToday = (now: Date = new Date()) => {
@@ -200,7 +202,7 @@ const getShiftedTeacherDate = (days: number) => {
 // dates must not depend on when the application is opened later.
 export const INITIAL_TEACHER_TASKS: TeacherTask[] = [
   { id: 't3', title: '确认 Emily 的 RISD 作品集提交状态', description: '申请截止日期临近', studentName: 'Emily Zhang', studentAvatar: 'https://api.dicebear.com/7.x/micah/svg?seed=Emily&backgroundColor=ffd5dc', category: '申请', priority: 'High', dueDate: getShiftedTeacherDate(0), status: 'Pending', assignee: 'Sarah' },
-  { id: 't5', title: '跟进 James Wang 的标化成绩', description: '上次模考成绩未达标', studentName: 'James Wang', studentAvatar: 'https://api.dicebear.com/7.x/micah/svg?seed=James&backgroundColor=b6e3f4', category: '考试', priority: 'Medium', dueDate: getShiftedTeacherDate(-1), status: 'Overdue', assignee: 'Sarah' },
+  { id: 't5', title: '跟进 James Wang 的标化成绩', description: '上次模考成绩未达标', studentName: 'James Wang', studentAvatar: 'https://api.dicebear.com/7.x/micah/svg?seed=James&backgroundColor=b6e3f4', category: '考试', priority: 'Medium', dueDate: getShiftedTeacherDate(-1), status: 'Pending', assignee: 'Sarah' },
   { id: 't6', title: '更新 G12 申请状态汇总表', description: '每周例行更新', studentName: 'Grade 12 Group', studentAvatar: '', category: '规划', priority: 'Medium', dueDate: getShiftedTeacherDate(1), status: 'Pending', assignee: 'Sarah' },
 ];
 
@@ -237,7 +239,16 @@ export const formatTeacherTaskPriority = (priority: TeacherTaskPriority, isEn: b
   ? priority
   : ({ High: '高', Medium: '中', Low: '低' } as Record<TeacherTaskPriority, string>)[priority];
 
-export type TeacherTaskTimingStatus = 'NO_DEADLINE' | 'OVERDUE' | 'DUE_TODAY' | 'UPCOMING';
+export type TeacherTaskTimingStatus = 'NO_DEADLINE' | 'OVERDUE' | 'DUE_TODAY' | 'DUE_THIS_WEEK' | 'UPCOMING';
+
+const getTeacherWeekBounds = (now: Date = new Date()) => {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const end = new Date(start);
+  end.setDate(start.getDate() + 7);
+  return { start, end };
+};
 
 export const getTeacherTaskTimingStatus = (task: TeacherTask, now: Date = new Date()): TeacherTaskTimingStatus => {
   const due = resolveTeacherTaskDueDate(task.dueDate, now);
@@ -246,29 +257,25 @@ export const getTeacherTaskTimingStatus = (task: TeacherTask, now: Date = new Da
   today.setHours(0, 0, 0, 0);
   if (due < today) return 'OVERDUE';
   if (due.getTime() === today.getTime()) return 'DUE_TODAY';
+  if (due < getTeacherWeekBounds(now).end) return 'DUE_THIS_WEEK';
   return 'UPCOMING';
 };
 
 // “本周任务”的唯一口径：本周一（含）至下周一（不含），并排除已完成和无效日期任务。
 export const isTeacherTaskDueThisWeek = (task: TeacherTask, now: Date = new Date()) => {
-  if (getTeacherTaskEffectiveStatus(task, now) === 'Completed') return false;
+  if (isTeacherTaskTerminal(task)) return false;
   const due = resolveTeacherTaskDueDate(task.dueDate, now);
   if (!due) return false;
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-  const end = new Date(start);
-  end.setDate(start.getDate() + 7);
+  const { start, end } = getTeacherWeekBounds(now);
   return due >= start && due < end;
 };
 
 export const isTeacherTodayTodo = (task: TeacherTask, now: Date = new Date()) =>
   resolveTeacherTaskDueDate(task.dueDate, now)?.getTime() === new Date(new Date(now).setHours(0, 0, 0, 0)).getTime() &&
-  getTeacherTaskEffectiveStatus(task, now) !== 'Completed' &&
-  getTeacherTaskEffectiveStatus(task, now) !== 'Overdue';
+  !isTeacherTaskTerminal(task);
 
 export const isTeacherOverdueTodo = (task: TeacherTask, now: Date = new Date()) =>
-  getTeacherTaskEffectiveStatus(task, now) !== 'Completed' && getTeacherTaskTimingStatus(task, now) === 'OVERDUE';
+  !isTeacherTaskTerminal(task) && getTeacherTaskTimingStatus(task, now) === 'OVERDUE';
 
 // “待审批”是流程状态视图，不能被逾期这一时间维度覆盖。
 // 已逾期且仍待审批的任务应同时出现在“已逾期”和“待审批”两个视图中。
