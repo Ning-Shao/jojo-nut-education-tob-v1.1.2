@@ -13,10 +13,12 @@ import {
   formatStudentTaskDueDate,
   formatStudentTaskPriority,
   getStudentTaskTimingStatus,
+  getStudentTaskWorkflowStatus,
   getLocalTodayStr,
   getLocalTomorrowStr,
   isTaskDueThisWeek,
   isStudentTaskPastDue,
+  isStudentTaskTerminal,
   isTodayPending,
   TaskCategory,
   TaskPriority,
@@ -120,7 +122,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
 
   // Filtering Logic
   // 此集合只由全部任务和统一业务选择器派生，不受标签、搜索词或分类影响。
-  const todayPendingTasks = tasks.filter(isTodayPending);
+  const todayPendingTasks = tasks.filter(task => isTodayPending(task));
 
   const filteredTasks = tasks.filter(task => {
     // 1. Tab Filter
@@ -245,13 +247,25 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
   const getStatusLabel = (status: TaskStatus) => {
     const workflowStatus = status === 'Overdue' ? 'Pending' : status;
     if (isEn) return workflowStatus;
-    return ({ Pending: '待处理', 'In Progress': '进行中', Completed: '已完成', Review: '待审核' } as Record<Exclude<TaskStatus, 'Overdue'>, string>)[workflowStatus];
+    return ({ Pending: '待处理', Returned: '已退回', Completed: '已完成', Cancelled: '已取消', Review: '待审核' } as Record<Exclude<TaskStatus, 'Overdue'>, string>)[workflowStatus];
   };
 
   const getTimingStatusLabel = (task: Task) => {
     const timingStatus = getStudentTaskTimingStatus(task);
-    if (isEn) return ({ NO_DEADLINE: 'No deadline', OVERDUE: 'Overdue', DUE_TODAY: 'Due today', UPCOMING: 'Upcoming' } as const)[timingStatus];
-    return ({ NO_DEADLINE: '无截止时间', OVERDUE: '已逾期', DUE_TODAY: '今日到期', UPCOMING: '未到期' } as const)[timingStatus];
+    if (isEn) return ({ NO_DEADLINE: 'No deadline', OVERDUE: 'Overdue', DUE_TODAY: 'Due today', DUE_THIS_WEEK: 'Due this week', UPCOMING: 'Upcoming' } as const)[timingStatus];
+    return ({ NO_DEADLINE: '无截止时间', OVERDUE: '已逾期', DUE_TODAY: '今日到期', DUE_THIS_WEEK: '本周到期', UPCOMING: '未到期' } as const)[timingStatus];
+  };
+
+  const renderStatusBadges = (task: Task) => {
+    const workflowStatus = getStudentTaskWorkflowStatus(task);
+    if (workflowStatus === 'Completed' || workflowStatus === 'Cancelled') {
+      return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${workflowStatus === 'Completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-100 text-gray-600'}`}>{getStatusLabel(workflowStatus)}</span>;
+    }
+    const timingStatus = getStudentTaskTimingStatus(task);
+    return <div className="flex flex-wrap gap-1.5 whitespace-nowrap">
+      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${timingStatus === 'OVERDUE' ? 'border-red-200 bg-red-50 text-red-700' : timingStatus === 'DUE_TODAY' ? 'border-orange-200 bg-orange-50 text-orange-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>{getTimingStatusLabel(task)}</span>
+      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${workflowStatus === 'Review' ? 'border-violet-200 bg-violet-50 text-violet-700' : workflowStatus === 'Returned' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-700'}`}>{getStatusLabel(workflowStatus)}</span>
+    </div>;
   };
 
   // Helper: Priority Color
@@ -269,7 +283,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
       case 'Completed': return <CheckCircle className="w-4 h-4 text-green-500 dark:text-green-400" />;
       case 'Overdue': return <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400" />;
       case 'Review': return <FileText className="w-4 h-4 text-violet-500 dark:text-violet-400" />;
-      case 'In Progress': return <Clock className="w-4 h-4 text-violet-500 dark:text-violet-400" />;
+      case 'Returned': return <RotateCcw className="w-4 h-4 text-blue-500 dark:text-blue-400" />;
       default: return <Clock className="w-4 h-4 text-gray-300 dark:text-zinc-600" />;
     }
   };
@@ -293,7 +307,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
                 <div className="space-y-1">
                    {[
                       { id: 'Today', label: isEn ? 'Today' : '今日待办', icon: <ListTodo className="w-4 h-4" />, count: todayPendingTasks.length },
-                      { id: 'Week', label: isEn ? 'This Week' : '本周任务', icon: <Calendar className="w-4 h-4" />, count: tasks.filter(isTaskDueThisWeek).length },
+                      { id: 'Week', label: isEn ? 'This Week' : '本周任务', icon: <Calendar className="w-4 h-4" />, count: tasks.filter(task => isTaskDueThisWeek(task)).length },
                       { id: 'Overdue', label: isEn ? 'Overdue' : '已逾期', icon: <AlertTriangle className="w-4 h-4" />, count: tasks.filter(task => isStudentTaskPastDue(task)).length, alert: true },
                       { id: 'Completed', label: isEn ? 'Completed' : '已完成', icon: <CheckCheck className="w-4 h-4" />, count: tasks.filter(t => t.status === 'Completed').length },
                       { id: 'Review', label: isEn ? 'In Review' : '待审核', icon: <FileText className="w-4 h-4" />, count: tasks.filter(t => t.status === 'Review').length },
@@ -400,8 +414,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5 text-center">{isEn ? 'Category' : '分类'}</th>
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Due Date' : '截止时间'}</th>
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Priority' : '优先级'}</th>
-                      <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Timing' : '时效状态'}</th>
-                      <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Workflow' : '流程状态'}</th>
+                      <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5">{isEn ? 'Status' : '状态'}</th>
                       <th className="px-6 py-3 border-b border-gray-100 dark:border-white/5 text-right">{isEn ? 'Actions' : '操作'}</th>
                    </tr>
                 </thead>
@@ -465,8 +478,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
                                {formatStudentTaskPriority(task.priority, isEn)}
                             </span>
                          </td>
-                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-zinc-400">{getTimingStatusLabel(task)}</td>
-                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-zinc-400">{getStatusLabel(task.status)}</td>
+                         <td className="px-6 py-4">{renderStatusBadges(task)}</td>
                          <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
                                 {canStudentEdit(task) && (
@@ -474,7 +486,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
                                     <Edit className="w-4 h-4" />
                                   </button>
                                 )}
-                                {task.status !== 'Completed' && task.status !== 'Review' && (
+                                {!isStudentTaskTerminal(task) && task.status !== 'Review' && (
                                   <button aria-label={isEn ? 'Complete task' : '完成任务'} title={isEn ? 'Complete task' : '完成任务'} onClick={(event) => { event.stopPropagation(); handleCompleteTask(task.id); }} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-500/10 rounded transition-colors">
                                     <CheckCircle className="w-4 h-4" />
                                   </button>
@@ -496,7 +508,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
                    
                    {filteredTasks.length === 0 && (
                       <tr>
-                         <td colSpan={8} className="px-6 py-12 text-center text-gray-400 dark:text-zinc-600">
+                         <td colSpan={7} className="px-6 py-12 text-center text-gray-400 dark:text-zinc-600">
                             <div className="flex justify-center mb-3">
                                <CheckSquare className="w-10 h-10 text-gray-200 dark:text-zinc-700" />
                             </div>

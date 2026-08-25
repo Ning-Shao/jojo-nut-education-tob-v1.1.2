@@ -42,8 +42,8 @@ const TaskList: React.FC<TaskListProps> = ({ onViewAll, tasks }) => {
   const statusBadge = (todo: TeacherTask) => {
     const status = getTeacherTaskEffectiveStatus(todo);
     if (status === 'Review') return { label: isEn ? 'Review' : '待审批', className: 'bg-purple-50 text-purple-600 border-purple-100' };
-    if (status === 'Overdue') return { label: isEn ? 'Overdue' : '逾期', className: 'bg-red-50 text-red-600 border-red-100' };
     if (status === 'Completed') return { label: isEn ? 'Completed' : '已完成', className: 'bg-green-50 text-green-600 border-green-100' };
+    if (status === 'Cancelled') return { label: isEn ? 'Cancelled' : '已取消', className: 'bg-gray-100 text-gray-600 border-gray-200' };
     return { label: isEn ? 'Pending' : '待处理', className: 'bg-gray-50 text-gray-600 border-gray-200' };
   };
 
@@ -108,7 +108,7 @@ const TaskList: React.FC<TaskListProps> = ({ onViewAll, tasks }) => {
                     {todo.studentName}
                   </span>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full border flex items-center gap-1 ${
-                    getTeacherTaskEffectiveStatus(todo) === 'Overdue'
+                    isTeacherOverdueTodo(todo)
                       ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-100 dark:border-red-500/20' 
                       : isTeacherTodayTodo(todo)
                         ? 'bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 border-green-100 dark:border-green-500/20'
