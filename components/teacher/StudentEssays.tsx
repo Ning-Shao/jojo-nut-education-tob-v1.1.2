@@ -8,7 +8,7 @@ import {
   FolderOpen, User, Wand2, Check, ArrowRight, MousePointerClick,
   Maximize2, Minimize2, Star, GitCommit, RotateCcw, Calendar, Mail,
   Bot, FileDiff, Tag, Languages, Upload, File as FileIcon,
-  MessageCircle, Lock, Unlock, PenTool
+  MessageCircle, Lock, Unlock, PenTool, Undo2, Redo2
 } from '../common/Icons';
 import { GoogleGenAI, Type } from "@google/genai";
 import { StudentSummary } from '../../types';
@@ -215,6 +215,8 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   const [reviewSaveState, setReviewSaveState] = useState<ReviewSaveState>('saved');
   const [reviewHasUnsavedChanges, setReviewHasUnsavedChanges] = useState(false);
   const reviewWorkspaceRef = useRef<HTMLDivElement>(null);
+  const [contentUndoStack, setContentUndoStack] = useState<string[]>([]);
+  const [contentRedoStack, setContentRedoStack] = useState<string[]>([]);
 
   const handleStartEditing = () => {
     setIsDirectEditing(true);
@@ -277,6 +279,11 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 
   const activeEssay = essays.find(e => e.id === activeEssayId) || essays[0];
   const hasUnsavedReviewChanges = reviewHasUnsavedChanges || reviewSaveState === 'error' || inlineCommentDraft.trim().length > 0;
+
+  useEffect(() => {
+    setContentUndoStack([]);
+    setContentRedoStack([]);
+  }, [activeEssayId]);
 
   // Derived System Context
   const systemContextItems = [
@@ -447,7 +454,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     setIsEditingPrompt(false);
   };
 
-  const handleContentUpdate = (val: string) => {
+  const persistContentUpdate = (val: string) => {
     setReviewSaveState('saving');
     setReviewHasUnsavedChanges(true);
     setEssays(prev => prev.map(e => e.id === activeEssayId ? { ...e, currentContent: val, lastSavedAt: isEn ? 'Saving...' : 'Saving...' } : e));
@@ -472,6 +479,46 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
         setReviewSaveState('saved');
         setReviewHasUnsavedChanges(false);
     }, 1000);
+  };
+
+  const handleContentUpdate = (val: string) => {
+    if (val === activeEssay.currentContent) return;
+    setContentUndoStack(previous => [...previous.slice(-99), activeEssay.currentContent]);
+    setContentRedoStack([]);
+    persistContentUpdate(val);
+  };
+
+  const handleUndoContent = () => {
+    const previousContent = contentUndoStack[contentUndoStack.length - 1];
+    if (previousContent === undefined) return;
+    setContentUndoStack(previous => previous.slice(0, -1));
+    setContentRedoStack(previous => [...previous.slice(-99), activeEssay.currentContent]);
+    persistContentUpdate(previousContent);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  const handleRedoContent = () => {
+    const nextContent = contentRedoStack[contentRedoStack.length - 1];
+    if (nextContent === undefined) return;
+    setContentRedoStack(previous => previous.slice(0, -1));
+    setContentUndoStack(previous => [...previous.slice(-99), activeEssay.currentContent]);
+    persistContentUpdate(nextContent);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  const handleEditorKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const isUndoShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z';
+    if (isUndoShortcut) {
+      event.preventDefault();
+      if (event.shiftKey) {
+        handleRedoContent();
+      } else {
+        handleUndoContent();
+      }
+      return;
+    }
+
+    if (event.key === 'Escape') setIsDirectEditing(false);
   };
 
   const handleSelect = () => {
@@ -1419,14 +1466,38 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
                                          <Edit className="w-4 h-4 text-primary-600 flex-shrink-0" />
                                          <span>{isEn ? 'Double-click to edit, changes auto-save in real-time' : '双击即可修改，修改实时自动保存'}</span>
                                       </div>
-                                      <button
-                                         type="button"
-                                         onClick={() => setIsDirectEditing(false)}
-                                         className="px-3.5 py-1.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer text-xs"
-                                      >
-                                         <Check className="w-3.5 h-3.5" />
-                                         <span>{isEn ? 'Done' : '完成编辑'}</span>
-                                      </button>
+                                      <div className="flex items-center gap-1.5">
+                                         <button
+                                            type="button"
+                                            onClick={handleUndoContent}
+                                            disabled={contentUndoStack.length === 0}
+                                            title={isEn ? 'Undo (Command/Ctrl + Z)' : '撤销（Command/Ctrl + Z）'}
+                                            aria-label={isEn ? 'Undo last essay edit' : '撤销上一步文书修改'}
+                                            className="flex items-center gap-1 rounded-lg border border-primary-200 bg-white px-2.5 py-1.5 font-bold text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                         >
+                                            <Undo2 className="h-3.5 w-3.5" />
+                                            <span>{isEn ? 'Undo' : '撤销'}</span>
+                                         </button>
+                                         <button
+                                            type="button"
+                                            onClick={handleRedoContent}
+                                            disabled={contentRedoStack.length === 0}
+                                            title={isEn ? 'Redo (Command/Ctrl + Shift + Z)' : '重做（Command/Ctrl + Shift + Z）'}
+                                            aria-label={isEn ? 'Redo last essay edit' : '重做上一步文书修改'}
+                                            className="flex items-center gap-1 rounded-lg border border-primary-200 bg-white px-2.5 py-1.5 font-bold text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-40"
+                                         >
+                                            <Redo2 className="h-3.5 w-3.5" />
+                                            <span>{isEn ? 'Redo' : '重做'}</span>
+                                         </button>
+                                         <button
+                                            type="button"
+                                            onClick={() => setIsDirectEditing(false)}
+                                            className="px-3.5 py-1.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-lg shadow-sm transition-all flex items-center gap-1.5 cursor-pointer text-xs"
+                                         >
+                                            <Check className="w-3.5 h-3.5" />
+                                            <span>{isEn ? 'Done' : '完成编辑'}</span>
+                                         </button>
+                                      </div>
                                    </div>
                                    {selection && (
                                       <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3">
@@ -1460,11 +1531,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
                                       value={activeEssay.currentContent}
                                       onChange={(e) => handleContentUpdate(e.target.value)}
                                       onSelect={handleSelect}
-                                      onKeyDown={(e) => {
-                                         if (e.key === 'Escape') {
-                                            setIsDirectEditing(false);
-                                         }
-                                      }}
+                                      onKeyDown={handleEditorKeyDown}
                                       placeholder={isEn ? "Type or edit essay content here..." : "双击已进入直接编辑模式，请在此修改文书内容..."}
                                       spellCheck={false}
                                    />
