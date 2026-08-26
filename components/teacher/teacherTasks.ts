@@ -1,10 +1,11 @@
 import { TaskAuditEntry, TaskSource } from '../common/taskAudit';
 import { StudentReviewEvent } from '../../services/studentReviewEvents';
+import { TASK_CENTER_FIXED_CASES } from '../../tests/fixtures/taskCenterFixedCases';
 
 export type TeacherTaskPriority = 'High' | 'Medium' | 'Low';
-export type TeacherTaskStatus = 'Pending' | 'Completed' | 'Cancelled' | 'Review' | 'Overdue';
+export type TeacherTaskStatus = 'Pending' | 'Returned' | 'Completed' | 'Cancelled' | 'Review' | 'Overdue';
 export type TeacherTaskWorkflowStatus = Exclude<TeacherTaskStatus, 'Overdue'>;
-export type TeacherTaskCategory = '建档' | '规划' | '考试' | '活动' | '材料' | '面试' | '申请' | 'Offer' | '复盘';
+export type TeacherTaskCategory = '建档' | '规划' | '考试' | '活动' | '材料' | '面试' | '申请' | 'Offer' | '复盘' | '其他';
 
 export interface TeacherTask {
   id: string;
@@ -30,6 +31,26 @@ export interface TeacherTask {
 }
 
 export const TEACHER_TASK_STORAGE_KEY = 'nut_teacher_tasks_v1';
+export const TEACHER_ACCEPTANCE_DATA_VERSION_KEY = 'nut_teacher_acceptance_data_version';
+export const TEACHER_ACCEPTANCE_DATA_VERSION = 'task-center-24-v1';
+
+export const createTeacherAcceptanceTasks = (): TeacherTask[] => TASK_CENTER_FIXED_CASES.map(testCase => ({
+  id: `acceptance-${testCase.caseId}`,
+  title: testCase.title,
+  studentName: testCase.studentName,
+  studentAvatar: `https://api.dicebear.com/7.x/micah/svg?seed=${encodeURIComponent(testCase.studentName)}`,
+  category: testCase.category,
+  priority: testCase.priority,
+  dueDate: testCase.dueDate,
+  status: testCase.workflowStatus,
+  assignee: 'Sarah',
+  description: testCase.note,
+  source: 'acceptance-test',
+  sourceEventId: testCase.workflowStatus === 'Review' ? `acceptance-event-${testCase.caseId}` : undefined,
+  createdBy: 'acceptance-fixture',
+  createdAt: '2026-08-26T09:00:00+08:00',
+  auditHistory: [],
+}));
 
 // 审核 SLA 的唯一配置。null 表示该业务无自动截止时间，不能因跨日自动逾期。
 export const REVIEW_TASK_SLA_HOURS: Record<StudentReviewEvent['entityType'], number | null> = {
@@ -65,7 +86,11 @@ export const formatReviewTaskTitle = (
 };
 
 export const formatTeacherTaskTitle = (task: TeacherTask, isEn: boolean): string => {
-  if (task.source !== 'system-review' || !task.reviewEntityType || !task.reviewSubject) return task.title;
+  if (task.source !== 'system-review' || !task.reviewEntityType || !task.reviewSubject) {
+    // Older acceptance data embedded its technical case ID in the visible
+    // title. Keep IDs in task.id/source fields, never in user-facing copy.
+    return task.title.replace(/^\s*\[TC-\d+\]\s*/i, '');
+  }
   return formatReviewTaskTitle({
     studentName: task.studentName,
     subject: task.reviewSubject,
@@ -95,9 +120,15 @@ export const formatTeacherTaskDescription = (task: TeacherTask, isEn: boolean): 
 
 export const getStoredTeacherTasks = (): TeacherTask[] => {
   try {
+    if (import.meta.env.DEV && localStorage.getItem(TEACHER_ACCEPTANCE_DATA_VERSION_KEY) !== TEACHER_ACCEPTANCE_DATA_VERSION) {
+      const acceptanceTasks = createTeacherAcceptanceTasks();
+      localStorage.setItem(TEACHER_ACCEPTANCE_DATA_VERSION_KEY, TEACHER_ACCEPTANCE_DATA_VERSION);
+      localStorage.setItem(TEACHER_TASK_STORAGE_KEY, JSON.stringify(acceptanceTasks));
+      return acceptanceTasks;
+    }
     const saved = localStorage.getItem(TEACHER_TASK_STORAGE_KEY);
     const stored = saved ? JSON.parse(saved) as TeacherTask[] : INITIAL_TEACHER_TASKS;
-    return stored.filter(task => task.status !== 'Review' || Boolean(task.sourceEventId && task.createdBy && task.createdAt)).map(task => ({
+    return stored.filter(task => task.status !== 'Review' || task.source === 'acceptance-test' || Boolean(task.sourceEventId && task.createdBy && task.createdAt)).map(task => ({
       ...task,
       status: task.status === 'Overdue' ? 'Pending' : task.status,
       dueDate: normalizeTeacherTaskDueDate(task.dueDate),
@@ -150,7 +181,8 @@ export const reconcileReviewTasks = (
 ): TeacherTask[] => events.reduce((current, event) => {
   const generated = createReviewTaskFromEvent(event, current);
   return generated ? [generated, ...current] : current;
-}, tasks.filter(task => task.status !== 'Review' || Boolean(task.sourceEventId && task.createdBy && task.createdAt)).map(task => {
+}, tasks.filter(task => task.status !== 'Review' || task.source === 'acceptance-test' || Boolean(task.sourceEventId && task.createdBy && task.createdAt)).map(task => {
+  if (task.source === 'acceptance-test') return task;
   if (task.status !== 'Review' || !task.sourceEventId) return task;
   const sourceEvent = events.find(event => event.id === task.sourceEventId);
   if (!sourceEvent) return { ...task, dueDate: 'No deadline', reviewDeadlineAt: null };
@@ -219,12 +251,16 @@ export const resolveTeacherTaskDueDate = (dueDate: string, _now: Date = new Date
 // Treat them as no deadline instead of silently moving the task to the load date.
 export const normalizeTeacherTaskDueDate = (dueDate: string, now: Date = new Date()) => {
   const resolved = resolveTeacherTaskDueDate(dueDate, now);
-  return resolved ? getLocalToday(resolved) : '';
+  if (resolved) return getLocalToday(resolved);
+  if (!dueDate.trim() || dueDate === 'No deadline') return '';
+  if (['Today', 'Yesterday', 'Tomorrow', 'Tmrw', 'Last Week'].includes(dueDate)) return '';
+  return dueDate;
 };
 
 export const formatTeacherTaskDueDate = (dueDate: string, isEn: boolean, now: Date = new Date()) => {
   const resolved = resolveTeacherTaskDueDate(dueDate, now);
-  if (!resolved) return isEn ? 'No deadline' : '无截止时间';
+  if (!dueDate.trim() || dueDate === 'No deadline') return isEn ? 'No deadline' : '无截止时间';
+  if (!resolved) return isEn ? 'Invalid date' : '日期异常';
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   const offset = Math.round((resolved.getTime() - today.getTime()) / 86400000);
@@ -239,7 +275,7 @@ export const formatTeacherTaskPriority = (priority: TeacherTaskPriority, isEn: b
   ? priority
   : ({ High: '高', Medium: '中', Low: '低' } as Record<TeacherTaskPriority, string>)[priority];
 
-export type TeacherTaskTimingStatus = 'NO_DEADLINE' | 'OVERDUE' | 'DUE_TODAY' | 'DUE_THIS_WEEK' | 'UPCOMING';
+export type TeacherTaskTimingStatus = 'NO_DEADLINE' | 'INVALID_DATE' | 'OVERDUE' | 'DUE_TODAY' | 'DUE_THIS_WEEK' | 'UPCOMING';
 
 const getTeacherWeekBounds = (now: Date = new Date()) => {
   const start = new Date(now);
@@ -252,7 +288,8 @@ const getTeacherWeekBounds = (now: Date = new Date()) => {
 
 export const getTeacherTaskTimingStatus = (task: TeacherTask, now: Date = new Date()): TeacherTaskTimingStatus => {
   const due = resolveTeacherTaskDueDate(task.dueDate, now);
-  if (!due) return 'NO_DEADLINE';
+  if (!task.dueDate.trim() || task.dueDate === 'No deadline') return 'NO_DEADLINE';
+  if (!due) return 'INVALID_DATE';
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   if (due < today) return 'OVERDUE';

@@ -5,7 +5,7 @@ import {
   Search, Filter, X, Sparkles, Loader2, Check, Clock, User,
   MoreHorizontal, Trash2, Edit
 } from '../common/Icons';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI } from "../../services/aiClient";
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface Log {
@@ -122,7 +122,7 @@ const StudentCommunication: React.FC = () => {
     if (!newLog.content?.trim()) return;
     setIsAiProcessing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI();
       const prompt = `
         Role: Professional Secretary.
         Task: Organize the following raw meeting notes into a structured summary.

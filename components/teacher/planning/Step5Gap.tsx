@@ -7,7 +7,7 @@ import {
   BookOpen, Plus, X, RefreshCw
 } from '../../common/Icons';
 import { SelectedSchool, GapAnalysisResult, ActionItem, CourseDiagnosisResult, TimelineEvent } from './PlanningData';
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type } from "../../../services/aiClient";
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { StudentSummary } from '../../../types';
 import { initialOfficialBatches } from '../StudentBasicInfo';
@@ -427,7 +427,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
   const handleRunAiAnalysis = async () => {
     setIsAiLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI();
       // Construct a prompt that compares student inputs vs Reach schools requirements implicitly
       const prompt = `
         Role: Senior College Counselor.
@@ -469,7 +469,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
   const handleGenerateActionPlan = async () => {
     setIsActionLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI();
       
       // Simulate Materials Status based on riskTags if available
       const riskTags = studentProfile?.riskTags || [];
@@ -556,7 +556,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
     setIsCourseDiagLoading(true);
     setCourseDiagnosis(null);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI();
       
       const targetSummary = selectedSchools.map(s => `${s.uni.name} (${s.major || 'Undecided'})`).join(', ');
       

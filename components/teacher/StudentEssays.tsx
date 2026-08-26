@@ -10,7 +10,7 @@ import {
   Bot, FileDiff, Tag, Languages, Upload, File as FileIcon,
   MessageCircle, Lock, Unlock, PenTool, Undo2, Redo2
 } from '../common/Icons';
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type } from "../../services/aiClient";
 import { StudentSummary } from '../../types';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
@@ -937,7 +937,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   const handleGenerateIdeas = async () => {
     setIsAiLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI();
       const contextStr = systemContextItems.map(i => `${i.label}: ${i.value}`).join('; ');
       const prompt = `
         Role: Creative Writing Coach.
@@ -997,7 +997,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     setHasScanned(false);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI();
       const prompt = `
         Role: Ivy League Essay Editor.
         Task: Review the draft. Identify improvements (Correctness, Clarity, Engagement, Delivery).

@@ -14,7 +14,7 @@ export interface TaskAuditEntry {
   changes: TaskFieldChange[];
 }
 
-export type TaskSource = 'manual' | 'system-review';
+export type TaskSource = 'manual' | 'system-review' | 'acceptance-test';
 
 export const createTaskAuditEntry = (
   actorName: string,
