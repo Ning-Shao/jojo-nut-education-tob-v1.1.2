@@ -9,7 +9,7 @@ import {
 } from '../../common/Icons';
 import { SelectedSchool } from './PlanningData';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI } from "../../../services/aiClient";
 
 interface Step4Props {
   selectedSchools: SelectedSchool[];
@@ -227,7 +227,7 @@ const Step4FinalList: React.FC<Step4Props> = ({
     ).join('\n');
 
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const ai = new GoogleGenAI();
         const prompt = `
             Role: Senior College Admissions Consultant.
             Task: Analyze the "Actual Admission Bar" for ${school.uni.name} based on real admitted student cases.
@@ -264,7 +264,7 @@ const Step4FinalList: React.FC<Step4Props> = ({
 
   const fetchSchoolDetailsLocal = async (school: SelectedSchool): Promise<Partial<SelectedSchool> | null> => {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI();
       const prompt = `
         Search and summarize the undergraduate admission requirements for:
         School: ${school.uni.name}

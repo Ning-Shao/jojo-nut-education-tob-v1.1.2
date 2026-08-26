@@ -4,7 +4,7 @@ import {
   CheckSquare, Search, Plus, Calendar,
   Clock, AlertTriangle,
   CheckCircle, XCircle, ListTodo,
-  CheckCheck, Edit, FileText, RotateCcw, Trash2, User
+  CheckCheck, Edit, FileText, RotateCcw, Trash2, User, LayoutGrid
 } from '../common/Icons';
 import TaskEditDialog, { TaskEditField } from '../common/TaskEditDialog';
 import { createTaskAuditEntry, TaskFieldChange } from '../common/taskAudit';
@@ -252,8 +252,8 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
 
   const getTimingStatusLabel = (task: Task) => {
     const timingStatus = getStudentTaskTimingStatus(task);
-    if (isEn) return ({ NO_DEADLINE: 'No deadline', OVERDUE: 'Overdue', DUE_TODAY: 'Due today', DUE_THIS_WEEK: 'Due this week', UPCOMING: 'Upcoming' } as const)[timingStatus];
-    return ({ NO_DEADLINE: '无截止时间', OVERDUE: '已逾期', DUE_TODAY: '今日到期', DUE_THIS_WEEK: '本周到期', UPCOMING: '未到期' } as const)[timingStatus];
+    if (isEn) return ({ NO_DEADLINE: 'No deadline', INVALID_DATE: 'Invalid date', OVERDUE: 'Overdue', DUE_TODAY: 'Due today', DUE_THIS_WEEK: 'Due this week', UPCOMING: 'Upcoming' } as const)[timingStatus];
+    return ({ NO_DEADLINE: '无截止时间', INVALID_DATE: '日期异常', OVERDUE: '已逾期', DUE_TODAY: '今日到期', DUE_THIS_WEEK: '本周到期', UPCOMING: '未到期' } as const)[timingStatus];
   };
 
   const renderStatusBadges = (task: Task) => {
@@ -296,7 +296,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
        <div className="w-full lg:w-64 flex-shrink-0 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-[#e5e0dc] dark:border-white/5 p-4 lg:p-5 max-h-72 lg:max-h-none lg:h-full flex flex-col transition-colors">
           <button 
              onClick={() => setIsNewTaskModalOpen(true)}
-             className="w-full py-3 bg-violet-600 dark:bg-violet-700 text-white rounded-xl font-bold hover:bg-violet-700 dark:hover:bg-violet-600 transition-all flex items-center justify-center gap-2 shadow-sm mb-6"
+             className="w-full py-3 bg-[#b0826d] text-white rounded-xl font-bold hover:bg-[#966a57] transition-all flex items-center justify-center gap-2 shadow-sm mb-6"
           >
              <Plus className="w-5 h-5" /> {isEn ? 'New Task' : '新建任务'}
           </button>
@@ -309,8 +309,8 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
                       { id: 'Today', label: isEn ? 'Today' : '今日待办', icon: <ListTodo className="w-4 h-4" />, count: todayPendingTasks.length },
                       { id: 'Week', label: isEn ? 'This Week' : '本周任务', icon: <Calendar className="w-4 h-4" />, count: tasks.filter(task => isTaskDueThisWeek(task)).length },
                       { id: 'Overdue', label: isEn ? 'Overdue' : '已逾期', icon: <AlertTriangle className="w-4 h-4" />, count: tasks.filter(task => isStudentTaskPastDue(task)).length, alert: true },
-                      { id: 'Completed', label: isEn ? 'Completed' : '已完成', icon: <CheckCheck className="w-4 h-4" />, count: tasks.filter(t => t.status === 'Completed').length },
                       { id: 'Review', label: isEn ? 'In Review' : '待审核', icon: <FileText className="w-4 h-4" />, count: tasks.filter(t => t.status === 'Review').length },
+                      { id: 'Completed', label: isEn ? 'Completed' : '已完成', icon: <CheckCheck className="w-4 h-4" />, count: tasks.filter(t => t.status === 'Completed').length },
                       { id: 'All', label: isEn ? 'All Tasks' : '全部任务', icon: <CheckSquare className="w-4 h-4" />, count: tasks.length },
                    ].map((tab) => (
                       <button 
@@ -318,7 +318,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
                         onClick={() => setActiveTab(tab.id as any)}
                         className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all
                            ${activeTab === tab.id 
-                             ? 'bg-violet-50 dark:bg-violet-900/20 text-violet-800 dark:text-violet-300' 
+                             ? 'bg-[#f5ebe6] text-[#7d5646] dark:bg-white/10 dark:text-white font-bold'
                              : 'text-gray-600 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-white/5'
                            }`}
                       >
@@ -336,12 +336,13 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
 
              <div className="border-t border-gray-100 dark:border-white/5 pt-5">
                 {/* Changed label from 'Categories' to 'Task Types' per request */}
-                <label className="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase mb-3 block px-1">{isEn ? 'Task Types' : '任务类型'}</label>
+                <label className="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase mb-3 block px-1">{isEn ? 'Business Types' : '业务类型'}</label>
                 <div className="space-y-1">
                    <button 
                      onClick={() => setSelectedCategory('全部')}
-                     className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${selectedCategory === '全部' ? 'bg-gray-100 dark:bg-white/10 font-bold text-gray-800 dark:text-white' : 'text-gray-600 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                     className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors font-medium flex items-center gap-2 ${selectedCategory === '全部' ? 'bg-gray-100 dark:bg-white/10 font-bold text-gray-800 dark:text-white' : 'text-gray-600 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-white/5'}`}
                    >
+                     <LayoutGrid className="w-4 h-4 opacity-50" />
                      {isEn ? 'All Types' : '全部类型'}
                    </button>
                    {CATEGORIES.map(cat => (
@@ -354,7 +355,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
                              : 'text-gray-600 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-white/5'
                            }`}
                       >
-                         <span className={`w-2 h-2 rounded-full ${selectedCategory === cat ? 'bg-violet-500' : 'bg-gray-300 dark:bg-zinc-600'}`}></span>
+                         <span className={`w-2 h-2 rounded-full ${selectedCategory === cat ? 'bg-[#b0826d]' : 'bg-gray-300 dark:bg-zinc-600'}`}></span>
                          {translateCategory(cat)}
                       </button>
                    ))}
@@ -367,15 +368,15 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
        <div className="flex-1 min-w-0 min-h-0 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-[#e5e0dc] dark:border-white/5 flex flex-col overflow-hidden relative transition-colors">
           
           {/* Header */}
-          <div className="px-4 lg:px-6 py-4 lg:py-5 border-b border-[#e5e0dc] dark:border-white/5 flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center bg-gray-50/30 dark:bg-white/5">
+          <div className="px-4 lg:px-6 py-4 lg:py-5 border-b border-[#e5e0dc] dark:border-white/5 flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center bg-[#fbf7f5] dark:bg-white/5">
              <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                    {activeTab === 'Today' && (isEn ? 'Today' : '今日待办')}
                    {activeTab === 'Week' && (isEn ? 'This Week' : '本周任务')}
-                   {activeTab === 'Overdue' && (isEn ? 'Overdue' : '逾期提醒')}
-                   {activeTab === 'Completed' && (isEn ? 'Completed' : '已完成任务')}
+                   {activeTab === 'Overdue' && (isEn ? 'Overdue' : '已逾期')}
+                   {activeTab === 'Completed' && (isEn ? 'Completed' : '已完成')}
                    {activeTab === 'Review' && (isEn ? 'In Review' : '待审核')}
-                   {activeTab === 'All' && (isEn ? 'All Tasks' : '全部任务列表')}
+                   {activeTab === 'All' && (isEn ? 'All Tasks' : '全部任务')}
                    <span className="text-sm font-normal text-gray-500 dark:text-zinc-500 ml-2 bg-white dark:bg-zinc-800 px-2 py-0.5 rounded border border-gray-200 dark:border-white/10">
                       {filteredTasks.length} {isEn ? 'Tasks' : '个任务'}
                    </span>
@@ -390,7 +391,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
                       placeholder={isEn ? "Search tasks..." : "搜索任务..."}
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 pr-4 py-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-lg text-sm outline-none focus:border-violet-300 dark:focus:border-violet-700 focus:ring-2 focus:ring-violet-50 dark:focus:ring-violet-900/30 transition-all w-full sm:w-64 text-gray-900 dark:text-white"
+                      className="pl-9 pr-4 py-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-lg text-sm outline-none focus:border-[#b0826d] focus:ring-2 focus:ring-[#b0826d]/20 transition-all w-full sm:w-64 text-gray-900 dark:text-white"
                    />
                 </div>
              </div>
@@ -399,7 +400,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
           {sourceContextTaskId && (
             <div className="mx-4 mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300 lg:mx-6">
               <p className="font-bold">{isEn ? 'Source task unavailable' : '来源任务已失效'}</p>
-              <p className="mt-1 text-xs">{isEn ? `The dashboard requested task ${sourceContextTaskId}, but it is no longer in the task dataset. The source ID is retained for troubleshooting.` : `首页请求打开任务 ${sourceContextTaskId}，但该任务已不在任务数据中。来源任务 ID 已保留，便于继续追查。`}</p>
+              <p className="mt-1 text-xs">{isEn ? 'The task requested from the dashboard is no longer available.' : '首页请求打开的任务已失效或不存在。'}</p>
             </div>
           )}
 
@@ -424,7 +425,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
                         id={`student-task-${task.id}`}
                         key={task.id}
                         onClick={() => { setFocusedTaskId(task.id); setDetailTaskId(task.id); }}
-                        className={`group cursor-pointer transition-all ${focusedTaskId === task.id ? 'bg-violet-50 ring-2 ring-inset ring-violet-300 dark:bg-violet-500/10 dark:ring-violet-500/40' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}
+                        className={`group cursor-pointer transition-all ${focusedTaskId === task.id ? 'bg-amber-50 ring-2 ring-inset ring-amber-300 dark:bg-amber-500/10 dark:ring-amber-500/40' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}
                       >
                          <td className="px-6 py-4">
                             <div className="flex items-start gap-3">
@@ -527,7 +528,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
            <div role="dialog" aria-modal="true" aria-labelledby="student-task-detail-title" className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-white/10 dark:bg-zinc-900" onClick={event => event.stopPropagation()}>
              <div className="flex items-start justify-between border-b border-gray-100 px-6 py-5 dark:border-white/5">
                <div>
-                 <div className="mb-2 flex items-center gap-2"><span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-bold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">{isEn ? 'Source: dashboard task list' : '来源：首页待办'}</span><span className="text-xs text-gray-400">ID: {detailTask.id}</span></div>
+                 <div className="mb-2 flex items-center gap-2"><span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-bold text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">{isEn ? 'Source: dashboard task list' : '来源：首页待办'}</span></div>
                  <h3 id="student-task-detail-title" className="text-lg font-bold text-gray-900 dark:text-white">{isEn ? 'Task details' : '任务详情'}</h3>
                </div>
                <button onClick={() => setDetailTaskId(null)} aria-label={isEn ? 'Close task details' : '关闭任务详情'} className="text-gray-400 hover:text-gray-700 dark:hover:text-zinc-200"><XCircle className="h-5 w-5" /></button>
