@@ -6,7 +6,7 @@ import {
   Clock, Paperclip, MessageCircle,
   Zap, AlertCircle, ChevronDown, ChevronUp, Loader2, RefreshCw, CheckCircle, XCircle
 } from '../common/Icons';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI } from "../../services/aiClient";
 import { DetailTab, RiskLevel } from '../../types';
 import { mockStudents } from './StudentList';
 import StudentBasicInfo from './StudentBasicInfo';
@@ -143,7 +143,7 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, onBack, onNavi
     setIsPanelExpanded(true); 
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI();
       const prompt = `
         Role: International School College Counselor Supervisor.
         Task: Diagnose the student's application status across 5 dimensions based on the provided profile.

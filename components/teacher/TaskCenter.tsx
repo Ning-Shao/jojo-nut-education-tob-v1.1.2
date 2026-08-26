@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  CheckSquare, Search, Filter, Plus, Calendar, 
-  Clock, AlertTriangle, User, MoreHorizontal, 
+  CheckSquare, Search, Plus, Calendar,
+  Clock, AlertTriangle, User,
   CheckCircle, XCircle, ArrowRight, ListTodo,
   CheckCheck, RotateCcw, Flag, FileText, Check, Save,
   Trash2, X, Bell, Edit, LayoutGrid
@@ -30,7 +30,7 @@ import {
   TeacherTaskStatus as TaskStatus,
 } from './teacherTasks';
 
-const CATEGORIES: TaskCategory[] = ['建档', '规划', '考试', '活动', '材料', '面试', '申请', 'Offer', '复盘'];
+const CATEGORIES: TaskCategory[] = ['建档', '规划', '考试', '活动', '材料', '面试', '申请', 'Offer', '复盘', '其他'];
 
 // Toast Component
 const Toast = ({ message, onClose }: { message: string; onClose: () => void }) => (
@@ -50,7 +50,7 @@ interface TaskCenterProps {
 const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId }) => {
   // State
   const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'Today' | 'Week' | 'Overdue' | 'Review' | 'All'>('Today');
+  const [activeTab, setActiveTab] = useState<'Today' | 'Week' | 'Overdue' | 'Review' | 'Completed' | 'All'>('Today');
   const [selectedCategory, setSelectedCategory] = useState<string>('全部');
   const [searchQuery, setSearchQuery] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -85,6 +85,14 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
       return () => clearTimeout(timer);
     }
   }, [toastMessage]);
+
+  // “Cancelled” is legacy data only. In the current product rule, cancelling a
+  // task means deleting it, so legacy cancelled records must not be retained.
+  useEffect(() => {
+    setTasks(previous => previous.some(task => task.status === 'Cancelled')
+      ? previous.filter(task => task.status !== 'Cancelled')
+      : previous);
+  }, [setTasks]);
 
   useEffect(() => {
     if (!initialTaskId || handledInitialTaskId.current === initialTaskId) return;
@@ -133,6 +141,7 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
           '申请': 'Application',
           'Offer': 'Offer',
           '复盘': 'Review',
+          '其他': 'Other',
           '全部': 'All'
       };
       return map[cat] || cat;
@@ -141,13 +150,13 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
   const getStatusLabel = (status: TaskStatus) => {
     const workflowStatus = status === 'Overdue' ? 'Pending' : status;
     if (isEn) return workflowStatus;
-    return ({ Pending: '待处理', Review: '待审核', Completed: '已完成', Cancelled: '已取消' } as Record<Exclude<TaskStatus, 'Overdue'>, string>)[workflowStatus];
+    return ({ Pending: '待处理', Returned: '已退回', Review: '待审核', Completed: '已完成', Cancelled: '已取消' } as Record<Exclude<TaskStatus, 'Overdue'>, string>)[workflowStatus];
   };
 
   const getTimingStatusLabel = (task: Task) => {
     const timingStatus = getTeacherTaskTimingStatus(task);
-    if (isEn) return ({ NO_DEADLINE: 'No deadline', OVERDUE: 'Overdue', DUE_TODAY: 'Due today', DUE_THIS_WEEK: 'Due this week', UPCOMING: 'Upcoming' } as const)[timingStatus];
-    return ({ NO_DEADLINE: '无截止时间', OVERDUE: '已逾期', DUE_TODAY: '今日到期', DUE_THIS_WEEK: '本周到期', UPCOMING: '未到期' } as const)[timingStatus];
+    if (isEn) return ({ NO_DEADLINE: 'No deadline', INVALID_DATE: 'Invalid date', OVERDUE: 'Overdue', DUE_TODAY: 'Due today', DUE_THIS_WEEK: 'Due this week', UPCOMING: 'Upcoming' } as const)[timingStatus];
+    return ({ NO_DEADLINE: '无截止时间', INVALID_DATE: '日期异常', OVERDUE: '已逾期', DUE_TODAY: '今日到期', DUE_THIS_WEEK: '本周到期', UPCOMING: '未到期' } as const)[timingStatus];
   };
 
   const renderStatusBadges = (task: Task) => {
@@ -158,7 +167,7 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
     const timingStatus = getTeacherTaskTimingStatus(task);
     return <div className="flex flex-wrap gap-1.5 whitespace-nowrap">
       <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${timingStatus === 'OVERDUE' ? 'border-red-200 bg-red-50 text-red-700' : timingStatus === 'DUE_TODAY' ? 'border-orange-200 bg-orange-50 text-orange-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>{getTimingStatusLabel(task)}</span>
-      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${workflowStatus === 'Review' ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-gray-200 bg-white text-gray-700'}`}>{getStatusLabel(workflowStatus)}</span>
+      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${workflowStatus === 'Review' ? 'border-violet-200 bg-violet-50 text-violet-700' : workflowStatus === 'Returned' ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-white text-gray-700'}`}>{getStatusLabel(workflowStatus)}</span>
     </div>;
   };
 
@@ -173,6 +182,7 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
     if (activeTab === 'Overdue') matchesTab = isTeacherOverdueTodo(task);
     if (activeTab === 'Review') matchesTab = isTeacherReviewTodo(task);
     if (activeTab === 'Week') matchesTab = isTeacherTaskDueThisWeek(task);
+    if (activeTab === 'Completed') matchesTab = getTeacherTaskEffectiveStatus(task) === 'Completed';
     
     // 2. Category Filter
     const matchesCategory = selectedCategory === '全部' || task.category === selectedCategory;
@@ -229,6 +239,9 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
   const confirmDelete = () => {
     const idsToDelete = new Set(deleteConfirmation.taskIds);
     setTasks(prev => prev.filter(t => !idsToDelete.has(t.id)));
+    if (editingTaskId && idsToDelete.has(editingTaskId)) setEditingTaskId(null);
+    if (detailTaskId && idsToDelete.has(detailTaskId)) setDetailTaskId(null);
+    if (focusedTaskId && idsToDelete.has(focusedTaskId)) setFocusedTaskId(null);
     
     setDeleteConfirmation({ isOpen: false, taskIds: [] });
     setToastMessage(isEn ? 'Task deleted' : '任务已删除');
@@ -387,6 +400,7 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
                       { id: 'Week', label: isEn ? 'This Week' : '本周任务', icon: <Calendar className="w-4 h-4" />, count: tasks.filter(task => isTeacherTaskDueThisWeek(task)).length },
                       { id: 'Overdue', label: isEn ? 'Overdue' : '已逾期', icon: <AlertTriangle className="w-4 h-4" />, count: tasks.filter(task => isTeacherOverdueTodo(task)).length, alert: true },
                       { id: 'Review', label: isEn ? 'Pending Approval' : '待审批', icon: <CheckCheck className="w-4 h-4" />, count: tasks.filter(task => isTeacherReviewTodo(task)).length, info: true },
+                      { id: 'Completed', label: isEn ? 'Completed' : '已完成', icon: <CheckCircle className="w-4 h-4" />, count: tasks.filter(task => getTeacherTaskEffectiveStatus(task) === 'Completed').length },
                       { id: 'All', label: isEn ? 'All Tasks' : '全部任务', icon: <CheckSquare className="w-4 h-4" />, count: tasks.length },
                    ].map((tab) => (
                       <button 
@@ -451,6 +465,7 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
                    {activeTab === 'Week' && (isEn ? 'This Week' : '本周任务')}
                    {activeTab === 'Overdue' && (isEn ? 'Overdue' : '已逾期')}
                    {activeTab === 'Review' && (isEn ? 'Pending Approval' : '待审批')}
+                   {activeTab === 'Completed' && (isEn ? 'Completed' : '已完成')}
                    {activeTab === 'All' && (isEn ? 'All Tasks' : '全部任务')}
                 </h2>
                 <span className="text-sm font-medium text-gray-500 dark:text-zinc-400 bg-white dark:bg-zinc-800 px-3 py-1 rounded border border-gray-200 dark:border-white/10 shadow-sm">
@@ -469,12 +484,6 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
                       className="pl-9 pr-4 py-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-lg text-sm outline-none focus:border-[#b0826d] dark:focus:border-primary-700 focus:ring-2 focus:ring-[#b0826d]/20 dark:focus:ring-primary-900/30 transition-all w-64 text-gray-900 dark:text-white"
                    />
                 </div>
-                <button className="p-2 border border-gray-200 dark:border-white/10 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 text-gray-500 dark:text-zinc-400 transition-colors bg-white dark:bg-zinc-800">
-                   <Filter className="w-4 h-4" />
-                </button>
-                <button className="p-2 border border-gray-200 dark:border-white/10 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 text-gray-500 dark:text-zinc-400 transition-colors bg-white dark:bg-zinc-800">
-                   <MoreHorizontal className="w-4 h-4" />
-                </button>
              </div>
           </div>
 

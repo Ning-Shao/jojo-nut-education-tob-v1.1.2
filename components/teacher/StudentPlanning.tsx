@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type } from "../../services/aiClient";
 import { Check, CheckCircle, X, AlertTriangle } from '../common/Icons';
 import { 
   UniversitySchema, SelectedSchool, TargetPreference, CareerResult,
@@ -493,7 +493,7 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student }) => {
   // Helper for single school enrichment
   const fetchSchoolDetails = async (school: SelectedSchool): Promise<Partial<SelectedSchool> | null> => {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI();
       const prompt = `
         Search and summarize the undergraduate admission requirements for:
         School: ${school.uni.name}
@@ -632,7 +632,7 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student }) => {
     setCareerResult(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI();
       const prompt = `
         You are an expert educational consultant.
         Analyze:

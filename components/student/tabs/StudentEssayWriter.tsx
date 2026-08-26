@@ -9,7 +9,7 @@ import {
   FileText, FileDown, Download, User, Send,
   AlertTriangle, Lock, Unlock, RotateCcw, Loader2
 } from '../../common/Icons';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI } from "../../../services/aiClient";
 import { useLanguage } from '../../../contexts/LanguageContext';
 import {
   ensureEssayReview,
@@ -487,7 +487,7 @@ const StudentEssayWriter: React.FC = () => {
     const contextText = selection.text; 
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI();
       let prompt = "";
       
       if (promptType === 'Polishing') {
@@ -552,7 +552,7 @@ const StudentEssayWriter: React.FC = () => {
     setIsAiProcessing(true);
     setTranslationResult(null);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI();
       const prompt = `Translate the following Chinese text into high-quality, natural English suitable for a college application essay. Return ONLY the translated English text, without any additional explanations, notes, or markdown formatting.\n\nText: "${chineseInput}"`;
       const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
       if (response.text) setTranslationResult(response.text.trim());
@@ -571,7 +571,7 @@ const StudentEssayWriter: React.FC = () => {
   const generateInspiration = async () => {
     setIsGeneratingIdeas(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI();
       
       const profileString = `
         Bio: ${STUDENT_FULL_PROFILE.bio}
