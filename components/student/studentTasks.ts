@@ -76,12 +76,16 @@ export const resolveTaskDueDate = (dueDate: string) => {
 // Treat them as no deadline instead of silently moving the task to the load date.
 export const normalizeStudentTaskDueDate = (dueDate: string) => {
   const resolved = resolveTaskDueDate(dueDate);
-  return resolved ? toLocalDateStr(resolved) : '';
+  if (resolved) return toLocalDateStr(resolved);
+  if (!dueDate.trim() || dueDate === 'No deadline') return '';
+  if (['Today', 'Yesterday', 'Tomorrow', 'Tmrw', 'Last Week'].includes(dueDate)) return '';
+  return dueDate;
 };
 
 export const formatStudentTaskDueDate = (dueDate: string, isEn: boolean, now: Date = new Date()) => {
   const resolved = resolveTaskDueDate(dueDate);
-  if (!resolved) return isEn ? 'No deadline' : '无截止时间';
+  if (!dueDate.trim() || dueDate === 'No deadline') return isEn ? 'No deadline' : '无截止时间';
+  if (!resolved) return isEn ? 'Invalid date' : '日期异常';
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   const offset = Math.round((resolved.getTime() - today.getTime()) / 86400000);
@@ -96,7 +100,7 @@ export const formatStudentTaskPriority = (priority: TaskPriority, isEn: boolean)
   ? priority
   : ({ High: '高', Medium: '中', Low: '低' } as Record<TaskPriority, string>)[priority];
 
-export type StudentTaskTimingStatus = 'NO_DEADLINE' | 'OVERDUE' | 'DUE_TODAY' | 'DUE_THIS_WEEK' | 'UPCOMING';
+export type StudentTaskTimingStatus = 'NO_DEADLINE' | 'INVALID_DATE' | 'OVERDUE' | 'DUE_TODAY' | 'DUE_THIS_WEEK' | 'UPCOMING';
 
 export const getStudentTaskWorkflowStatus = (task: StudentTask): TaskWorkflowStatus =>
   task.status === 'Overdue' ? 'Pending' : task.status;
@@ -117,7 +121,8 @@ const getStudentWeekBounds = (now: Date = new Date()) => {
 
 export const getStudentTaskTimingStatus = (task: StudentTask, now: Date = new Date()): StudentTaskTimingStatus => {
   const due = resolveTaskDueDate(task.dueDate);
-  if (!due) return 'NO_DEADLINE';
+  if (!task.dueDate.trim() || task.dueDate === 'No deadline') return 'NO_DEADLINE';
+  if (!due) return 'INVALID_DATE';
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
   if (due < today) return 'OVERDUE';
@@ -151,7 +156,7 @@ export const getStoredStudentTasks = (): StudentTask[] => {
   try {
     const saved = localStorage.getItem(TASK_STORAGE_KEY);
     const stored = saved ? JSON.parse(saved) as StudentTask[] : INITIAL_STUDENT_TASKS;
-    return stored.map(task => {
+    const migrated = stored.filter(task => task.source !== 'acceptance-test' && !task.id.startsWith('acceptance-')).map(task => {
       const source = task.source || (task.status === 'Review' && task.assigner === 'Teacher' ? 'system-review' : 'manual');
       const legacyStatus = task.status as TaskStatus | 'In Progress';
       return {
@@ -163,6 +168,9 @@ export const getStoredStudentTasks = (): StudentTask[] => {
         auditHistory: task.auditHistory || [],
       };
     }).filter(isStudentVisibleTask);
+    const visibleTasks = migrated.length > 0 ? migrated : INITIAL_STUDENT_TASKS;
+    localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(visibleTasks));
+    return visibleTasks;
   } catch {
     return INITIAL_STUDENT_TASKS;
   }
