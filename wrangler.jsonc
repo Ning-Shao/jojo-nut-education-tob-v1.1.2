@@ -3,7 +3,6 @@
   "name": "jojo-nut-education-tob-v1-1-1",
   "main": "worker.ts",
   "compatibility_date": "2026-08-25",
-  "secrets": { "required": ["GEMINI_API_KEY"] },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
