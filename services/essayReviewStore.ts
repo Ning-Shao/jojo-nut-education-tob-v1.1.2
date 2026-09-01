@@ -1,4 +1,13 @@
 export type EssayReviewStatus = 'Not Started' | 'Drafting' | 'Reviewing' | 'Returned' | 'Finalized';
+export type EssayDocumentMode = 'Viewing' | 'Suggesting' | 'Editing';
+export type EssayCommentCategory = 'Content' | 'Structure' | 'Language' | 'Fact Check' | 'Grammar';
+
+export interface SharedEssayCommentReply {
+  id: string;
+  message: string;
+  author: string;
+  createdAt: string;
+}
 
 export interface SharedEssayComment {
   id: string;
@@ -8,6 +17,28 @@ export interface SharedEssayComment {
   end: number;
   author: string;
   createdAt: string;
+  category?: EssayCommentCategory;
+  isResolved?: boolean;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  replies?: SharedEssayCommentReply[];
+  isPublished?: boolean;
+}
+
+export interface SharedEssaySuggestion {
+  id: string;
+  type: 'replace' | 'delete';
+  originalText: string;
+  suggestedText: string;
+  start: number;
+  end: number;
+  explanation?: string;
+  author: string;
+  createdAt: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  decidedBy?: string;
+  decidedAt?: string;
+  isPublished?: boolean;
 }
 
 export interface SharedEssayVersion {
@@ -28,13 +59,21 @@ export interface SharedEssayReview {
   currentContent: string;
   teacherModifiedContent?: string;
   overallFeedback?: string;
+  publishedOverallFeedback?: string;
+  publishedTeacherModifiedContent?: string;
   comments: SharedEssayComment[];
+  suggestions: SharedEssaySuggestion[];
   versions: SharedEssayVersion[];
   reviewAuthor?: string;
   reviewedAt?: string;
   lastModifiedBy: string;
   lastModifiedAt: string;
   revisionNumber: number;
+  documentMode?: EssayDocumentMode;
+  reviewDimensions?: Record<string, string>;
+  studentRevisionNote?: string;
+  auditLog?: Array<{ id: string; action: string; actor: string; createdAt: string; detail?: string }>;
+  reviewPublishedAt?: string;
 }
 
 const STORAGE_KEY = 'nut_education_shared_essay_reviews_v1';
@@ -56,6 +95,16 @@ export const getEssayReview = (essayId: string): SharedEssayReview | null => {
   const latestComment = review.comments[review.comments.length - 1];
   return {
     ...review,
+    documentMode: String(review.documentMode) === 'Reviewing' ? 'Suggesting' : (review.documentMode || (review.status === 'Finalized' ? 'Viewing' : 'Suggesting')),
+    comments: (review.comments || []).map(comment => ({
+      ...comment,
+      category: comment.category || 'Content',
+      isResolved: Boolean(comment.isResolved),
+      replies: comment.replies || []
+    })),
+    suggestions: review.suggestions || [],
+    reviewDimensions: review.reviewDimensions || {},
+    auditLog: review.auditLog || [],
     reviewAuthor: review.reviewAuthor || (review.overallFeedback || latestComment ? latestComment?.author || 'Ms. Sarah' : undefined),
     reviewedAt: review.reviewedAt || latestTeacherVersion?.updatedAt || latestComment?.createdAt
   };
@@ -88,10 +137,14 @@ export const ensureEssayReview = (
     studentOriginalContent: content,
     currentContent: content,
     comments: [],
+    suggestions: [],
     versions,
     lastModifiedBy: 'Student',
     lastModifiedAt: now,
-    revisionNumber: 1
+    revisionNumber: 1,
+    documentMode: status === 'Finalized' ? 'Viewing' : 'Suggesting',
+    reviewDimensions: {},
+    auditLog: []
   };
   saveEssayReview(review);
   return review;

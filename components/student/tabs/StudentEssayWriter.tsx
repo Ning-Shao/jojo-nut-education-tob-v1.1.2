@@ -146,6 +146,8 @@ const StudentEssayWriter: React.FC = () => {
   
   // Submit Modal State
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [studentRevisionNote, setStudentRevisionNote] = useState('');
+  const [commentReplyDrafts, setCommentReplyDrafts] = useState<Record<string, string>>({});
   
   // Layout State
   const [isZenMode, setIsZenMode] = useState(false);
@@ -188,6 +190,8 @@ const StudentEssayWriter: React.FC = () => {
 
   const activeEssay = essays.find(e => e.id === activeEssayId) || essays[0];
   const wordCount = activeEssay.content.split(/\s+/).filter(Boolean).length;
+  const publishedFeedback = sharedReview?.reviewPublishedAt ? sharedReview.publishedOverallFeedback : sharedReview?.overallFeedback;
+  const publishedTeacherContent = sharedReview?.reviewPublishedAt ? sharedReview.publishedTeacherModifiedContent : sharedReview?.teacherModifiedContent;
   
   const isReadOnly = activeEssay.status === 'Reviewing' || activeEssay.status === 'Finalized';
 
@@ -215,8 +219,8 @@ const StudentEssayWriter: React.FC = () => {
         ...essay,
         status: review.status,
         content: review.currentContent,
-        latestReturnNote: review.overallFeedback,
-        feedback: review.comments.map(comment => ({
+        latestReturnNote: review.reviewPublishedAt ? review.publishedOverallFeedback : review.overallFeedback,
+        feedback: review.comments.filter(comment => comment.isPublished !== false).map(comment => ({
           id: comment.id,
           originalText: comment.quote,
           comment: comment.comment,
@@ -341,9 +345,18 @@ const StudentEssayWriter: React.FC = () => {
       ...review,
       status: 'Reviewing',
       currentContent: activeEssay.content,
+      studentRevisionNote: studentRevisionNote.trim(),
+      documentMode: 'Suggesting',
       lastModifiedBy: 'Student',
       lastModifiedAt: new Date().toLocaleString(),
-      revisionNumber: review.revisionNumber + 1
+      revisionNumber: review.revisionNumber + 1,
+      auditLog: [...(review.auditLog || []), {
+        id: `audit-${Date.now()}`,
+        action: 'Student_Submitted',
+        actor: 'Student',
+        createdAt: new Date().toLocaleString(),
+        detail: studentRevisionNote.trim()
+      }]
     }));
     if (!saved) {
       showToast(isEn ? 'Submission sync failed' : '提交同步失败，请重试');
@@ -367,7 +380,93 @@ const StudentEssayWriter: React.FC = () => {
     });
     
     setIsSubmitModalOpen(false);
+    setStudentRevisionNote('');
     showToast(isEn ? "Submitted successfully! Teacher notified." : "提交成功！已通知老师进行批改。");
+  };
+
+  const addStudentCommentReply = (commentId: string) => {
+    const message = commentReplyDrafts[commentId]?.trim();
+    if (!message) return;
+    const saved = updateEssayReview(activeEssayId, review => ({
+      ...review,
+      comments: review.comments.map(comment => comment.id === commentId ? {
+        ...comment,
+        replies: [...(comment.replies || []), {
+          id: `reply-${Date.now()}`,
+          message,
+          author: STUDENT_FULL_PROFILE.name,
+          createdAt: new Date().toLocaleString()
+        }]
+      } : comment),
+      lastModifiedBy: STUDENT_FULL_PROFILE.name,
+      lastModifiedAt: new Date().toLocaleString()
+    }));
+    if (!saved) return showToast(isEn ? 'Reply failed' : '回复保存失败');
+    setCommentReplyDrafts(previous => ({ ...previous, [commentId]: '' }));
+    showToast(isEn ? 'Reply posted' : '回复已发布');
+  };
+
+  const toggleStudentCommentResolved = (commentId: string) => {
+    const saved = updateEssayReview(activeEssayId, review => ({
+      ...review,
+      comments: review.comments.map(comment => comment.id === commentId ? {
+        ...comment,
+        isResolved: !comment.isResolved,
+        resolvedBy: !comment.isResolved ? STUDENT_FULL_PROFILE.name : undefined,
+        resolvedAt: !comment.isResolved ? new Date().toLocaleString() : undefined
+      } : comment),
+      lastModifiedBy: STUDENT_FULL_PROFILE.name,
+      lastModifiedAt: new Date().toLocaleString(),
+      auditLog: [...(review.auditLog || []), {
+        id: `audit-${Date.now()}`,
+        action: review.comments.find(comment => comment.id === commentId)?.isResolved ? 'Comment_Reopened' : 'Comment_Resolved',
+        actor: STUDENT_FULL_PROFILE.name,
+        createdAt: new Date().toLocaleString(),
+        detail: commentId
+      }]
+    }));
+    if (!saved) showToast(isEn ? 'Comment update failed' : '批注状态更新失败');
+  };
+
+  const applySuggestionDecision = (suggestionId: string, decision: 'accepted' | 'rejected') => {
+    const saved = updateEssayReview(activeEssayId, review => {
+      const suggestion = (review.suggestions || []).find(item => item.id === suggestionId);
+      if (!suggestion || suggestion.status !== 'pending') return review;
+      let nextContent = review.currentContent;
+      if (decision === 'accepted') {
+        const anchoredText = nextContent.slice(suggestion.start, suggestion.end);
+        const start = anchoredText === suggestion.originalText ? suggestion.start : nextContent.indexOf(suggestion.originalText);
+        if (start >= 0) nextContent = `${nextContent.slice(0,start)}${suggestion.suggestedText}${nextContent.slice(start + suggestion.originalText.length)}`;
+      }
+      const decidedAt = new Date().toLocaleString();
+      return {
+        ...review,
+        currentContent: nextContent,
+        suggestions: (review.suggestions || []).map(item => item.id === suggestionId ? { ...item, status: decision, decidedBy: STUDENT_FULL_PROFILE.name, decidedAt } : item),
+        lastModifiedBy: STUDENT_FULL_PROFILE.name,
+        lastModifiedAt: decidedAt,
+        revisionNumber: review.revisionNumber + 1,
+        auditLog: [...(review.auditLog || []), {
+          id: `audit-${Date.now()}`,
+          action: decision === 'accepted' ? 'Suggestion_Accepted' : 'Suggestion_Rejected',
+          actor: STUDENT_FULL_PROFILE.name,
+          createdAt: decidedAt,
+          detail: suggestionId
+        }]
+      };
+    });
+    if (!saved) showToast(isEn ? 'Suggestion update failed' : '建议处理失败');
+  };
+
+  const decideAllSuggestions = (decision: 'accepted' | 'rejected') => {
+    const review = getEssayReview(activeEssayId);
+    const pending = (review?.suggestions || []).filter(suggestion => suggestion.isPublished !== false && suggestion.status === 'pending');
+    if (!pending.length) return;
+    if (decision === 'rejected') {
+      pending.forEach(suggestion => applySuggestionDecision(suggestion.id, 'rejected'));
+      return;
+    }
+    [...pending].sort((a,b) => b.start - a.start).forEach(suggestion => applySuggestionDecision(suggestion.id, 'accepted'));
   };
 
   // Replaced handleSelect with handleMouseUp for better positioning
@@ -731,6 +830,18 @@ const StudentEssayWriter: React.FC = () => {
                        }
                     </p>
                  </div>
+                 {activeEssay.status === 'Returned' && (
+                   <label className="block text-sm font-bold text-gray-700 dark:text-zinc-200">
+                     {isEn ? 'What did you change in this revision?' : '请说明本轮修改了什么'}
+                     <textarea
+                       value={studentRevisionNote}
+                       onChange={event => setStudentRevisionNote(event.target.value)}
+                       rows={4}
+                       placeholder={isEn ? 'Summarize the comments addressed and major changes…' : '简要说明处理了哪些批注、正文做了哪些主要修改…'}
+                       className="mt-2 w-full resize-y rounded-xl border border-gray-200 bg-white p-3 text-sm font-normal text-gray-800 outline-none focus:border-violet-400 dark:border-white/10 dark:bg-zinc-800 dark:text-white"
+                     />
+                   </label>
+                 )}
               </div>
 
               <div className="px-6 py-4 bg-gray-50 dark:bg-zinc-900/50 border-t border-gray-100 dark:border-white/5 flex justify-end gap-3">
@@ -739,7 +850,8 @@ const StudentEssayWriter: React.FC = () => {
                  </button>
                  <button 
                     onClick={handleConfirmSubmit}
-                    className="px-6 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-bold hover:bg-violet-700 shadow-lg shadow-violet-500/20 transition-all flex items-center gap-2"
+                    disabled={activeEssay.status === 'Returned' && !studentRevisionNote.trim()}
+                    className="px-6 py-2.5 bg-violet-600 text-white rounded-xl text-sm font-bold hover:bg-violet-700 shadow-lg shadow-violet-500/20 transition-all flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-40"
                  >
                     <Send className="w-4 h-4" /> {isEn ? 'Submit' : '确认提交'}
                  </button>
@@ -915,7 +1027,7 @@ const StudentEssayWriter: React.FC = () => {
                 </div>
             )}
 
-            {activeEssay.status !== 'Returned' && sharedReview && Boolean(sharedReview.overallFeedback || sharedReview.comments.length || sharedReview.teacherModifiedContent) && (
+            {activeEssay.status !== 'Returned' && sharedReview && Boolean(publishedFeedback || sharedReview.comments.some(comment => comment.isPublished !== false) || (sharedReview.suggestions || []).some(suggestion => suggestion.isPublished !== false) || publishedTeacherContent) && (
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100 bg-indigo-50 px-5 py-3 dark:border-indigo-500/20 dark:bg-indigo-900/20 sm:px-8">
                 <div>
                   <p className="text-sm font-bold text-indigo-900 dark:text-indigo-200">{isEn ? 'Previous teacher review is available' : '可查看上一轮老师审阅记录'}</p>
@@ -959,10 +1071,10 @@ const StudentEssayWriter: React.FC = () => {
                     {reviewMode === 'Original' && <p className="whitespace-pre-wrap font-serif text-sm leading-loose">{sharedReview.studentOriginalContent}</p>}
                     {reviewMode === 'Teacher' && (
                       <p className="whitespace-pre-wrap font-serif text-sm leading-loose">
-                        {sharedReview.teacherModifiedContent || (isEn ? 'The teacher did not directly edit the essay this round.' : '老师本轮未直接修改正文。')}
+                        {publishedTeacherContent || (isEn ? 'The teacher did not directly edit the essay this round.' : '老师本轮未直接修改正文。')}
                       </p>
                     )}
-                    {reviewMode === 'Diff' && renderContentDiff(sharedReview.studentOriginalContent, sharedReview.teacherModifiedContent || sharedReview.studentOriginalContent)}
+                    {reviewMode === 'Diff' && renderContentDiff(sharedReview.studentOriginalContent, publishedTeacherContent || sharedReview.studentOriginalContent)}
                   </div>
                 )}
 
@@ -980,21 +1092,64 @@ const StudentEssayWriter: React.FC = () => {
                   </div>
                 )}
 
+                {(sharedReview.suggestions || []).filter(suggestion => suggestion.isPublished !== false).length > 0 && (
+                  <div className="mt-4">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-sm font-bold text-gray-900 dark:text-white">{isEn ? 'Suggested edits' : '老师修改建议'}</h4>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => decideAllSuggestions('rejected')} className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50">{isEn ? 'Reject all' : '全部拒绝'}</button>
+                        <button type="button" onClick={() => decideAllSuggestions('accepted')} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700">{isEn ? 'Accept all' : '全部接受'}</button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {(sharedReview.suggestions || []).filter(suggestion => suggestion.isPublished !== false).map(suggestion => (
+                        <article key={suggestion.id} className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${suggestion.status === 'pending' ? 'bg-amber-100 text-amber-800' : suggestion.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>{suggestion.status === 'pending' ? (isEn ? 'Pending' : '待处理') : suggestion.status === 'accepted' ? (isEn ? 'Accepted' : '已接受') : (isEn ? 'Rejected' : '已拒绝')}</span>
+                            <span className="text-[10px] text-gray-400">{suggestion.author} · {suggestion.createdAt}</span>
+                          </div>
+                          <p className="mt-2 text-sm text-red-600 line-through">{suggestion.originalText}</p>
+                          {suggestion.suggestedText && <p className="mt-1 text-sm font-semibold text-emerald-700">{suggestion.suggestedText}</p>}
+                          {suggestion.explanation && <p className="mt-2 text-xs text-gray-500">{suggestion.explanation}</p>}
+                          {suggestion.status === 'pending' && (
+                            <div className="mt-3 flex justify-end gap-2">
+                              <button type="button" onClick={() => applySuggestionDecision(suggestion.id,'rejected')} className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-600">{isEn ? 'Reject' : '拒绝'}</button>
+                              <button type="button" onClick={() => applySuggestionDecision(suggestion.id,'accepted')} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white">{isEn ? 'Accept' : '接受'}</button>
+                            </div>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-4">
                   <h4 className="mb-2 text-sm font-bold text-gray-900 dark:text-white">{isEn ? 'Inline comments' : '具体文本批注'}</h4>
-                  {sharedReview.comments.length > 0 ? (
+                  {sharedReview.comments.filter(comment => comment.isPublished !== false).length > 0 ? (
                     <div className="space-y-2">
-                      {sharedReview.comments.map(comment => (
-                        <button
-                          key={comment.id}
-                          type="button"
-                          onClick={() => focusTeacherComment(comment.start, comment.end)}
-                          className="block w-full rounded-xl border border-indigo-100 bg-indigo-50 p-3 text-left hover:border-indigo-300"
-                        >
-                          <p className="text-xs font-bold text-indigo-800">“{comment.quote}”</p>
-                          <p className="mt-1 text-sm text-gray-700">{comment.comment}</p>
-                          <p className="mt-2 text-[11px] text-gray-400">{comment.author} · {comment.createdAt} · {isEn ? 'Click to locate text' : '点击定位原文'}</p>
-                        </button>
+                      {sharedReview.comments.filter(comment => comment.isPublished !== false).map(comment => (
+                        <article key={comment.id} className={`block w-full rounded-xl border p-3 text-left ${comment.isResolved ? 'border-emerald-100 bg-emerald-50/60' : 'border-indigo-100 bg-indigo-50'}`}>
+                          <button type="button" onClick={() => focusTeacherComment(comment.start, comment.end)} className="block w-full text-left">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold text-indigo-700">{comment.category || (isEn ? 'Content' : '内容')}</span>
+                              <span className={`text-[10px] font-bold ${comment.isResolved ? 'text-emerald-700' : 'text-orange-600'}`}>{comment.isResolved ? (isEn ? 'Resolved' : '已解决') : (isEn ? 'Open' : '未解决')}</span>
+                            </div>
+                            <p className="mt-2 text-xs font-bold text-indigo-800">“{comment.quote}”</p>
+                            <p className="mt-1 text-sm text-gray-700">{comment.comment}</p>
+                            <p className="mt-2 text-[11px] text-gray-400">{comment.author} · {comment.createdAt} · {isEn ? 'Click to locate text' : '点击定位原文'}</p>
+                          </button>
+                          {(comment.replies || []).map(reply => (
+                            <div key={reply.id} className="mt-2 rounded-lg bg-white/80 p-2 text-xs">
+                              <p className="text-gray-700">{reply.message}</p>
+                              <p className="mt-1 text-[10px] text-gray-400">{reply.author} · {reply.createdAt}</p>
+                            </div>
+                          ))}
+                          <div className="mt-3 flex gap-2">
+                            <input value={commentReplyDrafts[comment.id] || ''} onChange={event => setCommentReplyDrafts(previous => ({...previous,[comment.id]:event.target.value}))} placeholder={isEn ? 'Reply to counselor…' : '回复老师…'} className="min-w-0 flex-1 rounded-lg border border-indigo-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-indigo-400" />
+                            <button type="button" onClick={() => addStudentCommentReply(comment.id)} disabled={!commentReplyDrafts[comment.id]?.trim()} className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-bold text-white disabled:opacity-35">{isEn ? 'Reply' : '回复'}</button>
+                            <button type="button" onClick={() => toggleStudentCommentResolved(comment.id)} className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-gray-600">{comment.isResolved ? (isEn ? 'Reopen' : '重新打开') : (isEn ? 'Resolve' : '标记解决')}</button>
+                          </div>
+                        </article>
                       ))}
                     </div>
                   ) : <p className="text-sm text-gray-500">{isEn ? 'The teacher did not provide inline comments this round.' : '老师本轮未提供具体文本批注。'}</p>}

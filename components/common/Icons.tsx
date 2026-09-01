@@ -140,7 +140,8 @@ import {
   DollarSign,
   Menu,
   ShieldAlert,
-  ShieldCheck
+  ShieldCheck,
+  Minus
 } from 'lucide-react';
 
 export {
@@ -284,5 +285,6 @@ export {
   DollarSign,
   Menu,
   ShieldAlert,
-  ShieldCheck
+  ShieldCheck,
+  Minus
 };

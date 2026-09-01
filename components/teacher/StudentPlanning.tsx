@@ -7,7 +7,7 @@ import {
   SCHOOL_DATABASE, ActionItem, TimelineEvent, initialTimelineData, UniversityDisplay
 } from './planning/PlanningData';
 import { StudentSummary } from '../../types';
-import { initialOfficialBatches, initialPredictedBatches, initialSubjectScores } from './StudentBasicInfo';
+import { OfficialBatch, PredictedBatch, SubjectScore } from './StudentBasicInfo';
 
 // Import Modular Step Components
 import Step1Career from './planning/Step1Career';
@@ -18,14 +18,46 @@ import Step5Gap from './planning/Step5Gap';
 import Step6Timeline from './planning/Step6Timeline';
 import { useLanguage } from '../../contexts/LanguageContext';
 
-export const getInitialSimParams = () => {
+interface StudentScoreData {
+  officialBatches: OfficialBatch[];
+  predictedBatches: PredictedBatch[];
+  subjectScores: SubjectScore[];
+}
+
+const scoreDateValue = (date?: string) => {
+  if (!date) return Number.NEGATIVE_INFINITY;
+  const parsed = Date.parse(date.length === 7 ? `${date}-01` : date);
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+};
+
+const selectPreferredScore = (scores: SubjectScore[]) => [...scores]
+  .filter(score => score.status !== 'Rejected' && score.score.trim() !== '' && Number.isFinite(Number(score.score)))
+  .sort((a, b) => {
+    const statusDifference = Number(b.status === 'Verified') - Number(a.status === 'Verified');
+    if (statusDifference !== 0) return statusDifference;
+    const dateDifference = scoreDateValue(b.date) - scoreDateValue(a.date);
+    return dateDifference !== 0 ? dateDifference : Number(b.score) - Number(a.score);
+  })[0];
+
+const sectionScoresFrom = (score?: SubjectScore) => ({
+  reading: score?.subScores?.R || '',
+  listening: score?.subScores?.L || '',
+  speaking: score?.subScores?.S || '',
+  writing: score?.subScores?.W || '',
+});
+
+export const getInitialSimParams = ({ officialBatches, predictedBatches, subjectScores }: StudentScoreData) => {
   let academicSystem = 'GPA';
   let academicScoreText = '3.8';
   let gpa = 3.8;
   let isPredicted = true;
 
-  const latestPredicted = initialPredictedBatches[initialPredictedBatches.length - 1];
-  const latestOfficial = initialOfficialBatches[initialOfficialBatches.length - 1];
+  const latestPredicted = predictedBatches[predictedBatches.length - 1];
+  const latestOfficial = officialBatches[officialBatches.length - 1];
+  const academicBatch = latestPredicted || latestOfficial;
+  const academicCourses = latestPredicted
+    ? latestPredicted.courses.map(course => ({ id: course.id, name: course.subject, level: course.courseLevel, grade: course.predictedGrade }))
+    : latestOfficial?.courses.map(course => ({ id: course.id, name: course.subject, level: course.courseLevel, grade: course.grade })) || [];
 
   if (latestPredicted) {
     if (latestPredicted.curriculum.includes('A Level')) {
@@ -60,37 +92,56 @@ export const getInitialSimParams = () => {
     }
   }
 
-  let languageTest = 'TOEFL';
-  let languageScoreText = '100';
-  let toefl = 100;
-  const toefls = initialSubjectScores.filter(s => s.type === 'TOEFL').map(s => parseInt(s.score) || 0).sort((a,b) => b-a);
-  const ielts = initialSubjectScores.filter(s => s.type === 'IELTS').map(s => parseFloat(s.score) || 0).sort((a,b) => b-a);
+  const toeflBoundary = Date.parse('2026-01-21');
+  const toeflRecords = subjectScores.filter(score => score.type === 'TOEFL' && scoreDateValue(score.date) !== Number.NEGATIVE_INFINITY);
+  const newToefl = selectPreferredScore(toeflRecords.filter(score => scoreDateValue(score.date) >= toeflBoundary));
+  const oldToefl = selectPreferredScore(toeflRecords.filter(score => scoreDateValue(score.date) < toeflBoundary));
+  const ieltsRecord = selectPreferredScore(subjectScores.filter(score => score.type === 'IELTS'));
+  const satRecord = selectPreferredScore(subjectScores.filter(score => score.type === 'SAT'));
+  const actRecord = selectPreferredScore(subjectScores.filter(score => score.type === 'ACT'));
+  const atarRecord = selectPreferredScore(subjectScores.filter(score => score.type === 'ATAR'));
+  const apRecords = subjectScores.filter(score => score.type === 'AP' && score.status !== 'Rejected');
+  const ibRecords = subjectScores.filter(score => score.type === 'IB' && score.status !== 'Rejected');
 
-  if (toefls.length > 0) {
+  let languageTest = 'None';
+  let languageScoreText = '-';
+  let toefl = 0;
+  if (newToefl) {
     languageTest = 'TOEFL';
-    toefl = toefls[0];
-    languageScoreText = toefl.toString();
-  } else if (ielts.length > 0) {
+    toefl = Math.round(Number(newToefl.score) * 20);
+    languageScoreText = newToefl.score;
+  } else if (oldToefl) {
+    languageTest = 'TOEFL';
+    toefl = Number(oldToefl.score);
+    languageScoreText = oldToefl.score;
+  } else if (ieltsRecord) {
     languageTest = 'IELTS';
-    languageScoreText = ielts[0].toString();
-    toefl = ielts[0] * 12; // dummy approximation
+    languageScoreText = ieltsRecord.score;
+    toefl = Number(ieltsRecord.score) * 12;
   }
 
   let standardTest = 'None';
   let standardScoreText = '-';
   let sat = 0;
-  const sats = initialSubjectScores.filter(s => s.type === 'SAT').map(s => parseInt(s.score) || 0).sort((a,b) => b-a);
-  const acts = initialSubjectScores.filter(s => s.type === 'ACT').map(s => parseInt(s.score) || 0).sort((a,b) => b-a);
-
-  if (sats.length > 0) {
+  if (satRecord) {
     standardTest = 'SAT';
-    sat = sats[0];
+    sat = Number(satRecord.score);
     standardScoreText = sat.toString();
-  } else if (acts.length > 0) {
+  } else if (actRecord) {
     standardTest = 'ACT';
-    standardScoreText = acts[0].toString();
-    sat = acts[0] * 40; // dummy approx
+    standardScoreText = actRecord.score;
+    sat = Number(actRecord.score) * 40;
   }
+
+  const curriculum = academicBatch?.curriculum || '';
+  const alevelSubjects = /A[ -]?Level/i.test(curriculum)
+    ? academicCourses.map(course => ({ ...course, level: course.level || 'A-Level', grade: course.grade.toUpperCase() }))
+    : [];
+  const apSubjects = apRecords.map(score => ({ id: score.id, name: score.subject === 'AP' ? '' : score.subject, grade: score.score }));
+  const ibSubjects = ibRecords.map(score => ({ id: score.id, name: score.subject === 'IB' ? '' : score.subject, level: 'HL', grade: score.score }));
+  const alevelScore = alevelSubjects.map(course => course.grade).join('');
+  const apScore = apSubjects.length ? String(Math.max(...apSubjects.map(course => Number(course.grade) || 0))) : '';
+  const ibScoreRecord = selectPreferredScore(ibRecords);
 
   return {
     gpa, toefl, sat,
@@ -98,38 +149,42 @@ export const getInitialSimParams = () => {
     languageTest, languageScoreText,
     standardTest, standardScoreText,
     // Provide dedicated values for the UI to represent each slider independently
-    alevelSubjects: [
-      { id: '1', name: 'Math', level: 'A-Level', grade: 'A*' },
-      { id: '2', name: 'Physics', level: 'A-Level', grade: 'A' },
-      { id: '3', name: 'Chemistry', level: 'A-Level', grade: 'A' },
-    ],
-    apSubjects: [
-      { id: '1', name: 'Calculus BC', grade: '5' },
-      { id: '2', name: 'Physics C', grade: '5' },
-    ],
-    ibSubjects: [
-      { id: '1', name: 'Math', level: 'HL', grade: '7' },
-      { id: '2', name: 'Physics', level: 'HL', grade: '6' },
-    ],
-    toeflValue: toefls.length > 0 ? (toefls[0] / 120 * 6).toFixed(1) : '5.0',
-    oldToeflValue: toefls.length > 0 ? toefls[0].toString() : '100',
-    ieltsValue: ielts.length > 0 ? ielts[0].toString() : '7.0',
-    satValue: sats.length > 0 ? sats[0].toString() : '1400',
-    actValue: acts.length > 0 ? acts[0].toString() : '30',
+    alevelSubjects,
+    apSubjects,
+    ibSubjects,
+    toeflValue: newToefl?.score || '',
+    oldToeflValue: oldToefl?.score || '',
+    ieltsValue: ieltsRecord?.score || '',
+    satValue: satRecord?.score || '',
+    actValue: actRecord?.score || '',
+    atarValue: atarRecord?.score || '',
+    alevelScore,
+    apScore,
+    ibScore: ibScoreRecord?.score || '',
+    expandedLanguageSections: { toefl: false, oldToefl: false, ielts: false },
+    languageSectionScores: {
+      toefl: sectionScoresFrom(newToefl),
+      oldToefl: sectionScoresFrom(oldToefl),
+      ielts: sectionScoresFrom(ieltsRecord),
+    },
     // Enable flags
-    alevelEnabled: academicSystem === 'A-Level',
-    apEnabled: academicSystem === 'AP',
-    ibEnabled: academicSystem === 'IB',
-    toeflEnabled: languageTest === 'TOEFL',
-    oldToeflEnabled: false,
-    ieltsEnabled: languageTest === 'IELTS',
-    satEnabled: standardTest === 'SAT',
-    actEnabled: standardTest === 'ACT',
+    alevelEnabled: /A[ -]?Level/i.test(curriculum),
+    apEnabled: /AP/i.test(curriculum) || apSubjects.length > 0,
+    ibEnabled: /IB/i.test(curriculum) || ibRecords.length > 0,
+    toeflEnabled: !!newToefl,
+    oldToeflEnabled: !!oldToefl,
+    ieltsEnabled: !!ieltsRecord,
+    satEnabled: !!satRecord,
+    actEnabled: !!actRecord,
+    atarEnabled: !!atarRecord,
   };
 };
 
 interface StudentPlanningProps {
   student?: StudentSummary;
+  officialBatches: OfficialBatch[];
+  predictedBatches: PredictedBatch[];
+  subjectScores: SubjectScore[];
 }
 
 // Toast Component
@@ -174,7 +229,7 @@ const PublishConfirmModal = ({ isOpen, onClose, onConfirm, taskCount, isEn }: { 
   );
 };
 
-const StudentPlanning: React.FC<StudentPlanningProps> = ({ student }) => {
+const StudentPlanning: React.FC<StudentPlanningProps> = ({ student, officialBatches, predictedBatches, subjectScores }) => {
   const [planningStep, setPlanningStep] = useState(1);
   const { language } = useLanguage();
   const isEn = language === 'en-US';
@@ -249,7 +304,7 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student }) => {
   const [activeRecommendMenu, setActiveRecommendMenu] = useState<number | null>(null);
 
   // --- Step 3: School Selection Assistant State ---
-  const [simParams, setSimParams] = useState(getInitialSimParams());
+  const [simParams, setSimParams] = useState(() => getInitialSimParams({ officialBatches, predictedBatches, subjectScores }));
   const [schoolSearchQuery, setSchoolSearchQuery] = useState('');
   const [selectedSchools, setSelectedSchools] = useState<SelectedSchool[]>([]);
   const [step3Tab, setStep3Tab] = useState<'Recommend' | 'Search'>('Recommend');
@@ -795,6 +850,7 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student }) => {
               <Step3Selection 
                 targetPreferences={targetPreferences}
                 simParams={simParams} setSimParams={setSimParams}
+                resetSimParams={() => setSimParams(getInitialSimParams({ officialBatches, predictedBatches, subjectScores }))}
                 schoolSearchQuery={schoolSearchQuery} setSchoolSearchQuery={setSchoolSearchQuery}
                 selectedSchools={selectedSchools}
                 handleAddSchool={handleAddSchool} handleRemoveSchool={handleRemoveSchool}

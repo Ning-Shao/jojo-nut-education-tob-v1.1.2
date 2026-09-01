@@ -75,6 +75,99 @@ interface TargetLibraryProps {
   currentStudentId?: string;
 }
 
+type ScoreFilterKey = 'alevel' | 'ap' | 'ib' | 'toefl' | 'oldToefl' | 'ielts' | 'sat' | 'act' | 'atar';
+
+interface ScoreFilterItem {
+  enabled: boolean;
+  value: number;
+}
+
+type LanguageScoreKey = 'toefl' | 'oldToefl' | 'ielts';
+type LanguageSectionKey = 'reading' | 'listening' | 'speaking' | 'writing';
+type LanguageSectionScores = Record<LanguageSectionKey, string>;
+
+interface ALevelSubjectFilter {
+  id: string;
+  name: string;
+  level?: 'A-Level' | 'AS-Level';
+  grade: string; // Letter grade or numeric score entered by the user.
+}
+
+interface IBSubjectFilter {
+  id: string;
+  name: string;
+  level: 'HL' | 'SL';
+  grade: string;
+}
+
+const emptyLanguageSectionScores = (): Record<LanguageScoreKey, LanguageSectionScores> => ({
+  toefl: { reading: '', listening: '', speaking: '', writing: '' },
+  oldToefl: { reading: '', listening: '', speaking: '', writing: '' },
+  ielts: { reading: '', listening: '', speaking: '', writing: '' }
+});
+
+const alevelSubjectOptions = [
+  { name: 'Mathematics', aliases: ['math', 'maths'] },
+  { name: 'Further Mathematics', aliases: ['further math', 'further maths'] },
+  { name: 'Physics', aliases: ['phys'] },
+  { name: 'Chemistry', aliases: ['chem'] },
+  { name: 'Biology', aliases: ['bio'] },
+  { name: 'Economics', aliases: ['econ'] },
+  { name: 'Business', aliases: ['business studies'] },
+  { name: 'Accounting', aliases: ['accounts'] },
+  { name: 'Computer Science', aliases: ['cs', 'computing'] },
+  { name: 'Information Technology', aliases: ['it', 'ict'] },
+  { name: 'Psychology', aliases: ['psych'] },
+  { name: 'Geography', aliases: ['geo'] },
+  { name: 'History', aliases: ['hist'] },
+  { name: 'Sociology', aliases: [] },
+  { name: 'Law', aliases: [] },
+  { name: 'English Language', aliases: ['english lang'] },
+  { name: 'English Literature', aliases: ['english lit', 'literature'] },
+  { name: 'Chinese', aliases: ['mandarin'] },
+  { name: 'Art & Design', aliases: ['art', 'art and design', 'design'] }
+];
+
+type ScoreFilters = Record<ScoreFilterKey, ScoreFilterItem>;
+
+const defaultScoreFilters: ScoreFilters = {
+  alevel: { enabled: false, value: 3 },
+  ap: { enabled: false, value: 4 },
+  ib: { enabled: false, value: 38 },
+  toefl: { enabled: false, value: 100 },
+  oldToefl: { enabled: false, value: 100 },
+  ielts: { enabled: false, value: 7 },
+  sat: { enabled: false, value: 1450 },
+  act: { enabled: false, value: 32 },
+  atar: { enabled: false, value: 90 }
+};
+
+const scoreFilterMeta: Record<ScoreFilterKey, { label: string; min: number; max: number; step: number; suffix?: string }> = {
+  alevel: { label: 'A-Level', min: 1, max: 4, step: 1 },
+  ap: { label: 'AP', min: 1, max: 5, step: 1, suffix: ' 分' },
+  ib: { label: 'IB', min: 24, max: 45, step: 1, suffix: ' 分' },
+  toefl: { label: 'TOEFL (From 21 January 2026)', min: 60, max: 120, step: 1 },
+  oldToefl: { label: 'TOEFL (Before 21 January 2026)', min: 60, max: 120, step: 1 },
+  ielts: { label: 'IELTS', min: 4, max: 9, step: 0.5 },
+  sat: { label: 'SAT', min: 1000, max: 1600, step: 10 },
+  act: { label: 'ACT', min: 20, max: 36, step: 1 },
+  atar: { label: 'ATAR', min: 0, max: 99.95, step: 0.05 }
+};
+
+const FilterToggle = ({ checked, onChange, label, disabled = false }: { checked: boolean; onChange: (checked: boolean) => void; label: string; disabled?: boolean }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    aria-label={label}
+    disabled={disabled}
+    onClick={() => onChange(!checked)}
+    className={`relative inline-flex h-4 w-7 flex-shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${checked ? 'bg-primary-600' : 'bg-gray-300 dark:bg-zinc-600'}`}
+  >
+    <span className={`h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+  </button>
+);
+
 // --- Helpers ---
 const getCompanyLogo = (name: string) => {
   const map: Record<string, string> = {
@@ -385,8 +478,150 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
   // Filters (retained across detail navigation and tabs)
   const [filters, setFilters] = useState({ region: '全部', major: '全部', diff: '全部' });
   const [searchQuery, setSearchQuery] = useState('');
+  const [scoreFilters, setScoreFilters] = useState<ScoreFilters>(defaultScoreFilters);
+  const [scoreDrafts, setScoreDrafts] = useState<Partial<Record<ScoreFilterKey, string>>>({});
+  const [alevelScore, setAlevelScore] = useState('');
+  const [alevelSubjects, setAlevelSubjects] = useState<ALevelSubjectFilter[]>([
+    { id: 'alevel-subject-1', name: '', grade: 'A' }
+  ]);
+  const [apSubjects, setApSubjects] = useState([{ id: 'ap-subject-1', name: '', grade: '5' }]);
+  const [ibSubjects, setIbSubjects] = useState<IBSubjectFilter[]>([
+    { id: 'ib-subject-1', name: '', level: 'HL', grade: '7' }
+  ]);
+  const [activeAlevelSubjectId, setActiveAlevelSubjectId] = useState<string | null>(null);
+  const [highlightedSubjectSuggestion, setHighlightedSubjectSuggestion] = useState(0);
+  const [languageSectionScores, setLanguageSectionScores] = useState(emptyLanguageSectionScores);
+  const [expandedLanguageSections, setExpandedLanguageSections] = useState<Record<LanguageScoreKey, boolean>>({
+    toefl: false, oldToefl: false, ielts: false
+  });
 
   const activeProgram = mockPrograms.find(p => p.id === selectedId);
+
+  const enabledScoreEntries = (Object.entries(scoreFilters) as [ScoreFilterKey, ScoreFilterItem][])
+    .filter(([, item]) => item.enabled);
+
+  // Preserve editing text (including empty values and decimal points) separately
+  // from numbers used for matching. TOEFL has no scale/range/step restriction.
+  const getScoreValue = (key: ScoreFilterKey): number | null => {
+    const raw = scoreDrafts[key] ?? String(scoreFilters[key].value);
+    if (!/^-?(?:\d+(?:\.\d+)?|\.\d+)$/.test(raw)) return null;
+    const value = Number(raw);
+    if (!Number.isFinite(value)) return null;
+    if (key === 'toefl' || key === 'oldToefl') return value;
+    const meta = scoreFilterMeta[key];
+    return value >= meta.min && value <= meta.max ? value : null;
+  };
+
+  const getLanguageTotal = (key: LanguageScoreKey) => getScoreValue(key);
+
+  const completedScoreEntries = enabledScoreEntries
+    .filter(([key]) => key === 'alevel'
+      ? /^(?:\d+(?:\.\d+)?|(?:A\*|[A-E]){2,4})$/.test(alevelScore.toUpperCase().replace(/\s/g, ''))
+      : getScoreValue(key) !== null)
+    .map(([key, item]) => [key, { ...item, value: key === 'alevel' ? item.value : getScoreValue(key) as number }] as [ScoreFilterKey, ScoreFilterItem]);
+
+  const updateScoreFilter = (key: ScoreFilterKey, patch: Partial<ScoreFilterItem>) => {
+    if (patch.enabled === false && (key === 'toefl' || key === 'oldToefl' || key === 'ielts')) {
+      setExpandedLanguageSections(previous => ({ ...previous, [key]: false }));
+    }
+    setScoreFilters(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }));
+  };
+
+  const resetScoreFilters = () => {
+    setScoreFilters(defaultScoreFilters);
+    setScoreDrafts({});
+    setAlevelScore('');
+    setAlevelSubjects([{ id: 'alevel-subject-1', name: '', grade: 'A' }]);
+    setApSubjects([{ id: 'ap-subject-1', name: '', grade: '5' }]);
+    setIbSubjects([{ id: 'ib-subject-1', name: '', level: 'HL', grade: '7' }]);
+    setActiveAlevelSubjectId(null);
+    setHighlightedSubjectSuggestion(0);
+    setLanguageSectionScores(emptyLanguageSectionScores());
+    setExpandedLanguageSections({ toefl: false, oldToefl: false, ielts: false });
+  };
+
+  const getAlevelSubjectSuggestions = (value: string) => {
+    const query = value.trim().toLowerCase();
+    if (!query) return [];
+    return alevelSubjectOptions
+      .filter(option => option.name.toLowerCase().startsWith(query) || option.aliases.some(alias => alias.startsWith(query)))
+      .slice(0, 5);
+  };
+
+  const commitAlevelSubject = (id: string, name: string) => {
+    const trimmedName = name.trim();
+    setAlevelSubjects(previous => previous.map(subject => subject.id === id ? { ...subject, name: trimmedName } : subject));
+    setActiveAlevelSubjectId(null);
+    setHighlightedSubjectSuggestion(0);
+  };
+
+  const parseAlevelGrades = (text: string) => {
+    const normalized = text.toUpperCase().replace(/[\s,/-]/g, '');
+    const repeatedGrade = normalized.match(/^(\d+)(A\*|[A-E])$/);
+    if (repeatedGrade) return Array.from({ length: Number(repeatedGrade[1]) }, () => repeatedGrade[2]);
+    const grades = normalized.match(/A\*|[A-E]/g);
+    return grades && grades.join('') === normalized ? grades : null;
+  };
+
+  const meetsAlevelRequirement = (candidateText: string, requirementText: string) => {
+    const candidateGrades = parseAlevelGrades(candidateText);
+    const requirementToken = requirementText.toUpperCase().match(/(?:\d+(?:A\*|[A-E])|(?:A\*|[A-E]){2,4}|\d+(?:\.\d+)?)/)?.[0];
+    if (!requirementToken) return null;
+    const requirementGrades = parseAlevelGrades(requirementToken);
+
+    if (candidateGrades && requirementGrades) {
+      const gradeValue: Record<string, number> = { 'A*': 6, A: 5, B: 4, C: 3, D: 2, E: 1 };
+      const candidate = [...candidateGrades].sort((a, b) => gradeValue[b] - gradeValue[a]);
+      const requirement = [...requirementGrades].sort((a, b) => gradeValue[b] - gradeValue[a]);
+      if (candidate.length < requirement.length) return false;
+      return requirement.every((grade, index) => gradeValue[candidate[index]] >= gradeValue[grade]);
+    }
+
+    const candidateNumber = /^\d+(?:\.\d+)?$/.test(candidateText.trim()) ? Number(candidateText) : null;
+    const requirementNumber = /^\d+(?:\.\d+)?$/.test(requirementToken) ? Number(requirementToken) : null;
+    return candidateNumber !== null && requirementNumber !== null ? candidateNumber >= requirementNumber : null;
+  };
+
+  const getScoreMatch = (program: TargetProgram) => {
+    if (completedScoreEntries.length === 0) return { status: 'none' as const, gaps: 0, unknown: 0 };
+
+    let gaps = 0;
+    let unknown = 0;
+    completedScoreEntries.forEach(([key, item]) => {
+      const source = key === 'toefl' || key === 'oldToefl' || key === 'ielts'
+        ? program.req_language
+        : key === 'sat' || key === 'act' || key === 'atar'
+          ? program.req_standardized
+          : program.req_gpa;
+      const label = key === 'toefl' || key === 'oldToefl' ? 'TOEFL' : scoreFilterMeta[key].label;
+      const scorePattern = new RegExp(`\\b${label.replace('-', '\\-')}\\b`, 'i');
+      const scoreIndex = source.search(scorePattern);
+      const mentionsScore = scoreIndex >= 0;
+
+      if (!mentionsScore) {
+        const testOptional = (key === 'sat' || key === 'act') && /optional|none/i.test(source);
+        if (!testOptional) unknown += 1;
+        return;
+      }
+
+      const relevantText = source.slice(scoreIndex + label.length);
+      if (key === 'alevel') {
+        const meetsRequirement = meetsAlevelRequirement(alevelScore, relevantText);
+        if (meetsRequirement === false) gaps += 1;
+        if (meetsRequirement === null) unknown += 1;
+        return;
+      }
+      const threshold = Number(relevantText.match(/\d+(?:\.\d+)?/)?.[0]);
+      if (!Number.isFinite(threshold)) unknown += 1;
+      else if (item.value < threshold) gaps += 1;
+    });
+
+    return {
+      status: gaps > 0 ? 'gap' as const : unknown > 0 ? 'unknown' as const : 'match' as const,
+      gaps,
+      unknown
+    };
+  };
 
   // Helper to translate tags
   const translateTag = (tag: string) => {
@@ -490,7 +725,7 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
     }
 
     const query = searchQuery.toLowerCase().trim();
-    return list.filter(program => {
+    const matchingPrograms = list.filter(program => {
       const matchesSearch = !query || 
         program.schoolName.toLowerCase().includes(query) || 
         program.programName.toLowerCase().includes(query) ||
@@ -514,9 +749,25 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
          }
       }
 
-      return matchesSearch && matchesRegion && matchesDiff && matchesMajor;
+      const scoreMatch = getScoreMatch(program);
+      const matchesScores = enabledScoreEntries.length === 0 || (
+        completedScoreEntries.length === enabledScoreEntries.length && scoreMatch.status === 'match'
+      );
+
+      return matchesSearch && matchesRegion && matchesDiff && matchesMajor && matchesScores;
     });
-  }, [showBookmarksOnly, showRecentOnly, bookmarkedIds, recentViewedIds, searchQuery, filters]);
+
+    if (showRecentOnly) return matchingPrograms;
+
+    const getRankingNumber = (program: TargetProgram) => {
+      const ranking = Number(program.ranking.match(/\d+/)?.[0]);
+      return Number.isFinite(ranking) ? ranking : Number.POSITIVE_INFINITY;
+    };
+
+    return [...matchingPrograms].sort((a, b) => {
+      return getRankingNumber(a) - getRankingNumber(b);
+    });
+  }, [showBookmarksOnly, showRecentOnly, bookmarkedIds, recentViewedIds, searchQuery, filters, scoreFilters, scoreDrafts, alevelScore, languageSectionScores]);
 
   const handleCardClick = (id: string) => {
     recordView(id);
@@ -534,7 +785,7 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
       {view === 'list' ? (
         <div className="flex h-full gap-6 overflow-hidden">
            {/* Sidebar Filter */}
-           <div className="w-64 flex-shrink-0 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-[#e5e0dc] dark:border-white/5 p-6 h-full flex flex-col transition-colors">
+           <div className="[&_input[type=number]]:[appearance:textfield] [&_input[type=number]::-webkit-inner-spin-button]:appearance-none [&_input[type=number]::-webkit-outer-spin-button]:appearance-none [&_input[type=number]::-webkit-inner-spin-button]:m-0 [&_input[type=number]::-webkit-outer-spin-button]:m-0 w-[261px] flex-shrink-0 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-[#e5e0dc] dark:border-white/5 p-6 h-full flex flex-col transition-colors">
               <div className={`flex items-center gap-2 mb-8 text-${theme}-700 dark:text-${theme}-400 border-b border-gray-100 dark:border-white/5 pb-4`}>
                  <Filter className="w-5 h-5" />
                  <span className="font-bold text-lg">{isEn ? 'Filters' : '筛选条件'}</span>
@@ -599,6 +850,326 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                           </label>
                        ))}
                     </div>
+                 </div>
+
+                 {/* Score simulator */}
+                 <div className="space-y-8">
+                    {([
+                       { id: 'academic' as const, label: isEn ? 'Academic scores' : '学术成绩', keys: ['alevel', 'ap', 'ib', 'atar'] as ScoreFilterKey[] },
+                       { id: 'standardized' as const, label: isEn ? 'Standardized tests' : '标化成绩', keys: ['toefl', 'oldToefl', 'ielts', 'sat', 'act'] as ScoreFilterKey[] }
+                    ]).map(section => (
+                       <div key={section.id} className="last:pb-3">
+                          <h4 className="text-xs font-bold text-gray-400 dark:text-zinc-500 uppercase mb-4 block tracking-wider">
+                             {section.label}
+                          </h4>
+
+                             <div className="space-y-3">
+                                {section.keys.map(key => {
+                                   const item = scoreFilters[key];
+                                   const meta = scoreFilterMeta[key];
+                                   const languageTotal = key === 'toefl' || key === 'oldToefl' || key === 'ielts' ? getLanguageTotal(key) : null;
+                                   const formattedValue = key === 'alevel'
+                                     ? (alevelScore || (isEn ? 'Incomplete' : '待填写'))
+                                     : key === 'toefl' || key === 'oldToefl' || key === 'ielts'
+                                       ? (languageTotal === null ? (isEn ? 'Complete all' : '待补全') : key === 'ielts' ? languageTotal.toFixed(1) : languageTotal)
+                                       : (getScoreValue(key) ?? (isEn ? 'Incomplete' : '待补全'));
+                                   return (
+                                      <div key={key} className={key === 'ib' ? 'flex flex-col gap-2' : undefined}>
+                                         <div className={(key === 'toefl' || key === 'oldToefl' || key === 'ielts')
+                                            ? 'group grid grid-cols-[28px_minmax(0,1fr)_22px_56px] items-center gap-x-2'
+                                            : 'group flex items-center justify-between gap-3'}>
+                                            <div className={(key === 'toefl' || key === 'oldToefl' || key === 'ielts') ? 'contents' : 'flex items-center gap-3'}>
+                                               <FilterToggle
+                                                  checked={item.enabled}
+                                                  onChange={enabled => updateScoreFilter(key, { enabled })}
+                                                  label={`${isEn ? 'Enable' : '启用'} ${meta.label}`}
+                                               />
+                                               <span className={`text-sm transition-colors ${item.enabled ? `font-bold text-${theme}-700 dark:text-${theme}-400` : `text-gray-600 group-hover:text-${theme}-600 dark:text-zinc-400 dark:group-hover:text-${theme}-300`}`}>
+                                                  {meta.label}
+                                               </span>
+                                               {(key === 'toefl' || key === 'oldToefl' || key === 'ielts') && (
+                                                  <button
+                                                     type="button"
+                                                     disabled={!item.enabled}
+                                                     aria-expanded={expandedLanguageSections[key]}
+                                                     aria-controls={`language-sections-${key}`}
+                                                     title={isEn ? (expandedLanguageSections[key] ? 'Collapse section scores' : 'Add section scores') : (expandedLanguageSections[key] ? '收起单项成绩' : '添加单项成绩')}
+                                                     aria-label={`${meta.label} ${isEn ? (expandedLanguageSections[key] ? 'Collapse section scores' : 'Add section scores') : (expandedLanguageSections[key] ? '收起单项成绩' : '添加单项成绩')}`}
+                                                     onClick={() => setExpandedLanguageSections(previous => ({ ...previous, [key]: !previous[key] }))}
+                                                     className="inline-flex h-[26px] w-[22px] shrink-0 items-center justify-center rounded text-xs text-gray-500 transition-colors hover:text-primary-700 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary-400 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-400 dark:hover:text-primary-300"
+                                                  >
+                                                     <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${expandedLanguageSections[key] ? 'rotate-180' : ''}`} />
+                                                  </button>
+                                               )}
+                                            </div>
+                                            {key === 'alevel' ? (
+                                               <input
+                                                  type="text"
+                                                  value={alevelScore}
+                                                  disabled={!item.enabled}
+                                                  inputMode="text"
+                                                  placeholder="AAB / 12"
+                                                  aria-label={isEn ? 'A-Level grades or score' : 'A-Level等级组合或分数'}
+                                                  onChange={event => setAlevelScore(event.target.value.toUpperCase().replace(/[^A-E*0-9.\s]/g, ''))}
+                                                  className={`w-14 rounded-md border px-1.5 py-1 text-right text-xs font-bold uppercase outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-zinc-700 dark:bg-zinc-800 ${item.enabled ? 'border-gray-200 bg-white text-primary-700 dark:text-primary-300' : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60 dark:text-zinc-600'}`}
+                                               />
+                                            ) : (['ap', 'ib', 'sat', 'act', 'atar', 'toefl', 'oldToefl', 'ielts'] as ScoreFilterKey[]).includes(key) ? (
+                                               <div className={(key === 'toefl' || key === 'oldToefl' || key === 'ielts') ? 'contents' : 'flex shrink-0 items-center gap-1'}>
+                                                  <input
+                                                     type="text"
+                                                     inputMode={['atar', 'ielts', 'toefl', 'oldToefl'].includes(key) ? 'decimal' : 'numeric'}
+                                                     value={scoreDrafts[key] ?? String(item.value)}
+                                                     aria-invalid={item.enabled && getScoreValue(key) === null}
+                                                     disabled={!item.enabled}
+                                                     aria-label={`${meta.label} ${isEn ? 'score' : '成绩'}`}
+                                                     onChange={event => {
+                                                        const nextValue = event.target.value;
+                                                        if (!/^-?\d*\.?\d*$/.test(nextValue)) return;
+                                                        setScoreDrafts(previous => ({ ...previous, [key]: nextValue }));
+                                                     }}
+                                                     className={`w-14 ${['toefl', 'oldToefl', 'ielts', 'sat', 'act'].includes(key) ? 'h-[26px] shrink-0 focus:ring-inset' : ''} rounded-md border px-1.5 py-1 text-right text-xs font-bold outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-zinc-700 dark:bg-zinc-800 ${item.enabled ? 'border-gray-200 bg-white text-primary-700 dark:text-primary-300' : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60 dark:text-zinc-600'}`}
+                                                  />
+                                               </div>
+                                            ) : (
+                                               <span className={`text-xs font-bold ${item.enabled ? 'text-primary-700 dark:text-primary-300' : 'text-gray-400 dark:text-zinc-600'}`}>
+                                                  {formattedValue}{meta.suffix || ''}
+                                               </span>
+                                            )}
+                                         </div>
+                                         {key === 'alevel' ? (
+                                            item.enabled && (
+                                               <div className="mt-2 pr-1 space-y-2">
+                                                  {alevelSubjects.map((subject, index) => {
+                                                     const suggestions = getAlevelSubjectSuggestions(subject.name);
+                                                     const suggestionsOpen = activeAlevelSubjectId === subject.id && suggestions.length > 0;
+                                                     return (
+                                                        <div key={subject.id} className="grid grid-cols-[minmax(0,1fr)_76px_36px_28px] items-start gap-1.5">
+                                                           <div className="relative min-w-0">
+                                                              <input
+                                                                 type="text"
+                                                                 role="combobox"
+                                                                 value={subject.name} title={subject.name?.trim() ? subject.name : undefined}
+                                                                 aria-expanded={suggestionsOpen}
+                                                                 aria-controls={`alevel-suggestions-${subject.id}`}
+                                                                 aria-autocomplete="list"
+                                                                 aria-label={`${isEn ? 'A-Level subject' : 'A-Level科目'} ${index + 1}`}
+                                                                 placeholder={isEn ? 'Subject' : '科目名称'}
+                                                                 onFocus={() => {
+                                                                    setActiveAlevelSubjectId(subject.id);
+                                                                    setHighlightedSubjectSuggestion(0);
+                                                                 }}
+                                                                 onBlur={() => setActiveAlevelSubjectId(current => current === subject.id ? null : current)}
+                                                                 onChange={event => {
+                                                                    setAlevelSubjects(previous => previous.map(row => row.id === subject.id ? { ...row, name: event.target.value } : row));
+                                                                    setActiveAlevelSubjectId(subject.id);
+                                                                    setHighlightedSubjectSuggestion(0);
+                                                                 }}
+                                                                 onKeyDown={event => {
+                                                                    if (event.key === 'ArrowDown' && suggestions.length > 0) {
+                                                                       event.preventDefault();
+                                                                       setHighlightedSubjectSuggestion(current => (current + 1) % suggestions.length);
+                                                                    } else if (event.key === 'ArrowUp' && suggestions.length > 0) {
+                                                                       event.preventDefault();
+                                                                       setHighlightedSubjectSuggestion(current => (current - 1 + suggestions.length) % suggestions.length);
+                                                                    } else if (event.key === 'Enter') {
+                                                                       event.preventDefault();
+                                                                       commitAlevelSubject(subject.id, suggestions[highlightedSubjectSuggestion]?.name || subject.name);
+                                                                    } else if (event.key === 'Escape') {
+                                                                       setActiveAlevelSubjectId(null);
+                                                                    }
+                                                                 }}
+                                                                 className="w-full min-w-0 text-xs px-2 py-1.5 border rounded bg-white shadow-sm font-medium focus:ring-1 focus:ring-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                                              />
+                                                              {suggestionsOpen && (
+                                                                 <div id={`alevel-suggestions-${subject.id}`} role="listbox" className="relative z-30 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-800">
+                                                                    {suggestions.map((option, suggestionIndex) => (
+                                                                       <button
+                                                                          key={option.name}
+                                                                          type="button"
+                                                                          role="option"
+                                                                          aria-selected={highlightedSubjectSuggestion === suggestionIndex}
+                                                                          onMouseDown={event => {
+                                                                             event.preventDefault();
+                                                                             commitAlevelSubject(subject.id, option.name);
+                                                                          }}
+                                                                          className={`block w-full px-2.5 py-1.5 text-left text-[11px] ${highlightedSubjectSuggestion === suggestionIndex ? 'bg-primary-50 font-bold text-primary-800 dark:bg-primary-500/10 dark:text-primary-300' : 'text-gray-600 hover:bg-gray-50 dark:text-zinc-300 dark:hover:bg-zinc-700'}`}
+                                                                       >
+                                                                          {option.name}
+                                                                       </button>
+                                                                    ))}
+                                                                 </div>
+                                                              )}
+                                                              {activeAlevelSubjectId === subject.id && subject.name.trim() && suggestions.length === 0 && (
+                                                                 <div className="relative z-30 mt-1 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-[10px] text-gray-500 shadow-lg dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
+                                                                    {isEn ? `Press Enter to use “${subject.name.trim()}”` : `按回车使用“${subject.name.trim()}”`}
+                                                                 </div>
+                                                              )}
+                                                           </div>
+                                                           <select
+                                                              value={subject.level || 'A-Level'}
+                                                              aria-label={`${isEn ? 'Subject qualification' : '科目考试体系'} ${index + 1}`}
+                                                              onChange={event => {
+                                                                 const level = event.target.value as 'A-Level' | 'AS-Level';
+                                                                 setAlevelSubjects(previous => previous.map(row => row.id === subject.id ? {
+                                                                    ...row, level,
+                                                                    grade: (level === 'AS-Level' ? (row.grade === 'A*' ? 'a' : row.grade.toLowerCase()) : row.grade.toUpperCase()) as ALevelSubjectFilter['grade']
+                                                                 } : row));
+                                                              }}
+                                                              className="w-full min-w-0 shrink-0 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none appearance-none cursor-pointer dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                                           >
+                                                              <option value="A-Level">A-Level</option>
+                                                              <option value="AS-Level">AS-Level</option>
+                                                           </select>
+                                                           <input
+                                                              type="text"
+                                                              inputMode="text"
+                                                              value={subject.grade}
+                                                              title={subject.grade || undefined}
+                                                              aria-label={`${isEn ? 'A-Level subject grade or score' : 'A-Level科目等级或分数'} ${index + 1}`}
+                                                              onChange={event => setAlevelSubjects(previous => previous.map(row => row.id === subject.id ? { ...row, grade: event.target.value } : row))}
+                                                              className="w-full min-w-0 text-right flex-shrink-0 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                                           />
+                                                              <button type="button" aria-label={isEn ? 'Remove subject' : '删除科目'} onClick={() => setAlevelSubjects(previous => previous.filter(row => row.id !== subject.id))} className="text-gray-400 flex flex-shrink-0 justify-center items-center w-7 h-7 rounded border border-gray-200 bg-white hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors dark:border-zinc-700 dark:bg-zinc-800">
+                                                                 <XCircle className="h-3.5 w-3.5" />
+                                                              </button>
+                                                        </div>
+                                                     );
+                                                  })}
+                                                  <button type="button" onClick={() => setAlevelSubjects(previous => [...previous, { id: `alevel-subject-${Date.now()}`, name: '', level: 'A-Level', grade: 'A' }])} className="flex items-center gap-1.5 text-xs text-primary-600 font-medium hover:text-primary-700 py-1 transition-colors">
+                                                     <Plus className="h-3 w-3" /> {isEn ? 'Add subject' : '添加科目'}
+                                                  </button>
+                                               </div>
+                                            )
+                                         ) : key === 'ap' ? (
+                                            item.enabled && (
+                                               <div className="mt-2 pr-1 space-y-2">
+                                                  {apSubjects.map((subject, index) => (
+                                                     <div key={subject.id} className="grid grid-cols-[minmax(0,1fr)_36px_28px] items-center gap-1.5">
+                                                        <input
+                                                           type="text"
+                                                           value={subject.name} title={subject.name?.trim() ? subject.name : undefined}
+                                                           placeholder={isEn ? 'Subject' : '科目名称'}
+                                                           aria-label={`${isEn ? 'AP subject' : 'AP科目'} ${index + 1}`}
+                                                           onChange={event => setApSubjects(previous => previous.map(row => row.id === subject.id ? {...row, name: event.target.value} : row))}
+                                                           className="flex-1 min-w-0 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white shadow-sm font-medium focus:ring-1 focus:ring-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                                        />
+                                                        <select
+                                                           value={subject.grade}
+                                                           aria-label={`${isEn ? 'AP subject grade' : 'AP科目等级'} ${index + 1}`}
+                                                           onChange={event => setApSubjects(previous => previous.map(row => row.id === subject.id ? {...row, grade: event.target.value} : row))}
+                                                           className="w-full min-w-0 text-right [text-align-last:right] flex-shrink-0 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none appearance-none cursor-pointer dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                                        >
+                                                           {['5', '4', '3', '2', '1'].map(grade => <option key={grade} value={grade}>{grade}</option>)}
+                                                        </select>
+                                                        <button
+                                                           type="button"
+                                                           aria-label={`${isEn ? 'Remove AP subject' : '删除AP科目'} ${index + 1}`}
+                                                           onClick={() => setApSubjects(previous => previous.filter(row => row.id !== subject.id))}
+                                                           className="text-gray-400 flex flex-shrink-0 justify-center items-center w-7 h-7 rounded border border-gray-200 bg-white hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors dark:border-zinc-700 dark:bg-zinc-800"
+                                                        >
+                                                           <XCircle className="w-3.5 h-3.5" />
+                                                        </button>
+                                                     </div>
+                                                  ))}
+                                                  <button
+                                                     type="button"
+                                                     onClick={() => setApSubjects(previous => [...previous, {id: `ap-subject-${Date.now()}`, name: '', grade: '5'}])}
+                                                     className="flex items-center gap-1.5 text-xs text-primary-600 font-medium hover:text-primary-700 py-1 transition-colors"
+                                                  >
+                                                     <Plus className="w-3.5 h-3.5" /> {isEn ? 'Add Subject' : '添加科目'}
+                                                  </button>
+                                               </div>
+                                            )
+                                         ) : key === 'ib' ? (
+                                            item.enabled && (
+                                               <div className="pr-1 space-y-2">
+                                                  {ibSubjects.map((subject, index) => (
+                                                     <div key={subject.id} className="grid grid-cols-[minmax(0,1fr)_40px_36px_28px] items-center gap-1.5">
+                                                        <input
+                                                           type="text"
+                                                           value={subject.name}
+                                                           title={subject.name.trim() || undefined}
+                                                           placeholder={isEn ? 'Subject' : '科目名称'}
+                                                           aria-label={`${isEn ? 'IB subject' : 'IB科目'} ${index + 1}`}
+                                                           onChange={event => setIbSubjects(previous => previous.map(row => row.id === subject.id ? { ...row, name: event.target.value } : row))}
+                                                           className="flex-1 min-w-0 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white shadow-sm font-medium focus:ring-1 focus:ring-primary-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                                        />
+                                                        <select
+                                                           value={subject.level}
+                                                           aria-label={`${isEn ? 'IB subject level' : 'IB科目等级'} ${index + 1}`}
+                                                           onChange={event => setIbSubjects(previous => previous.map(row => row.id === subject.id ? { ...row, level: event.target.value as IBSubjectFilter['level'] } : row))}
+                                                           className="w-full min-w-0 flex-shrink-0 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none appearance-none cursor-pointer dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                                        >
+                                                           <option value="HL">HL</option>
+                                                           <option value="SL">SL</option>
+                                                        </select>
+                                                        <select
+                                                           value={subject.grade}
+                                                           aria-label={`${isEn ? 'IB subject grade' : 'IB科目分数'} ${index + 1}`}
+                                                           onChange={event => setIbSubjects(previous => previous.map(row => row.id === subject.id ? { ...row, grade: event.target.value } : row))}
+                                                           className="w-full min-w-0 text-right [text-align-last:right] flex-shrink-0 text-xs px-2 py-1.5 border border-gray-200 rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none appearance-none cursor-pointer dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                                        >
+                                                           {['7', '6', '5', '4', '3', '2', '1'].map(grade => <option key={grade} value={grade}>{grade}</option>)}
+                                                        </select>
+                                                        <button
+                                                           type="button"
+                                                           aria-label={`${isEn ? 'Remove IB subject' : '删除IB科目'} ${index + 1}`}
+                                                           onClick={() => setIbSubjects(previous => previous.filter(row => row.id !== subject.id))}
+                                                           className="text-gray-400 flex flex-shrink-0 justify-center items-center w-7 h-7 rounded border border-gray-200 bg-white hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors dark:border-zinc-700 dark:bg-zinc-800"
+                                                        >
+                                                           <XCircle className="w-3.5 h-3.5" />
+                                                        </button>
+                                                     </div>
+                                                  ))}
+                                                  <button
+                                                     type="button"
+                                                     onClick={() => setIbSubjects(previous => [...previous, { id: `ib-subject-${Date.now()}`, name: '', level: 'HL', grade: '7' }])}
+                                                     className="flex items-center gap-1.5 text-xs text-primary-600 font-medium hover:text-primary-700 py-1 transition-colors"
+                                                  >
+                                                     <Plus className="w-3.5 h-3.5" /> {isEn ? 'Add Subject' : '添加科目'}
+                                                  </button>
+                                               </div>
+                                            )
+                                         ) : key === 'toefl' || key === 'oldToefl' || key === 'ielts' ? (
+                                               <div id={`language-sections-${key}`} hidden={!item.enabled || !expandedLanguageSections[key]} className="mt-2">
+                                                  <div className="grid grid-cols-4 gap-1.5">
+                                                     {([
+                                                        ['reading', 'R'],
+                                                        ['listening', 'L'],
+                                                        ['speaking', 'S'],
+                                                        ['writing', 'W']
+                                                     ] as [LanguageSectionKey, string][]).map(([sectionKey, shortLabel]) => (
+                                                        <label key={sectionKey} className="block">
+                                                           <span className="mb-1 block text-center text-[10px] font-bold text-gray-500 dark:text-zinc-400">{shortLabel}</span>
+                                                           <input
+                                                              type="text"
+                                                              inputMode="decimal"
+                                                              value={languageSectionScores[key][sectionKey]}
+                                                              placeholder="—"
+                                                              aria-label={`${meta.label} ${shortLabel}`}
+                                                              onChange={event => {
+                                                                 const nextValue = event.target.value;
+                                                                 if (!/^-?\d*\.?\d*$/.test(nextValue)) return;
+                                                                 if (key === 'ielts' && nextValue !== '' && (Number(nextValue) < 0 || Number(nextValue) > 9)) return;
+                                                                 setLanguageSectionScores(previous => ({
+                                                                    ...previous,
+                                                                    [key]: { ...previous[key], [sectionKey]: nextValue }
+                                                                 }));
+                                                              }}
+                                                              className="w-full rounded-md border border-gray-200 bg-white px-1 py-1.5 text-right text-[11px] font-bold text-gray-700 outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                                           />
+                                                        </label>
+                                                     ))}
+                                                  </div>
+                                               </div>
+                                         ) : null}
+                                      </div>
+                                   );
+                                })}
+                             </div>
+                       </div>
+                    ))}
+
                  </div>
 
                  {/* Difficulty */}
@@ -717,6 +1288,26 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                           </button>
                        </span>
                     )}
+                    {enabledScoreEntries.map(([key, item]) => {
+                       const meta = scoreFilterMeta[key];
+                       const languageTotal = key === 'toefl' || key === 'oldToefl' || key === 'ielts' ? getLanguageTotal(key) : null;
+                       const formattedValue = key === 'alevel'
+                         ? (alevelScore || (isEn ? 'Incomplete' : '待填写'))
+                         : key === 'toefl' || key === 'oldToefl' || key === 'ielts'
+                           ? (languageTotal === null ? (isEn ? 'Incomplete' : '待补全') : key === 'ielts' ? languageTotal.toFixed(1) : languageTotal)
+                           : (getScoreValue(key) ?? (isEn ? 'Incomplete' : '待补全'));
+                       return (
+                          <span key={key} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200/60 bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-700 dark:border-white/10 dark:bg-white/10 dark:text-primary-300">
+                             {meta.label} {formattedValue}{key === 'alevel' ? '' : (meta.suffix || '')}
+                             <button
+                                type="button"
+                                onClick={() => updateScoreFilter(key, { enabled: false })}
+                                className="ml-0.5 text-gray-400 hover:text-gray-700 dark:hover:text-white"
+                                title={isEn ? 'Remove' : '移除'}
+                             >×</button>
+                          </span>
+                       );
+                    })}
                     <p className="text-sm font-medium text-gray-500 dark:text-zinc-500">
                        {isEn ? `Found ${filteredPrograms.length} programs` : `找到 ${filteredPrograms.length} 个相关项目`} 
                     </p>
@@ -732,7 +1323,8 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
               {/* Cards Grid */}
               <div className="grid grid-cols-1 gap-4 overflow-y-auto pr-2 pb-10 min-h-0 custom-scrollbar">
                  {filteredPrograms.length > 0 ? (
-                   filteredPrograms.map((program) => (
+                   filteredPrograms.map((program) => {
+                      return (
                       <div 
                          key={program.id} 
                          onClick={() => handleCardClick(program.id)}
@@ -744,7 +1336,9 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                                   <img src={program.schoolLogo} alt="logo" className="w-full h-full object-contain rounded-lg" />
                                </div>
                                <div className="min-w-0">
-                                  <h3 className={`font-bold text-gray-900 dark:text-zinc-100 text-base line-clamp-1 group-hover:text-${theme}-800 dark:group-hover:text-${theme}-300 transition-colors`}>{program.schoolName}</h3>
+                                  <div className="flex items-center gap-2">
+                                     <h3 className={`font-bold text-gray-900 dark:text-zinc-100 text-base line-clamp-1 group-hover:text-${theme}-800 dark:group-hover:text-${theme}-300 transition-colors`}>{program.schoolName}</h3>
+                                  </div>
                                   <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-zinc-500 mt-0.5">
                                      <span className="truncate">{program.location}</span>
                                      <span className="bg-gray-100 dark:bg-white/5 px-1.5 py-0.5 rounded text-gray-600 dark:text-zinc-400 font-bold uppercase tracking-tight border border-transparent dark:border-white/5">
@@ -793,7 +1387,8 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                             </span>
                          </div>
                       </div>
-                   ))
+                      );
+                   })
                  ) : (
                    <div className="col-span-full flex flex-col items-center justify-center py-16 px-4 text-center">
                       {showRecentOnly ? (
@@ -836,6 +1431,7 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                               onClick={() => {
                                 setSearchQuery('');
                                 setFilters({ region: '全部', major: '全部', diff: '全部' });
+                                resetScoreFilters();
                               }}
                               className="px-5 py-2.5 text-xs font-bold bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-300 rounded-xl hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all"
                             >
@@ -874,6 +1470,7 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                             onClick={() => {
                               setSearchQuery('');
                               setFilters({ region: '全部', major: '全部', diff: '全部' });
+                              resetScoreFilters();
                             }}
                             className="px-4 py-2 text-xs font-bold bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-zinc-300 rounded-xl hover:bg-gray-200 dark:hover:bg-zinc-700 transition-all"
                           >
