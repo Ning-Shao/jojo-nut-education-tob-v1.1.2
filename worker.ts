@@ -1,6 +1,6 @@
 interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> };
-  GEMINI_API_KEY: string;
+  GEMINI_API_KEY?: string;
 }
 
 const ALLOWED_MODELS = new Set(['gemini-3-flash-preview', 'gemini-2.5-flash']);
