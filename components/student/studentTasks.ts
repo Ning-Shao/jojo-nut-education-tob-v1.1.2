@@ -9,6 +9,7 @@ export type TaskVisibility = 'student' | 'teacher' | 'both';
 
 export interface StudentTask {
   id: string;
+  studentId?: string;
   title: string;
   category: TaskCategory;
   priority: TaskPriority;
@@ -23,6 +24,28 @@ export interface StudentTask {
 }
 
 export const TASK_STORAGE_KEY = 'nut_student_tasks_v1';
+export const STUDENT_TASK_CHANGE_EVENT = 'nut-student-task-change';
+export const CURRENT_STUDENT_ID = 'student-alex-chen';
+
+export const updateStoredStudentTaskStatus = (taskId: string, status: TaskStatus) => {
+  try {
+    const raw = localStorage.getItem(TASK_STORAGE_KEY);
+    if (!raw) return false;
+    const tasks = JSON.parse(raw) as StudentTask[];
+    let changed = false;
+    const next = tasks.map(task => {
+      if (task.id !== taskId) return task;
+      changed = true;
+      return { ...task, status, completedFromStatus: undefined };
+    });
+    if (!changed) return false;
+    localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(next));
+    window.dispatchEvent(new CustomEvent(STUDENT_TASK_CHANGE_EVENT, { detail: { taskId, status } }));
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 export const isTaskVisibleToRole = (task: StudentTask, role: 'student' | 'teacher') => {
   // Legacy system-review records are teacher workflow tasks and must fail closed
@@ -55,12 +78,12 @@ export const getLocalTomorrowStr = () => {
 // Seed data is materialized as absolute dates at creation time. Relative display
 // strings must never be persisted because reopening them later changes meaning.
 export const INITIAL_STUDENT_TASKS: StudentTask[] = [
-  { id: 't1', title: 'Draft Personal Statement V2', category: '申请', priority: 'High', dueDate: getShiftedLocalDateStr(0), status: 'Returned', description: 'Focus on the "Lego" metaphor intro.', assigner: 'Teacher' },
-  { id: 't2', title: 'Register for December SAT', category: '考试', priority: 'High', dueDate: getShiftedLocalDateStr(1), status: 'Pending', description: 'Deadline is approaching.', assigner: 'Student' },
-  { id: 't3', title: 'Upload G10 Transcript', category: '材料', priority: 'Medium', dueDate: getShiftedLocalDateStr(-1), status: 'Pending', description: 'Original scan required.', assigner: 'Teacher' },
-  { id: 't4', title: 'Brainstorm "Why Major" Essay', category: '申请', priority: 'Medium', dueDate: getShiftedLocalDateStr(3), status: 'Pending', assigner: 'Teacher' },
-  { id: 't5', title: 'Robotics Club Meeting Notes', category: '活动', priority: 'Low', dueDate: getShiftedLocalDateStr(7), status: 'Pending', assigner: 'Student' },
-  { id: 't6', title: 'Counselor Recommendation Form', category: '材料', priority: 'High', dueDate: getShiftedLocalDateStr(-7), status: 'Completed', assigner: 'Teacher' },
+  { id: 't1', studentId: CURRENT_STUDENT_ID, title: 'Draft Personal Statement V2', category: '申请', priority: 'High', dueDate: getShiftedLocalDateStr(0), status: 'Returned', description: 'Focus on the "Lego" metaphor intro.', assigner: 'Teacher' },
+  { id: 't2', studentId: CURRENT_STUDENT_ID, title: 'Register for December SAT', category: '考试', priority: 'High', dueDate: getShiftedLocalDateStr(1), status: 'Pending', description: 'Deadline is approaching.', assigner: 'Student' },
+  { id: 't3', studentId: CURRENT_STUDENT_ID, title: 'Upload G10 Transcript', category: '材料', priority: 'Medium', dueDate: getShiftedLocalDateStr(-1), status: 'Pending', description: 'Original scan required.', assigner: 'Teacher' },
+  { id: 't4', studentId: CURRENT_STUDENT_ID, title: 'Brainstorm "Why Major" Essay', category: '申请', priority: 'Medium', dueDate: getShiftedLocalDateStr(3), status: 'Pending', assigner: 'Teacher' },
+  { id: 't5', studentId: CURRENT_STUDENT_ID, title: 'Robotics Club Meeting Notes', category: '活动', priority: 'Low', dueDate: getShiftedLocalDateStr(7), status: 'Pending', assigner: 'Student' },
+  { id: 't6', studentId: CURRENT_STUDENT_ID, title: 'Counselor Recommendation Form', category: '材料', priority: 'High', dueDate: getShiftedLocalDateStr(-7), status: 'Completed', assigner: 'Teacher' },
 ];
 
 export const resolveTaskDueDate = (dueDate: string) => {
@@ -161,13 +184,14 @@ export const getStoredStudentTasks = (): StudentTask[] => {
       const legacyStatus = task.status as TaskStatus | 'In Progress';
       return {
         ...task,
+        studentId: task.studentId || CURRENT_STUDENT_ID,
         status: legacyStatus === 'Overdue' ? 'Pending' : legacyStatus === 'In Progress' ? 'Returned' : legacyStatus,
         dueDate: normalizeStudentTaskDueDate(task.dueDate),
         source,
         visibility: task.visibility || (source === 'system-review' ? 'teacher' : 'student'),
         auditHistory: task.auditHistory || [],
       };
-    }).filter(isStudentVisibleTask);
+    }).filter(task => task.studentId === CURRENT_STUDENT_ID && isStudentVisibleTask(task));
     const visibleTasks = migrated.length > 0 ? migrated : INITIAL_STUDENT_TASKS;
     localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(visibleTasks));
     return visibleTasks;

@@ -48,6 +48,16 @@ const INITIAL_LOGS: Log[] = [
   }
 ];
 
+const createEmptyLogDraft = (): Partial<Log> => ({
+  type: 'Meeting',
+  date: new Date().toISOString().slice(0, 16),
+  participants: ['Student', 'Counselor'],
+  tags: [],
+  content: ''
+});
+
+const toDateTimeLocalValue = (date: string) => date.replace(' ', 'T').slice(0, 16);
+
 const StudentCommunication: React.FC = () => {
   const { language } = useLanguage();
   const isEn = language === 'en-US';
@@ -59,13 +69,8 @@ const StudentCommunication: React.FC = () => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
-  const [newLog, setNewLog] = useState<Partial<Log>>({
-    type: 'Meeting',
-    date: new Date().toISOString().slice(0, 16),
-    participants: ['Student', 'Counselor'],
-    tags: [],
-    content: ''
-  });
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [newLog, setNewLog] = useState<Partial<Log>>(createEmptyLogDraft);
 
   // --- Helpers ---
   const getTypeIcon = (type: string) => {
@@ -89,27 +94,45 @@ const StudentCommunication: React.FC = () => {
   };
 
   // --- Handlers ---
+  const closeLogModal = () => {
+    setIsModalOpen(false);
+    setEditingLogId(null);
+    setNewLog(createEmptyLogDraft());
+  };
+
+  const handleOpenCreateLog = () => {
+    setEditingLogId(null);
+    setNewLog(createEmptyLogDraft());
+    setIsModalOpen(true);
+  };
+
+  const handleEditLog = (log: Log) => {
+    setEditingLogId(log.id);
+    setNewLog({
+      ...log,
+      date: toDateTimeLocalValue(log.date),
+      participants: [...log.participants],
+      tags: [...log.tags]
+    });
+    setIsModalOpen(true);
+  };
+
   const handleSaveLog = () => {
     if (!newLog.title || !newLog.content) return;
     const log: Log = {
-      id: Date.now().toString(),
-      type: newLog.type as any,
+      id: editingLogId || Date.now().toString(),
+      type: newLog.type as Log['type'],
       title: newLog.title!,
-      date: newLog.date!,
+      date: newLog.date || new Date().toISOString().slice(0, 16),
       content: newLog.content!,
-      participants: newLog.participants!,
-      tags: newLog.tags!
+      participants: newLog.participants || [],
+      tags: newLog.tags || []
     };
-    setLogs([log, ...logs]);
-    setIsModalOpen(false);
-    // Reset form
-    setNewLog({
-      type: 'Meeting',
-      date: new Date().toISOString().slice(0, 16),
-      participants: ['Student', 'Counselor'],
-      tags: [],
-      content: ''
-    });
+    setLogs(previous => editingLogId
+      ? previous.map(item => item.id === editingLogId ? log : item)
+      : [log, ...previous]
+    );
+    closeLogModal();
   };
 
   const handleDeleteLog = (id: string) => {
@@ -168,7 +191,7 @@ const StudentCommunication: React.FC = () => {
            {isEn ? 'Communication Logs' : '沟通记录'}
         </h3>
         <button 
-           onClick={() => setIsModalOpen(true)}
+           onClick={handleOpenCreateLog}
            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-bold hover:bg-primary-700 shadow-sm transition-colors"
         >
            <Plus className="w-4 h-4" /> {isEn ? 'New Log' : '新增记录'}
@@ -229,7 +252,16 @@ const StudentCommunication: React.FC = () => {
                            <span className="text-xs text-gray-400 flex items-center gap-1">
                               <Calendar className="w-3 h-3" /> {log.date.replace('T', ' ')}
                            </span>
-                           <button onClick={() => handleDeleteLog(log.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                           <button
+                              type="button"
+                              title={isEn ? 'Edit log' : '编辑记录'}
+                              aria-label={isEn ? `Edit ${log.title}` : `编辑${log.title}`}
+                              onClick={() => handleEditLog(log)}
+                              className="text-gray-300 hover:text-primary-600 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                           >
+                              <Edit className="w-4 h-4" />
+                           </button>
+                           <button type="button" title={isEn ? 'Delete log' : '删除记录'} aria-label={isEn ? `Delete ${log.title}` : `删除${log.title}`} onClick={() => handleDeleteLog(log.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity">
                               <Trash2 className="w-4 h-4" />
                            </button>
                         </div>
@@ -270,9 +302,9 @@ const StudentCommunication: React.FC = () => {
             <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                   <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                     <Edit className="w-4 h-4 text-primary-600" /> {isEn ? 'New Log' : '新增沟通记录'}
+                     <Edit className="w-4 h-4 text-primary-600" /> {editingLogId ? (isEn ? 'Edit Log' : '编辑沟通记录') : (isEn ? 'New Log' : '新增沟通记录')}
                   </h3>
-                  <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                  <button type="button" aria-label={isEn ? 'Close' : '关闭'} onClick={closeLogModal} className="text-gray-400 hover:text-gray-600">
                      <X className="w-5 h-5" />
                   </button>
                </div>
@@ -359,7 +391,7 @@ const StudentCommunication: React.FC = () => {
 
                <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
                   <button 
-                     onClick={() => setIsModalOpen(false)}
+                     onClick={closeLogModal}
                      className="px-4 py-2 text-sm text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-colors"
                   >
                      {isEn ? 'Cancel' : '取消'}
@@ -369,7 +401,7 @@ const StudentCommunication: React.FC = () => {
                      disabled={!newLog.title || !newLog.content}
                      className="px-6 py-2 bg-primary-600 text-white text-sm font-bold rounded-lg hover:bg-primary-700 shadow-sm transition-colors disabled:opacity-50"
                   >
-                     {isEn ? 'Save' : '保存记录'}
+                     {editingLogId ? (isEn ? 'Save Changes' : '保存修改') : (isEn ? 'Save' : '保存记录')}
                   </button>
                </div>
             </div>

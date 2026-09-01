@@ -9,6 +9,7 @@ import {
 } from '../common/Icons';
 import TaskEditDialog, { TaskEditField } from '../common/TaskEditDialog';
 import { createTaskAuditEntry, TaskFieldChange } from '../common/taskAudit';
+import { updateStoredStudentTaskStatus } from '../student/studentTasks';
 import { mockStudents } from './StudentList';
 import { useLanguage } from '../../contexts/LanguageContext';
 import {
@@ -249,6 +250,10 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
 
   // Core Complete Handler (Single)
   const handleCompleteTask = (id: string) => {
+    const completedTask = tasks.find(task => task.id === id);
+    if (completedTask?.source === 'system-review' && completedTask.reviewEntityType === 'task' && completedTask.reviewEntityId) {
+      updateStoredStudentTaskStatus(completedTask.reviewEntityId, 'Completed');
+    }
     setTasks(prev => prev.map(t => t.id === id ? {
       ...t,
       status: 'Completed',
@@ -258,6 +263,20 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
     setActiveTab('All');
     setToastMessage(isEn ? 'Task Completed' : '任务已完成');
   }
+
+  const handleReturnTask = (id: string) => {
+    const reviewTask = tasks.find(task => task.id === id);
+    if (!reviewTask || reviewTask.source !== 'system-review' || reviewTask.reviewEntityType !== 'task' || !reviewTask.reviewEntityId) return;
+    updateStoredStudentTaskStatus(reviewTask.reviewEntityId, 'Returned');
+    setTasks(prev => prev.map(task => task.id === id ? {
+      ...task,
+      status: 'Completed',
+      completedFromStatus: 'Review',
+      auditHistory: [...(task.auditHistory || []), createTaskAuditEntry(isEn ? 'Sarah (Teacher)' : 'Sarah（教师）', 'teacher', [{ field: '状态', before: 'Review', after: 'Returned to student' }])],
+    } : task));
+    setActiveTab('All');
+    setToastMessage(isEn ? 'Task returned to student' : '任务已退回学生修改');
+  };
 
   const handleUndoCompleteTask = (id: string) => {
     setTasks(prev => prev.map(t => {
@@ -586,6 +605,16 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
                                >
                                  <Edit className="w-4 h-4" />
                                </button>
+                               {task.source === 'system-review' && task.reviewEntityType === 'task' && getTeacherTaskEffectiveStatus(task) === 'Review' && (
+                                 <button
+                                   onClick={(e) => { e.stopPropagation(); handleReturnTask(task.id); }}
+                                   className="w-8 h-8 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-full text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors shadow-sm"
+                                   title={isEn ? 'Return to student' : '退回学生修改'}
+                                   aria-label={isEn ? `Return ${displayTitle} to student` : `退回学生修改：${displayTitle}`}
+                                 >
+                                   <RotateCcw className="w-4 h-4" />
+                                 </button>
+                               )}
                                {!isTeacherTaskTerminal(task) ? (
                                    <button 
                                      onClick={(e) => { e.stopPropagation(); handleCompleteTask(task.id); }}
@@ -594,7 +623,7 @@ const TaskCenter: React.FC<TaskCenterProps> = ({ tasks, setTasks, initialTaskId 
                                    >
                                       <Check className="w-4 h-4 transform group-hover/btn:scale-110 transition-transform" />
                                    </button>
-                               ) : getTeacherTaskEffectiveStatus(task) === 'Completed' ? (
+                               ) : getTeacherTaskEffectiveStatus(task) === 'Completed' && !(task.source === 'system-review' && task.reviewEntityType === 'task') ? (
                                    <button
                                      onClick={(e) => { e.stopPropagation(); handleUndoCompleteTask(task.id); }}
                                      className="w-8 h-8 flex items-center justify-center bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-full text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors shadow-sm group/btn"

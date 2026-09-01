@@ -9,9 +9,11 @@ import {
 import TaskEditDialog, { TaskEditField } from '../common/TaskEditDialog';
 import { createTaskAuditEntry, TaskFieldChange } from '../common/taskAudit';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { publishStudentReviewEvent } from '../../services/studentReviewEvents';
 import {
   formatStudentTaskDueDate,
   formatStudentTaskPriority,
+  CURRENT_STUDENT_ID,
   getStudentTaskTimingStatus,
   getStudentTaskWorkflowStatus,
   getLocalTodayStr,
@@ -153,6 +155,7 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
 
     const newTask: Task = {
       id: `task-${Date.now()}`,
+      studentId: CURRENT_STUDENT_ID,
       title: newTaskForm.title,
       category: newTaskForm.category,
       priority: newTaskForm.priority,
@@ -178,19 +181,42 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
   };
 
   const handleCompleteTask = (id: string) => {
+      const target = tasks.find(task => task.id === id);
+      if (!target || target.status === 'Completed' || target.status === 'Review') return;
+      const nextStatus: TaskStatus = target.assigner === 'Teacher' ? 'Review' : 'Completed';
+      if (target.assigner === 'Teacher') {
+        const now = new Date().toISOString();
+        publishStudentReviewEvent({
+          id: `task-submission-${target.id}-${Date.now()}`,
+          type: 'student.submitted',
+          entityType: 'task',
+          entityId: target.id,
+          studentId: target.studentId || CURRENT_STUDENT_ID,
+          studentName,
+          subject: target.title,
+          taskCategory: target.category,
+          description: target.status === 'Returned' ? '学生修改后重新提交任务。' : '学生已提交老师下发的任务。',
+          createdBy: studentName,
+          createdAt: now,
+          locale: isEn ? 'en-US' : 'zh-CN',
+        });
+      }
       setTasks(prev => prev.map(t => {
           if (t.id === id && t.status !== 'Completed' && t.status !== 'Review') {
-              const audit = createTaskAuditEntry(isEn ? 'Alex Chen' : 'Alex Chen（学生）', 'student', [{ field: '状态', before: t.status, after: 'Completed' }]);
-              return { ...t, status: 'Completed', completedFromStatus: t.status, auditHistory: [...(t.auditHistory || []), audit] };
+              const audit = createTaskAuditEntry(isEn ? studentName : `${studentName}（学生）`, 'student', [{ field: '状态', before: t.status, after: nextStatus }]);
+              return { ...t, status: nextStatus, completedFromStatus: nextStatus === 'Completed' ? t.status : undefined, auditHistory: [...(t.auditHistory || []), audit] };
           }
           return t;
       }));
       setActiveTab('All');
+      setToastMessage(target.assigner === 'Teacher'
+        ? (isEn ? 'Submitted for teacher review' : target.status === 'Returned' ? '已重新提交，等待老师审核' : '已提交审核，等待老师处理')
+        : (isEn ? 'Task completed' : '任务已完成'));
   };
 
   const handleUndoCompleteTask = (id: string) => {
       setTasks(prev => prev.map(t => {
-          if (t.id !== id || t.status !== 'Completed') return t;
+          if (t.id !== id || t.status !== 'Completed' || t.assigner !== 'Student') return t;
           const restoredStatus = t.completedFromStatus || 'Pending';
           const audit = createTaskAuditEntry(isEn ? 'Alex Chen' : 'Alex Chen（学生）', 'student', [{ field: '状态', before: 'Completed', after: restoredStatus }]);
           return {
@@ -488,11 +514,11 @@ const StudentTaskCenter: React.FC<StudentTaskCenterProps> = ({ tasks, setTasks, 
                                   </button>
                                 )}
                                 {!isStudentTaskTerminal(task) && task.status !== 'Review' && (
-                                  <button aria-label={isEn ? 'Complete task' : '完成任务'} title={isEn ? 'Complete task' : '完成任务'} onClick={(event) => { event.stopPropagation(); handleCompleteTask(task.id); }} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-500/10 rounded transition-colors">
+                                  <button aria-label={task.assigner === 'Teacher' ? (isEn ? (task.status === 'Returned' ? 'Resubmit' : 'Submit for review') : (task.status === 'Returned' ? '重新提交' : '提交审核')) : (isEn ? 'Complete task' : '完成任务')} title={task.assigner === 'Teacher' ? (isEn ? (task.status === 'Returned' ? 'Resubmit' : 'Submit for review') : (task.status === 'Returned' ? '重新提交' : '提交审核')) : (isEn ? 'Complete task' : '完成任务')} onClick={(event) => { event.stopPropagation(); handleCompleteTask(task.id); }} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-500/10 rounded transition-colors">
                                     <CheckCircle className="w-4 h-4" />
                                   </button>
                                 )}
-                                {task.status === 'Completed' && (
+                                {task.status === 'Completed' && task.assigner === 'Student' && (
                                   <button aria-label={isEn ? 'Undo completion' : '撤销完成'} title={isEn ? 'Undo completion' : '撤销完成'} onClick={(event) => { event.stopPropagation(); handleUndoCompleteTask(task.id); }} className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded transition-colors">
                                     <RotateCcw className="w-4 h-4" />
                                   </button>

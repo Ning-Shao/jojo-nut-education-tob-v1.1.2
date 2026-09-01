@@ -41,6 +41,7 @@ export interface SelectedSchool {
     ielts?: number;
     sat?: number;
     act?: number;
+    atar?: number;
   };
 }
 

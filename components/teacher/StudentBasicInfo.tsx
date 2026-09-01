@@ -50,6 +50,12 @@ interface StudentBasicInfoProps {
   onNavigateToTranscript?: () => void;
   // Callback to add verified proofs to materials
   onAddProof?: (fileName: string, type: "score" | "activity") => void;
+  officialBatches: OfficialBatch[];
+  onOfficialBatchesChange: React.Dispatch<React.SetStateAction<OfficialBatch[]>>;
+  predictedBatches: PredictedBatch[];
+  onPredictedBatchesChange: React.Dispatch<React.SetStateAction<PredictedBatch[]>>;
+  subjectScores: SubjectScore[];
+  onSubjectScoresChange: React.Dispatch<React.SetStateAction<SubjectScore[]>>;
 }
 
 // --- Data Types ---
@@ -259,6 +265,12 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
   student,
   onNavigateToTranscript,
   onAddProof,
+  officialBatches,
+  onOfficialBatchesChange: setOfficialBatches,
+  predictedBatches,
+  onPredictedBatchesChange: setPredictedBatches,
+  subjectScores,
+  onSubjectScoresChange: setSubjectScores,
 }) => {
   const { language } = useLanguage();
   const isEn = language === "en-US";
@@ -341,16 +353,8 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
       : "偏好大U，看重计算机排名，城市安全第一。",
   });
 
-  const [officialBatches, setOfficialBatches] = useState<OfficialBatch[]>(
-    initialOfficialBatches,
-  );
-  const [predictedBatches, setPredictedBatches] = useState<PredictedBatch[]>(
-    initialPredictedBatches,
-  );
   const [unsavedChanges, setUnsavedChanges] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
-  const [subjectScores, setSubjectScores] =
-    useState<SubjectScore[]>(initialSubjectScores);
   const [activities, setActivities] = useState<Activity[]>(initialActivities);
 
   // Add Activity Modal State
