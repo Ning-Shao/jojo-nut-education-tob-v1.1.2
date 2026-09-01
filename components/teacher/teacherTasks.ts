@@ -27,6 +27,7 @@ export interface TeacherTask {
   reviewEntityType?: StudentReviewEvent['entityType'];
   reviewSubject?: string;
   reviewEventType?: StudentReviewEvent['type'];
+  reviewEntityId?: string;
   completedFromStatus?: Exclude<TeacherTaskStatus, 'Completed'>;
 }
 
@@ -58,6 +59,7 @@ export const REVIEW_TASK_SLA_HOURS: Record<StudentReviewEvent['entityType'], num
   'profile-change': 48,
   material: null,
   activity: null,
+  task: null,
 };
 
 export const formatReviewTaskSubject = (
@@ -158,7 +160,7 @@ export const createReviewTaskFromEvent = (
     description: event.description,
     studentName: event.studentName,
     studentAvatar: event.studentAvatar || '',
-    category: event.entityType === 'activity' ? '活动' : event.entityType === 'essay' ? '材料' : event.entityType === 'profile-change' ? '建档' : '材料',
+    category: event.entityType === 'task' ? (event.taskCategory || '其他') : event.entityType === 'activity' ? '活动' : event.entityType === 'essay' ? '材料' : event.entityType === 'profile-change' ? '建档' : '材料',
     priority: 'High',
     dueDate: reviewDeadlineAt ? reviewDeadlineAt.slice(0, 10) : 'No deadline',
     status: 'Review',
@@ -171,6 +173,7 @@ export const createReviewTaskFromEvent = (
     reviewEntityType: event.entityType,
     reviewSubject: event.subject,
     reviewEventType: event.type,
+    reviewEntityId: event.entityId,
     auditHistory: [],
   };
 };
@@ -190,6 +193,7 @@ export const reconcileReviewTasks = (
     reviewEntityType: sourceEvent.entityType,
     reviewSubject: sourceEvent.subject,
     reviewEventType: sourceEvent.type,
+    reviewEntityId: sourceEvent.entityId,
   };
   if (task.reviewDeadlineAt !== undefined) return { ...task, ...reviewMetadata };
   const regenerated = createReviewTaskFromEvent(sourceEvent, tasks.filter(existing => existing.id !== task.id));

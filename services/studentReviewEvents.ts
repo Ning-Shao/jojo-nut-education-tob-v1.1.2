@@ -3,12 +3,13 @@ export type StudentReviewEventType = 'student.submitted' | 'student.rejected';
 export interface StudentReviewEvent {
   id: string;
   type: StudentReviewEventType;
-  entityType: 'essay' | 'profile-change' | 'material' | 'activity';
+  entityType: 'essay' | 'profile-change' | 'material' | 'activity' | 'task';
   entityId: string;
   studentId: string;
   studentName: string;
   studentAvatar?: string;
   subject: string;
+  taskCategory?: '建档' | '规划' | '考试' | '活动' | '材料' | '面试' | '申请' | 'Offer' | '复盘' | '其他';
   description?: string;
   createdBy: string;
   createdAt: string;

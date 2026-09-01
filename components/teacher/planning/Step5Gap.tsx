@@ -21,9 +21,12 @@ interface Step5Props {
   studentProfile?: StudentSummary;
 }
 
+type ScoreMetricId = 'alevel' | 'ap' | 'ib' | 'toefl' | 'ielts' | 'sat' | 'act' | 'atar';
+type SchoolTier = 'Safety' | 'Match' | 'Reach';
+type TierRange = { tier: SchoolTier; min: number; max: number; count: number };
+
 // --- Components: Metric Ruler ---
 const MetricRuler: React.FC<{
-  label: string;
   unit?: string;
   min: number;
   max: number;
@@ -31,29 +34,66 @@ const MetricRuler: React.FC<{
   reachAvg: number | null;
   matchAvg: number | null;
   safetyAvg: number | null;
+  tierRanges?: TierRange[];
   isEn: boolean;
-}> = ({ label, unit = '', min, max, current, reachAvg, matchAvg, safetyAvg, isEn }) => {
+}> = ({ unit = '', min, max, current, reachAvg, tierRanges = [], isEn }) => {
   const range = max - min;
   const getPercent = (val: number) => Math.min(Math.max(((val - min) / range) * 100, 0), 100);
   const hasCurrent = current !== null && Number.isFinite(current);
-  const hasTarget = [reachAvg, matchAvg, safetyAvg].some(value => value !== null && Number.isFinite(value));
+  const visibleTierRanges = hasCurrent ? tierRanges : [];
 
   return (
     <div className="mb-10">
-      <div className="flex justify-between items-end mb-4">
-        <span className="text-sm font-bold text-gray-700 flex items-center gap-2">
-           {label}
-           {/* Dynamic Status Badge */}
-           {hasCurrent && reachAvg !== null && current >= reachAvg && <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded">{isEn ? 'Met' : '达标'}</span>}
-           {hasCurrent && reachAvg !== null && current < reachAvg && <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded">{isEn ? 'Gap' : '差距'} {-1 * parseFloat((reachAvg - current).toFixed(1))}</span>}
-           {(!hasCurrent || !hasTarget) && <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded">{isEn ? 'Data pending' : '待补充数据'}</span>}
-        </span>
-        <span className="text-xl font-bold text-purple-600">{hasCurrent ? current : (isEn ? 'N/A' : '暂无数据')}<span className="text-xs text-gray-400 font-normal ml-1">{isEn ? 'My Score' : '我的成绩'}</span></span>
-      </div>
+      {visibleTierRanges.length > 0 && (
+        <div className="mb-3 rounded-lg border border-gray-100 bg-gray-50/60 px-3 py-2">
+          <div className="flex flex-wrap gap-1.5">
+            {visibleTierRanges.map(tierRange => {
+              const styles = {
+                Safety: { dot: 'bg-emerald-500', text: 'text-emerald-700', label: 'Safety' },
+                Match: { dot: 'bg-blue-500', text: 'text-blue-700', label: 'Match' },
+                Reach: { dot: 'bg-red-500', text: 'text-red-700', label: 'Reach' },
+              }[tierRange.tier];
+              const rangeText = tierRange.min === tierRange.max
+                ? `${tierRange.min}${unit}`
+                : `${tierRange.min}–${tierRange.max}${unit}`;
+              return (
+                <span key={`${tierRange.tier}-legend`} className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1 text-[10px] text-gray-700">
+                  <span className={`h-1.5 w-4 rounded-full ${styles.dot}`} />
+                  <span className={`font-bold ${styles.text}`}>{styles.label}</span>
+                  <span>{rangeText}</span>
+                  <span className="text-gray-400">({tierRange.count}{isEn ? ' schools' : ' 所'})</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
       
       <div className="relative h-12 select-none mt-2">
         {/* Track */}
         <div className="absolute top-1/2 left-0 w-full h-2 bg-gray-100 rounded-full transform -translate-y-1/2 border border-gray-200"></div>
+
+        {/* Safety / Match / Reach min–max intervals share this axis and can overlap. */}
+        {visibleTierRanges.map(tierRange => {
+          const startPercent = getPercent(tierRange.min);
+          const endPercent = getPercent(tierRange.max);
+          const isPoint = tierRange.min === tierRange.max;
+          const color = {
+            Safety: 'bg-emerald-500/45 ring-1 ring-emerald-500/60',
+            Match: 'bg-blue-500/40 ring-1 ring-blue-500/60',
+            Reach: 'bg-red-500/40 ring-1 ring-red-500/60',
+          }[tierRange.tier];
+          return (
+            <div
+              key={tierRange.tier}
+              aria-label={`${tierRange.tier} ${tierRange.min}–${tierRange.max}`}
+              className={`absolute top-1/2 z-10 h-3 -translate-y-1/2 rounded-full ${color}`}
+              style={isPoint
+                ? { left: `${startPercent}%`, width: '4px', marginLeft: '-2px' }
+                : { left: `${startPercent}%`, width: `${endPercent - startPercent}%` }}
+            />
+          );
+        })}
         
         {/* Gap Bar: Connect Current to Reach if Gap exists */}
         {hasCurrent && reachAvg !== null && reachAvg > current && (
@@ -71,48 +111,6 @@ const MetricRuler: React.FC<{
            <span>{min}</span>
            <span>{max}</span>
         </div>
-
-        {/* Safety Marker (Green - Bottom) */}
-        {safetyAvg !== null && (
-          <div
-            className="absolute top-1/2 transform -translate-y-1/2 flex flex-col items-center group transition-all z-10"
-            style={{ left: `${getPercent(safetyAvg)}%` }}
-          >
-            <div className="w-0.5 h-4 bg-green-400 mb-1"></div>
-            <div className="w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white shadow-sm"></div>
-            <div className="absolute top-5 text-[10px] font-bold text-green-600 bg-white/90 px-1.5 py-0.5 rounded border border-green-100 whitespace-nowrap shadow-sm opacity-80 group-hover:opacity-100 group-hover:z-50">
-               {isEn ? 'Safety' : '保底'} {safetyAvg}
-            </div>
-          </div>
-        )}
-
-        {/* Match Marker (Blue - Middle) */}
-        {matchAvg !== null && (
-          <div 
-            className="absolute top-1/2 transform -translate-y-1/2 flex flex-col items-center group transition-all z-20"
-            style={{ left: `${getPercent(matchAvg)}%` }}
-          >
-            <div className="w-0.5 h-5 bg-blue-400 mb-1"></div>
-            <div className="w-3 h-3 rounded-full bg-blue-500 border-2 border-white shadow-sm"></div>
-            <div className="absolute top-6 text-[10px] font-bold text-blue-600 bg-white/90 px-1.5 py-0.5 rounded border border-blue-100 whitespace-nowrap shadow-sm opacity-80 group-hover:opacity-100 group-hover:z-50">
-               {isEn ? 'Match' : '匹配'} {matchAvg}
-            </div>
-          </div>
-        )}
-
-        {/* Reach Marker (Red - High) */}
-        {reachAvg !== null && (
-          <div 
-            className="absolute top-1/2 transform -translate-y-1/2 flex flex-col items-center group transition-all z-30"
-            style={{ left: `${getPercent(reachAvg)}%` }}
-          >
-            <div className="w-0.5 h-6 bg-red-400 mb-1"></div>
-            <div className="w-3.5 h-3.5 rounded-full bg-red-500 border-2 border-white shadow-sm"></div>
-            <div className="absolute top-7 text-[10px] font-bold text-red-600 bg-white/95 px-1.5 py-0.5 rounded border border-red-100 whitespace-nowrap shadow-sm z-50">
-               {isEn ? 'Reach' : '冲刺'} {reachAvg}
-            </div>
-          </div>
-        )}
 
         {/* Current Student Marker (Purple - Top) */}
         {hasCurrent && (
@@ -132,6 +130,36 @@ const MetricRuler: React.FC<{
     </div>
   );
 };
+
+const ScoreToggle: React.FC<{
+  enabled: boolean;
+  label: string;
+  value: string;
+  hasScore: boolean;
+  isEn: boolean;
+  onChange: (enabled: boolean) => void;
+}> = ({ enabled, label, value, hasScore, isEn, onChange }) => (
+  <div className={`rounded-lg border px-3 py-3 ${enabled ? 'border-primary-100 bg-primary-50/30' : 'border-gray-100 bg-gray-50/60'}`}>
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          aria-label={`${isEn ? (enabled ? 'Hide' : 'Show') : (enabled ? '关闭' : '开启')} ${label}`}
+          onClick={() => onChange(!enabled)}
+          className={`relative inline-flex h-4 w-7 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1 ${enabled ? 'bg-primary-600' : 'bg-gray-300'}`}
+        >
+          <span className={`inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${enabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+        </button>
+        <span className={`text-xs font-medium ${enabled ? 'text-gray-700' : 'text-gray-400'}`}>{label}</span>
+      </div>
+      <span className={`text-xs font-bold ${enabled ? 'text-primary-700' : 'text-gray-400'}`}>
+        {hasScore ? value : (isEn ? 'No score' : '暂无成绩')}
+      </span>
+    </div>
+  </div>
+);
 
 // --- Components: Qualitative Card ---
 const QualitativeCard: React.FC<{
@@ -346,6 +374,22 @@ const ActionMatrix: React.FC<{
 const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, studentInputs, setPlanningStep, onSyncToTimeline, studentProfile }) => {
   const { language } = useLanguage();
   const isEn = language === 'en-US';
+  const [visibleScoreMetrics, setVisibleScoreMetrics] = useState<Record<ScoreMetricId, boolean>>(() => ({
+    alevel: Boolean(currentStats.alevelEnabled && currentStats.alevelSubjects?.length),
+    ap: Boolean(currentStats.apEnabled && currentStats.apSubjects?.length),
+    ib: Boolean(currentStats.ibEnabled && currentStats.ibSubjects?.length),
+    toefl: Boolean(currentStats.toeflEnabled || currentStats.oldToeflEnabled),
+    // A missing IELTS score stays collapsed by default, while the toggle below
+    // remains available for the user to open it manually.
+    ielts: Boolean(
+      currentStats.ieltsEnabled
+      && Number.isFinite(Number(currentStats.ieltsValue))
+      && Number(currentStats.ieltsValue) > 0
+    ),
+    sat: Boolean(currentStats.satEnabled),
+    act: Boolean(currentStats.actEnabled),
+    atar: Boolean(currentStats.atarEnabled),
+  }));
   
   // State for AI Qualitative Analysis
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -385,7 +429,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
   const tierStats = useMemo(() => {
     const calcTier = (tier: string) => {
       const schools = selectedSchools.filter(s => s.tier === tier);
-      const average = (metric: 'gpa' | 'toefl' | 'toeflNew' | 'ielts' | 'sat' | 'act') => {
+      const average = (metric: 'gpa' | 'toefl' | 'toeflNew' | 'ielts' | 'sat' | 'act' | 'atar') => {
         const values = schools
           .map(school => school.requirementData?.[metric])
           .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0);
@@ -400,6 +444,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
         ielts: average('ielts') === null ? null : Number(average('ielts')!.toFixed(1)),
         sat: average('sat') === null ? null : Math.round(average('sat')!),
         act: average('act') === null ? null : Number(average('act')!.toFixed(1)),
+        atar: average('atar') === null ? null : Number(average('atar')!.toFixed(2)),
         count: schools.filter(school => Boolean(school.requirementData)).length
       };
     };
@@ -416,6 +461,85 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
     const parsed = typeof value === 'number' ? value : Number(value);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   };
+
+  type RequirementMetric = 'gpa' | 'toefl' | 'ielts' | 'sat' | 'act' | 'atar';
+  const getTierRanges = (metric: RequirementMetric): TierRange[] => {
+    const getMetricValue = (school: SelectedSchool) => {
+      const localFallback = metric === 'gpa'
+        ? school.uni.avgGpa
+        : metric === 'toefl'
+          ? school.uni.minToefl
+          : metric === 'sat'
+            ? school.uni.avgSat
+            : undefined;
+      const value = school.requirementData?.[metric] ?? localFallback;
+      return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+    };
+
+    return (['Safety', 'Match', 'Reach'] as SchoolTier[]).flatMap(tier => {
+      const valuesBySchool = new Map<string, number>();
+      selectedSchools
+        .filter(school => school.tier === tier)
+        .forEach(school => {
+          const value = getMetricValue(school);
+          if (value !== null && !valuesBySchool.has(school.uni.id)) valuesBySchool.set(school.uni.id, value);
+        });
+      const values = Array.from(valuesBySchool.values());
+      if (values.length === 0) return [];
+      return [{ tier, min: Math.min(...values), max: Math.max(...values), count: values.length }];
+    });
+  };
+
+  const quantitativeMetrics = [
+    {
+      id: 'alevel' as ScoreMetricId, group: 'academic', label: 'A-Level', enabled: visibleScoreMetrics.alevel, hasScore: Boolean(currentStats.alevelEnabled && currentStats.alevelSubjects?.length),
+      value: `${currentStats.alevelSubjects?.length || 0}${isEn ? ' subjects' : ' 门'}`, rulerLabel: isEn ? 'A-Level (GPA Eq.)' : 'A-Level预估分 (GPA当量)',
+      min: 3.0, max: 4.2, current: currentStats.alevelEnabled ? validNumber(currentStats.gpa) : null, metric: 'gpa' as RequirementMetric,
+      reachAvg: tierStats.reach.gpa, matchAvg: tierStats.match.gpa, safetyAvg: tierStats.safety.gpa,
+    },
+    {
+      id: 'ap' as ScoreMetricId, group: 'academic', label: 'AP', enabled: visibleScoreMetrics.ap, hasScore: Boolean(currentStats.apEnabled && currentStats.apSubjects?.length),
+      value: `${currentStats.academicScoreText || currentStats.apSubjects?.[0]?.grade || ''}${isEn ? '' : ' 分'}`, rulerLabel: isEn ? 'AP (GPA Eq.)' : 'AP成绩 (GPA当量)',
+      min: 3.0, max: 4.2, current: currentStats.apEnabled ? validNumber(currentStats.gpa) : null, metric: 'gpa' as RequirementMetric,
+      reachAvg: tierStats.reach.gpa, matchAvg: tierStats.match.gpa, safetyAvg: tierStats.safety.gpa,
+    },
+    {
+      id: 'ib' as ScoreMetricId, group: 'academic', label: 'IB', enabled: visibleScoreMetrics.ib, hasScore: Boolean(currentStats.ibEnabled && currentStats.ibSubjects?.length),
+      value: `${currentStats.academicScoreText || ''}${isEn ? '' : ' 分'}`, rulerLabel: isEn ? 'IB (GPA Eq.)' : 'IB成绩 (GPA当量)',
+      min: 3.0, max: 4.2, current: currentStats.ibEnabled ? validNumber(currentStats.gpa) : null, metric: 'gpa' as RequirementMetric,
+      reachAvg: tierStats.reach.gpa, matchAvg: tierStats.match.gpa, safetyAvg: tierStats.safety.gpa,
+    },
+    {
+      id: 'toefl' as ScoreMetricId, group: 'standardized', label: 'TOEFL', enabled: visibleScoreMetrics.toefl, hasScore: Boolean(currentStats.toeflEnabled || currentStats.oldToeflEnabled),
+      value: String(currentStats.oldToeflValue || currentStats.toefl || ''), rulerLabel: 'TOEFL',
+      min: 60, max: 120, current: (currentStats.toeflEnabled || currentStats.oldToeflEnabled) ? validNumber(currentStats.oldToeflValue || currentStats.toefl) : null, metric: 'toefl' as RequirementMetric,
+      reachAvg: tierStats.reach.toefl, matchAvg: tierStats.match.toefl, safetyAvg: tierStats.safety.toefl,
+    },
+    {
+      id: 'ielts' as ScoreMetricId, group: 'standardized', label: 'IELTS', enabled: visibleScoreMetrics.ielts, hasScore: Boolean(currentStats.ieltsEnabled),
+      value: String(currentStats.ieltsValue || ''), rulerLabel: 'IELTS',
+      min: 4, max: 9, current: currentStats.ieltsEnabled ? validNumber(currentStats.ieltsValue) : null, metric: 'ielts' as RequirementMetric,
+      reachAvg: tierStats.reach.ielts, matchAvg: tierStats.match.ielts, safetyAvg: tierStats.safety.ielts,
+    },
+    {
+      id: 'sat' as ScoreMetricId, group: 'standardized', label: 'SAT', enabled: visibleScoreMetrics.sat, hasScore: Boolean(currentStats.satEnabled),
+      value: String(currentStats.satValue || ''), rulerLabel: 'SAT',
+      min: 1000, max: 1600, current: currentStats.satEnabled ? validNumber(currentStats.satValue) : null, metric: 'sat' as RequirementMetric,
+      reachAvg: tierStats.reach.sat, matchAvg: tierStats.match.sat, safetyAvg: tierStats.safety.sat,
+    },
+    {
+      id: 'act' as ScoreMetricId, group: 'standardized', label: 'ACT', enabled: visibleScoreMetrics.act, hasScore: Boolean(currentStats.actEnabled),
+      value: String(currentStats.actValue || ''), rulerLabel: 'ACT',
+      min: 20, max: 36, current: currentStats.actEnabled ? validNumber(currentStats.actValue) : null, metric: 'act' as RequirementMetric,
+      reachAvg: tierStats.reach.act, matchAvg: tierStats.match.act, safetyAvg: tierStats.safety.act,
+    },
+    {
+      id: 'atar' as ScoreMetricId, group: 'standardized', label: 'ATAR', enabled: visibleScoreMetrics.atar, hasScore: Boolean(currentStats.atarEnabled),
+      value: String(currentStats.atarValue || ''), rulerLabel: 'ATAR',
+      min: 0, max: 99.95, current: currentStats.atarEnabled ? validNumber(currentStats.atarValue) : null, metric: 'atar' as RequirementMetric,
+      reachAvg: tierStats.reach.atar, matchAvg: tierStats.match.atar, safetyAvg: tierStats.safety.atar,
+    },
+  ];
 
   // 2. Trigger AI Analysis on Mount (or when inputs change)
   useEffect(() => {
@@ -668,195 +792,45 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                <LayoutGrid className="w-5 h-5 text-primary-600" /> 1. {isEn ? 'Quantitative Gaps' : '硬性指标差距 (Quantitative)'}
             </h3>
             
-            <div className="space-y-4">
-               {(!currentStats.alevelEnabled && !currentStats.apEnabled && !currentStats.ibEnabled) && (
-                  <MetricRuler 
-                     label="GPA (Weighted)" 
-                     min={3.0} max={4.2} 
-                     current={validNumber(currentStats.gpa)}
-                     reachAvg={tierStats.reach.gpa}
-                     matchAvg={tierStats.match.gpa}
-                     safetyAvg={tierStats.safety.gpa}
-                     isEn={isEn}
-                  />
-               )}
-               {currentStats.alevelEnabled && (
-                  <MetricRuler 
-                     label={isEn ? 'A-Level (GPA Eq.)' : 'A-Level预估分 (GPA当量)'} 
-                     min={3.0} max={4.2} 
-                     current={validNumber(currentStats.gpa)}
-                     reachAvg={tierStats.reach.gpa}
-                     matchAvg={tierStats.match.gpa}
-                     safetyAvg={tierStats.safety.gpa}
-                     isEn={isEn}
-                  />
-               )}
-               {currentStats.apEnabled && (
-                  <MetricRuler 
-                     label={isEn ? 'AP (GPA Eq.)' : 'AP成绩 (GPA当量)'} 
-                     min={3.0} max={4.2} 
-                     current={validNumber(currentStats.gpa)}
-                     reachAvg={tierStats.reach.gpa}
-                     matchAvg={tierStats.match.gpa}
-                     safetyAvg={tierStats.safety.gpa}
-                     isEn={isEn}
-                  />
-               )}
-               {currentStats.ibEnabled && (
-                  <MetricRuler 
-                     label={isEn ? 'IB (GPA Eq.)' : 'IB成绩 (GPA当量)'} 
-                     min={3.0} max={4.2} 
-                     current={validNumber(currentStats.gpa)}
-                     reachAvg={tierStats.reach.gpa}
-                     matchAvg={tierStats.match.gpa}
-                     safetyAvg={tierStats.safety.gpa}
-                     isEn={isEn}
-                  />
-               )}
-
-               {currentStats.toeflEnabled && (
-                  <MetricRuler 
-                     label={isEn ? 'TOEFL (From Jan 2026)' : 'TOEFL (新版)'} 
-                     min={0} max={6.0} 
-                     current={validNumber(currentStats.toeflValue)}
-                     reachAvg={tierStats.reach.toeflNew}
-                     matchAvg={tierStats.match.toeflNew}
-                     safetyAvg={tierStats.safety.toeflNew}
-                     isEn={isEn}
-                  />
-               )}
-
-               {currentStats.oldToeflEnabled && (
-                  <MetricRuler 
-                     label={isEn ? 'TOEFL (Before Jan 2026)' : 'TOEFL (旧)'} 
-                     min={80} max={120} 
-                     current={validNumber(currentStats.oldToeflValue)}
-                     reachAvg={tierStats.reach.toefl}
-                     matchAvg={tierStats.match.toefl}
-                     safetyAvg={tierStats.safety.toefl}
-                     isEn={isEn}
-                  />
-               )}
-
-               {currentStats.ieltsEnabled && (
-                  <MetricRuler 
-                     label="IELTS" 
-                     min={4.0} max={9.0} 
-                     current={validNumber(currentStats.ieltsValue)}
-                     reachAvg={tierStats.reach.ielts}
-                     matchAvg={tierStats.match.ielts}
-                     safetyAvg={tierStats.safety.ielts}
-                     isEn={isEn}
-                  />
-               )}
-
-               {currentStats.satEnabled && (
-                  <MetricRuler 
-                     label="SAT" 
-                     min={1200} max={1600} 
-                     current={validNumber(currentStats.satValue)}
-                     reachAvg={tierStats.reach.sat}
-                     matchAvg={tierStats.match.sat}
-                     safetyAvg={tierStats.safety.sat}
-                     isEn={isEn}
-                  />
-               )}
-
-               {currentStats.actEnabled && (
-                  <MetricRuler 
-                     label="ACT" 
-                     min={20} max={36} 
-                     current={validNumber(currentStats.actValue)}
-                     reachAvg={tierStats.reach.act}
-                     matchAvg={tierStats.match.act}
-                     safetyAvg={tierStats.safety.act}
-                     isEn={isEn}
-                  />
-               )}
-
-               {/* Fallbacks if none are enabled */}
-               {(!currentStats.toeflEnabled && !currentStats.oldToeflEnabled && !currentStats.ieltsEnabled) && (
-                  <MetricRuler 
-                     label="TOEFL / Language" 
-                     min={80} max={120} 
-                     current={validNumber(currentStats.toefl)}
-                     reachAvg={tierStats.reach.toefl}
-                     matchAvg={tierStats.match.toefl}
-                     safetyAvg={tierStats.safety.toefl}
-                     isEn={isEn}
-                  />
-               )}
-               {(!currentStats.satEnabled && !currentStats.actEnabled) && (
-                  <MetricRuler 
-                     label="SAT / Standardized" 
-                     min={1200} max={1600} 
-                     current={validNumber(currentStats.sat)}
-                     reachAvg={tierStats.reach.sat}
-                     matchAvg={tierStats.match.sat}
-                     safetyAvg={tierStats.safety.sat}
-                     isEn={isEn}
-                  />
-               )}
+            <div className="space-y-6">
+              {([
+                { id: 'academic', title: isEn ? 'Academic scores' : '学校成绩' },
+                { id: 'standardized', title: isEn ? 'Standardized tests' : '标化成绩' },
+              ]).map(section => (
+                <div key={section.id} className="rounded-xl border border-gray-100 bg-gray-50/30 p-4">
+                  <h4 className="mb-3 text-xs font-bold text-gray-700">{section.title}</h4>
+                  <div className="space-y-5">
+                    {quantitativeMetrics.filter(metric => metric.group === section.id).map(metric => (
+                      <div key={metric.id} className="border-b border-gray-100 pb-1 last:border-b-0">
+                        <ScoreToggle
+                          enabled={metric.enabled}
+                          label={metric.label}
+                          value={metric.value}
+                          hasScore={metric.hasScore}
+                          isEn={isEn}
+                          onChange={enabled => setVisibleScoreMetrics(previous => ({ ...previous, [metric.id]: enabled }))}
+                        />
+                        {metric.enabled && (
+                          <div className="mt-5 px-1">
+                            <MetricRuler
+                              min={metric.min}
+                              max={metric.max}
+                              current={metric.current}
+                              reachAvg={metric.reachAvg}
+                              matchAvg={metric.matchAvg}
+                        safetyAvg={metric.safetyAvg}
+                        tierRanges={getTierRanges(metric.metric)}
+                        isEn={isEn}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div className="mt-8 border-t border-gray-100 pt-5">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h4 className="text-xs font-bold uppercase tracking-wide text-gray-600">
-                  {isEn ? 'Requirement data details' : '院校要求数据明细'}
-                </h4>
-                <span className="text-[11px] text-gray-400">
-                  {isEn ? 'Only sourced records are included in gap calculations.' : '仅有明确来源的记录参与差距计算'}
-                </span>
-              </div>
-              <div className="overflow-x-auto rounded-lg border border-gray-200">
-                <table className="w-full min-w-[760px] text-left text-xs">
-                  <thead className="bg-gray-50 text-gray-500">
-                    <tr>
-                      <th className="px-3 py-2.5">{isEn ? 'School / Major' : '院校 / 专业'}</th>
-                      <th className="px-3 py-2.5">{isEn ? 'Tier / Round' : '档位 / 轮次'}</th>
-                      <th className="px-3 py-2.5">{isEn ? 'Year' : '年份'}</th>
-                      <th className="px-3 py-2.5">{isEn ? 'Requirements' : '有效要求'}</th>
-                      <th className="px-3 py-2.5">{isEn ? 'Source' : '来源'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {selectedSchools.map((school) => {
-                      const data = school.requirementData;
-                      const metrics = data ? [
-                        data.gpa ? `GPA ${data.gpa}` : null,
-                        data.toefl ? `TOEFL ${data.toefl}` : null,
-                        data.toeflNew ? `TOEFL(New) ${data.toeflNew}` : null,
-                        data.ielts ? `IELTS ${data.ielts}` : null,
-                        data.sat ? `SAT ${data.sat}` : null,
-                        data.act ? `ACT ${data.act}` : null,
-                      ].filter(Boolean) : [];
-                      return (
-                        <tr key={school.id} className="bg-white align-top">
-                          <td className="px-3 py-3">
-                            <p className="font-bold text-gray-800">{school.uni.name}</p>
-                            <p className="mt-0.5 text-gray-500">{data?.major || school.major || (isEn ? 'Major pending' : '专业待补充')}</p>
-                          </td>
-                          <td className="px-3 py-3 text-gray-600">{school.tier} / {data?.round || (isEn ? 'Pending' : '待补充')}</td>
-                          <td className="px-3 py-3 text-gray-600">{data?.year || (isEn ? 'Pending' : '待补充')}</td>
-                          <td className="px-3 py-3">
-                            {metrics.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {metrics.map(metric => <span key={metric} className="rounded bg-primary-50 px-1.5 py-0.5 font-medium text-primary-700">{metric}</span>)}
-                              </div>
-                            ) : <span className="text-gray-400">{isEn ? 'No data' : '暂无数据'}</span>}
-                          </td>
-                          <td className="px-3 py-3">
-                            {data?.source ? (
-                              data.sourceUrl ? <a href={data.sourceUrl} target="_blank" rel="noreferrer" className="font-medium text-primary-600 hover:underline">{data.source}</a> : <span className="text-gray-600">{data.source}</span>
-                            ) : <span className="text-gray-400">{isEn ? 'Pending' : '待补充'}</span>}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
          </section>
 
          {/* PART 2: Qualitative Analysis (AI Cards) */}

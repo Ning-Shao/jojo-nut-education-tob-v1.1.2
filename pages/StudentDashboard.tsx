@@ -31,6 +31,7 @@ import StudentSettings from '../components/student/StudentSettings';
 import { useLanguage } from '../contexts/LanguageContext';
 import {
   getStoredStudentTasks,
+  STUDENT_TASK_CHANGE_EVENT,
   StudentTask,
   TASK_STORAGE_KEY,
 } from '../components/student/studentTasks';
@@ -67,6 +68,12 @@ const StudentDashboard: React.FC<StudentDashboardProps> = ({ onLogout }) => {
   useEffect(() => {
     localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(studentTasks));
   }, [studentTasks]);
+
+  useEffect(() => {
+    const syncTasks = () => setStudentTasks(getStoredStudentTasks());
+    window.addEventListener(STUDENT_TASK_CHANGE_EVENT, syncTasks);
+    return () => window.removeEventListener(STUDENT_TASK_CHANGE_EVENT, syncTasks);
+  }, []);
 
   const handlePreferredNameChange = (name: string) => {
     setPreferredName(name);

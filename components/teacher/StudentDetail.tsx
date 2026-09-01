@@ -9,7 +9,14 @@ import {
 import { GoogleGenAI } from "../../services/aiClient";
 import { DetailTab, RiskLevel } from '../../types';
 import { mockStudents } from './StudentList';
-import StudentBasicInfo from './StudentBasicInfo';
+import StudentBasicInfo, {
+  initialOfficialBatches,
+  initialPredictedBatches,
+  initialSubjectScores,
+  OfficialBatch,
+  PredictedBatch,
+  SubjectScore
+} from './StudentBasicInfo';
 import StudentMaterials, { INITIAL_FILES, FileItem } from './StudentMaterials';
 import StudentPlanning from './StudentPlanning';
 import StudentEssays from './StudentEssays';
@@ -54,6 +61,9 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, onBack, onNavi
   
   // Lifted Materials State
   const [materialFiles, setMaterialFiles] = useState<FileItem[]>(INITIAL_FILES);
+  const [officialBatches, setOfficialBatches] = useState<OfficialBatch[]>(initialOfficialBatches);
+  const [predictedBatches, setPredictedBatches] = useState<PredictedBatch[]>(initialPredictedBatches);
+  const [subjectScores, setSubjectScores] = useState<SubjectScore[]>(initialSubjectScores);
 
   const { language } = useLanguage();
   const isEn = language === 'en-US';
@@ -385,11 +395,24 @@ const StudentDetail: React.FC<StudentDetailProps> = ({ studentId, onBack, onNavi
                      setActiveTab('Materials');
                   }}
                   onAddProof={handleAddVerifiedProof}
+                  officialBatches={officialBatches}
+                  onOfficialBatchesChange={setOfficialBatches}
+                  predictedBatches={predictedBatches}
+                  onPredictedBatchesChange={setPredictedBatches}
+                  subjectScores={subjectScores}
+                  onSubjectScoresChange={setSubjectScores}
                />
             )}
             {/* Pass lifted state to StudentMaterials */}
             {activeTab === 'Materials' && <StudentMaterials files={materialFiles} onUpdateFiles={setMaterialFiles} initialCategory={materialsInitialCategory} />}
-            {activeTab === 'Planning' && <StudentPlanning student={student} />}
+            {activeTab === 'Planning' && (
+               <StudentPlanning
+                  student={student}
+                  officialBatches={officialBatches}
+                  predictedBatches={predictedBatches}
+                  subjectScores={subjectScores}
+               />
+            )}
             {activeTab === 'Essays' && <StudentEssays student={student} onAddFile={handleAddFile} />}
             {activeTab === 'Recommendations' && <StudentRecommendations />}
             {activeTab === 'OfferTracking' && <StudentOfferTracking />}
