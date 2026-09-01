@@ -1,15 +1,15 @@
 
 import React from 'react';
 import { motion } from 'motion/react';
-import { Target, Sliders, RotateCcw, Lightbulb, Sparkles, Search, Loader2, RefreshCw, AlertTriangle, CheckCircle, School, X, BookOpen, Plus, ChevronRight, ChevronLeft } from '../../common/Icons';
+import { Target, Sliders, RotateCcw, Lightbulb, Sparkles, Search, Loader2, RefreshCw, AlertTriangle, CheckCircle, School, X, BookOpen, Plus, ChevronRight, ChevronLeft, ChevronDown, Info } from '../../common/Icons';
 import { TargetPreference, UniversityDisplay, SelectedSchool } from './PlanningData';
 import { useLanguage } from '../../../contexts/LanguageContext';
-import { getInitialSimParams } from '../StudentPlanning';
 
 interface Step3Props {
   targetPreferences: TargetPreference[];
   simParams: any; // Temporarily using any to bypass strict type for now, or use exact type
   setSimParams: (val: any) => void;
+  resetSimParams: () => void;
   schoolSearchQuery: string;
   setSchoolSearchQuery: (val: string) => void;
   selectedSchools: SelectedSchool[];
@@ -24,22 +24,69 @@ interface Step3Props {
   onNext: () => void;
 }
 
+// Demo-only data used to mirror the production card when the local mock profile
+// has no configured major. This is presentation data, not an admissions source.
+const SIMULATED_MAJOR_OPTIONS: Record<string, string[]> = {
+  u3: [
+    'Bachelor of Arts (with Honours) – Sociology with Foundation Year',
+    'Bachelor of Arts (with Honours) – Politics and Sociology',
+    'Bachelor of Arts (with Honours) – Sociology',
+  ],
+  u8: [
+    'Bachelor of Science – Computer Science',
+    'Bachelor of Science – Data Sciences',
+    'Bachelor of Arts – Economics',
+  ],
+};
+
 const Toggle = ({ checked, onChange, disabled, title }: { checked: boolean, onChange: (val: boolean) => void, disabled?: boolean, title?: string }) => (
   <button
     type="button"
     title={title}
+    role="switch"
+    aria-checked={checked}
+    aria-label={title}
     disabled={disabled}
     onClick={() => onChange(!checked)}
-    className={`relative inline-flex h-4 w-7 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:ring-offset-1 ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${checked ? 'bg-emerald-500' : 'bg-gray-300'}`}
+    className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary-400 ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${checked ? 'bg-primary-600' : 'bg-gray-300 dark:bg-zinc-600'}`}
   >
     <span
-      className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-3.5' : 'translate-x-0.5'}`}
+      className={`h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-3.5' : 'translate-x-0.5'}`}
     />
   </button>
 );
 
+const TierAddButton = ({
+  label,
+  tooltip,
+  onClick,
+  className,
+}: {
+  label: string;
+  tooltip: string;
+  onClick: () => void;
+  className: string;
+}) => (
+  <span className="group/tier-tooltip relative inline-flex">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={tooltip}
+      className={`${className} focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1`}
+    >
+      {label}
+    </button>
+    <span
+      role="tooltip"
+      className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 px-2 py-1 text-[10px] font-normal text-white opacity-0 shadow-lg transition-opacity group-hover/tier-tooltip:opacity-100 group-focus-within/tier-tooltip:opacity-100"
+    >
+      {tooltip}
+    </span>
+  </span>
+);
+
 const Step3Selection: React.FC<Step3Props> = ({
-  targetPreferences, simParams, setSimParams,
+  targetPreferences, simParams, setSimParams, resetSimParams,
   schoolSearchQuery, setSchoolSearchQuery,
   selectedSchools, handleAddSchool, handleRemoveSchool,
   step3Tab, setStep3Tab, isRegenerating, handleRegenerateRecommendations,
@@ -131,7 +178,7 @@ const Step3Selection: React.FC<Step3Props> = ({
                </h3>
                <button 
                   className="text-xs text-gray-400 hover:text-primary-600" 
-                  onClick={() => setSimParams(getInitialSimParams())}
+                  onClick={resetSimParams}
                   title={isEn ? "Reset" : "重置"}
                >
                   <RotateCcw className="w-3 h-3"/>
@@ -140,25 +187,37 @@ const Step3Selection: React.FC<Step3Props> = ({
             
             <div className="space-y-6">
                {/* Academic Scores */}
-               <div>
-                  <h4 className="text-xs font-bold text-gray-700 mb-3">{isEn ? 'Academic Scores' : '学术成绩'}</h4>
-                  <div className="space-y-4 bg-gray-50/50 p-3 rounded-lg border border-gray-100">
+               <div className="py-3 first:pt-0">
+                  <h4 className="mb-4 block text-xs font-bold text-gray-700">{isEn ? 'Academic Scores' : '学术成绩'}</h4>
+                  <div className="space-y-3">
                      {/* A-Level */}
                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                           <Toggle checked={simParams.alevelEnabled} onChange={(val) => setSimParams({...simParams, alevelEnabled: val})} title={isEn ? "Enable/Disable" : "启用/禁用"} />
-                           <span className={`text-xs font-medium ${simParams.alevelEnabled ? 'text-gray-700' : 'text-gray-400'}`}>{isEn ? 'Predicted A-Level' : 'A-Level预估分'}</span>
+                        <div className="group flex items-center justify-between gap-3">
+                           <div className="flex items-center gap-3">
+                              <Toggle checked={simParams.alevelEnabled} onChange={(val) => setSimParams({...simParams, alevelEnabled: val})} title={isEn ? 'Enable A-Level' : '启用 A-Level'} />
+                              <span className={`text-sm transition-colors ${simParams.alevelEnabled ? 'font-bold text-primary-700' : 'text-gray-600 group-hover:text-primary-600'}`}>A-Level</span>
+                           </div>
+                           <input
+                              type="text"
+                              inputMode="text"
+                              value={simParams.alevelScore ?? ''}
+                              disabled={!simParams.alevelEnabled}
+                              placeholder="AAB / 12"
+                              aria-label={isEn ? 'A-Level grades or score' : 'A-Level等级组合或分数'}
+                              onChange={(event) => setSimParams({...simParams, alevelScore: event.target.value.toUpperCase().replace(/[^A-E*0-9.\s]/g, '')})}
+                              className={`w-14 rounded-md border px-1.5 py-1 text-right text-xs font-bold uppercase outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-200 ${simParams.alevelEnabled ? 'border-gray-200 bg-white text-primary-700' : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60'}`}
+                           />
                         </div>
                         {simParams.alevelEnabled && (
-                           <div className="pl-9 pr-1 space-y-2">
+                           <div className="pr-1 space-y-2">
                               {(simParams.alevelSubjects || []).map((sub: any, idx: number) => (
-                                 <div key={sub.id} className="flex items-center gap-2">
-                                    <input type="text" className="flex-1 min-w-0 text-xs px-2 py-1.5 border rounded bg-white shadow-sm font-medium focus:ring-1 focus:ring-primary-500 focus:outline-none" placeholder={isEn ? "Subject" : "科目名称"} value={sub.name} onChange={(e) => {
+                                 <div key={sub.id} className="grid grid-cols-[minmax(0,1fr)_76px_36px_28px] items-center gap-1.5">
+                                    <input type="text" className="flex-1 min-w-0 text-xs px-2 py-1.5 border rounded bg-white shadow-sm font-medium focus:ring-1 focus:ring-primary-500 focus:outline-none" placeholder={isEn ? "Subject" : "科目名称"} value={sub.name} title={sub.name?.trim() ? sub.name : undefined} onChange={(e) => {
                                        const newSubs = [...simParams.alevelSubjects];
                                        newSubs[idx].name = e.target.value;
                                        setSimParams({...simParams, alevelSubjects: newSubs});
                                     }} />
-                                    <select className="flex-shrink-0 text-xs px-2 py-1.5 border rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none appearance-none cursor-pointer" value={sub.level || 'A-Level'} onChange={(e) => {
+                                    <select className="w-full min-w-0 flex-shrink-0 text-xs px-2 py-1.5 border rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none appearance-none cursor-pointer" value={sub.level || 'A-Level'} onChange={(e) => {
                                        const newSubs = [...simParams.alevelSubjects];
                                        const newLevel = e.target.value;
                                        const oldLevel = sub.level || 'A-Level';
@@ -174,15 +233,19 @@ const Step3Selection: React.FC<Step3Props> = ({
                                        <option value="A-Level">A-Level</option>
                                        <option value="AS-Level">AS-Level</option>
                                     </select>
-                                    <select className="flex-shrink-0 text-xs px-2 py-1.5 border rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none appearance-none cursor-pointer" value={sub.grade} onChange={(e) => {
-                                       const newSubs = [...simParams.alevelSubjects];
-                                       newSubs[idx].grade = e.target.value;
-                                       setSimParams({...simParams, alevelSubjects: newSubs, gpa: 4.0});
-                                    }}>
-                                       {sub.level === 'AS-Level' 
-                                          ? ["a", "b", "c", "d", "e", "u"].map(g => <option key={g} value={g}>{g}</option>)
-                                          : ["A*", "A", "B", "C", "D", "E", "U"].map(g => <option key={g} value={g}>{g}</option>)}
-                                    </select>
+                                    <input
+                                       type="text"
+                                       inputMode="text"
+                                       value={sub.grade ?? ''}
+                                       title={sub.grade || undefined}
+                                       aria-label={`${isEn ? 'A-Level subject grade or score' : 'A-Level科目等级或分数'} ${idx + 1}`}
+                                       className="w-full min-w-0 text-right flex-shrink-0 text-xs px-2 py-1.5 border rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                                       onChange={(e) => {
+                                          const newSubs = [...simParams.alevelSubjects];
+                                          newSubs[idx] = {...newSubs[idx], grade: e.target.value};
+                                          setSimParams({...simParams, alevelSubjects: newSubs, gpa: 4.0});
+                                       }}
+                                    />
                                     <button onClick={() => {
                                        const newSubs = simParams.alevelSubjects.filter((_: any, i: number) => i !== idx);
                                        setSimParams({...simParams, alevelSubjects: newSubs});
@@ -199,20 +262,46 @@ const Step3Selection: React.FC<Step3Props> = ({
                      </div>
                      {/* AP */}
                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                           <Toggle checked={simParams.apEnabled} onChange={(val) => setSimParams({...simParams, apEnabled: val})} title={isEn ? "Enable/Disable" : "启用/禁用"} />
-                           <span className={`text-xs font-medium ${simParams.apEnabled ? 'text-gray-700' : 'text-gray-400'}`}>AP</span>
+                        <div className="group flex items-center justify-between gap-3">
+                           <div className="flex items-center gap-3">
+                              <button
+                                 type="button"
+                                 role="switch"
+                                 aria-checked={!!simParams.apEnabled}
+                                 aria-label={isEn ? 'Enable AP' : '启用 AP'}
+                                 onClick={() => setSimParams({...simParams, apEnabled: !simParams.apEnabled})}
+                                 className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary-400 ${simParams.apEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-zinc-600'}`}
+                              >
+                                 <span className={`h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${simParams.apEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                              </button>
+                              <span className={`text-sm transition-colors ${simParams.apEnabled ? 'font-bold text-primary-700 dark:text-primary-400' : 'text-gray-600 group-hover:text-primary-600 dark:text-zinc-400 dark:group-hover:text-primary-300'}`}>AP</span>
+                           </div>
+                           <div className="flex shrink-0 items-center gap-1">
+                           <input
+                              type="text"
+                              inputMode="numeric"
+                              value={simParams.apScore ?? '4'}
+                              disabled={!simParams.apEnabled}
+                              aria-label={isEn ? 'AP score' : 'AP 成绩'}
+                              onChange={event => {
+                                 const value = event.target.value;
+                                 if (!/^-?\d*\.?\d*$/.test(value)) return;
+                                 setSimParams({...simParams, apScore: value});
+                              }}
+                              className={`w-14 rounded-md border px-1.5 py-1 text-right text-xs font-bold outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-zinc-700 dark:bg-zinc-800 ${simParams.apEnabled ? 'border-gray-200 bg-white text-primary-700 dark:text-primary-300' : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60 dark:text-zinc-600'}`}
+                           />
+                           </div>
                         </div>
                         {simParams.apEnabled && (
-                           <div className="pl-9 pr-1 space-y-2">
+                           <div className="pr-1 space-y-2">
                               {(simParams.apSubjects || []).map((sub: any, idx: number) => (
-                                 <div key={sub.id} className="flex items-center gap-2">
-                                    <input type="text" className="flex-1 min-w-0 text-xs px-2 py-1.5 border rounded bg-white shadow-sm font-medium focus:ring-1 focus:ring-primary-500 focus:outline-none" placeholder={isEn ? "Subject" : "科目名称"} value={sub.name} onChange={(e) => {
+                                 <div key={sub.id} className="grid grid-cols-[minmax(0,1fr)_36px_28px] items-center gap-1.5">
+                                    <input type="text" className="flex-1 min-w-0 text-xs px-2 py-1.5 border rounded bg-white shadow-sm font-medium focus:ring-1 focus:ring-primary-500 focus:outline-none" placeholder={isEn ? "Subject" : "科目名称"} value={sub.name} title={sub.name?.trim() ? sub.name : undefined} onChange={(e) => {
                                        const newSubs = [...simParams.apSubjects];
                                        newSubs[idx].name = e.target.value;
                                        setSimParams({...simParams, apSubjects: newSubs});
                                     }} />
-                                    <select className="flex-shrink-0 text-xs px-2 py-1.5 border rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none appearance-none cursor-pointer" value={sub.grade} onChange={(e) => {
+                                    <select className="w-full min-w-0 text-right [text-align-last:right] flex-shrink-0 text-xs px-2 py-1.5 border rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none appearance-none cursor-pointer" value={sub.grade} onChange={(e) => {
                                        const newSubs = [...simParams.apSubjects];
                                        newSubs[idx].grade = e.target.value;
                                        let count5 = 0, count4 = 0;
@@ -241,20 +330,46 @@ const Step3Selection: React.FC<Step3Props> = ({
                      </div>
                      {/* IB */}
                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                           <Toggle checked={simParams.ibEnabled} onChange={(val) => setSimParams({...simParams, ibEnabled: val})} title={isEn ? "Enable/Disable" : "启用/禁用"} />
-                           <span className={`text-xs font-medium ${simParams.ibEnabled ? 'text-gray-700' : 'text-gray-400'}`}>IB</span>
+                        <div className="group flex items-center justify-between gap-3">
+                           <div className="flex items-center gap-3">
+                              <button
+                                 type="button"
+                                 role="switch"
+                                 aria-checked={!!simParams.ibEnabled}
+                                 aria-label={isEn ? 'Enable IB' : '启用 IB'}
+                                 onClick={() => setSimParams({...simParams, ibEnabled: !simParams.ibEnabled})}
+                                 className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary-400 ${simParams.ibEnabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-zinc-600'}`}
+                              >
+                                 <span className={`h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${simParams.ibEnabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                              </button>
+                              <span className={`text-sm transition-colors ${simParams.ibEnabled ? 'font-bold text-primary-700 dark:text-primary-400' : 'text-gray-600 group-hover:text-primary-600 dark:text-zinc-400 dark:group-hover:text-primary-300'}`}>IB</span>
+                           </div>
+                           <div className="flex shrink-0 items-center gap-1">
+                           <input
+                              type="text"
+                              inputMode="numeric"
+                              value={simParams.ibScore ?? '38'}
+                              disabled={!simParams.ibEnabled}
+                              aria-label={isEn ? 'IB score' : 'IB 成绩'}
+                              onChange={event => {
+                                 const value = event.target.value;
+                                 if (!/^-?\d*\.?\d*$/.test(value)) return;
+                                 setSimParams({...simParams, ibScore: value});
+                              }}
+                              className={`w-14 rounded-md border px-1.5 py-1 text-right text-xs font-bold outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-zinc-700 dark:bg-zinc-800 ${simParams.ibEnabled ? 'border-gray-200 bg-white text-primary-700 dark:text-primary-300' : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60 dark:text-zinc-600'}`}
+                           />
+                           </div>
                         </div>
                         {simParams.ibEnabled && (
-                           <div className="pl-9 pr-1 space-y-2">
+                           <div className="pr-1 space-y-2">
                               {(simParams.ibSubjects || []).map((sub: any, idx: number) => (
-                                 <div key={sub.id} className="flex items-center gap-2">
-                                    <input type="text" className="flex-1 min-w-0 text-xs px-2 py-1.5 border rounded bg-white shadow-sm font-medium focus:ring-1 focus:ring-primary-500 focus:outline-none" placeholder={isEn ? "Subject" : "科目名称"} value={sub.name} onChange={(e) => {
+                                 <div key={sub.id} className="grid grid-cols-[minmax(0,1fr)_40px_36px_28px] items-center gap-1.5">
+                                    <input type="text" className="flex-1 min-w-0 text-xs px-2 py-1.5 border rounded bg-white shadow-sm font-medium focus:ring-1 focus:ring-primary-500 focus:outline-none" placeholder={isEn ? "Subject" : "科目名称"} value={sub.name} title={sub.name?.trim() ? sub.name : undefined} onChange={(e) => {
                                        const newSubs = [...simParams.ibSubjects];
                                        newSubs[idx].name = e.target.value;
                                        setSimParams({...simParams, ibSubjects: newSubs});
                                     }} />
-                                    <select className="flex-shrink-0 text-xs px-2 py-1.5 border rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none appearance-none cursor-pointer" value={sub.level || 'HL'} onChange={(e) => {
+                                    <select className="w-full min-w-0 flex-shrink-0 text-xs px-2 py-1.5 border rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none appearance-none cursor-pointer" value={sub.level || 'HL'} onChange={(e) => {
                                        const newSubs = [...simParams.ibSubjects];
                                        newSubs[idx].level = e.target.value;
                                        setSimParams({...simParams, ibSubjects: newSubs});
@@ -262,7 +377,7 @@ const Step3Selection: React.FC<Step3Props> = ({
                                        <option value="HL">HL</option>
                                        <option value="SL">SL</option>
                                     </select>
-                                    <select className="flex-shrink-0 text-xs px-2 py-1.5 border rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none appearance-none cursor-pointer" value={sub.grade} onChange={(e) => {
+                                    <select className="w-full min-w-0 text-right [text-align-last:right] flex-shrink-0 text-xs px-2 py-1.5 border rounded bg-white text-gray-700 font-bold shadow-sm focus:ring-1 focus:ring-primary-500 focus:outline-none appearance-none cursor-pointer" value={sub.grade} onChange={(e) => {
                                        const newSubs = [...simParams.ibSubjects];
                                        newSubs[idx].grade = e.target.value;
                                        let ibScore = 0;
@@ -289,121 +404,143 @@ const Step3Selection: React.FC<Step3Props> = ({
                            </div>
                         )}
                      </div>
+                     {/* ATAR */}
+                     <div className="group flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                           <Toggle checked={simParams.atarEnabled} onChange={(val) => setSimParams({...simParams, atarEnabled: val})} title={isEn ? 'Enable/Disable ATAR' : '启用/禁用 ATAR'} />
+                           <span className={`text-xs font-medium ${simParams.atarEnabled ? 'text-gray-700' : 'text-gray-400'}`}>ATAR</span>
+                        </div>
+                        <input
+                           type="text"
+                           inputMode="decimal"
+                           value={simParams.atarValue ?? ''}
+                           disabled={!simParams.atarEnabled}
+                           placeholder="90"
+                           aria-label={isEn ? 'ATAR score' : 'ATAR 成绩'}
+                           onChange={(event) => {
+                              const value = event.target.value;
+                              if (!/^\d*\.?\d*$/.test(value)) return;
+                              const score = Number(value);
+                              if (value !== '' && (!Number.isFinite(score) || score < 0 || score > 99.95)) return;
+                              setSimParams({...simParams, atarValue: value});
+                           }}
+                           className={`w-14 rounded-md border px-1.5 py-1 text-right text-xs font-bold outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-200 ${simParams.atarEnabled ? 'border-gray-200 bg-white text-primary-700' : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60'}`}
+                        />
+                     </div>
                   </div>
                </div>
 
                {/* Standardized Tests */}
-               <div className="border-t border-gray-100 pt-4">
-                  <h4 className="text-xs font-bold text-gray-700 mb-3">{isEn ? 'Standardized Tests' : '标化成绩'}</h4>
-                  
-                  <div className="space-y-4 bg-gray-50/50 p-3 rounded-lg border border-gray-100">
-                     {/* New TOEFL */}
-                     <div className="flex flex-col gap-2">
-                        <div className="flex justify-between items-center">
-                           <div className="flex items-center gap-2">
-                              <Toggle checked={simParams.toeflEnabled} onChange={(val) => setSimParams({...simParams, toeflEnabled: val})} title={isEn ? "Enable/Disable" : "启用/禁用"} />
-                              <span className={`text-xs font-medium ${simParams.toeflEnabled ? 'text-gray-700' : 'text-gray-400'}`}>TOEFL (From 21 January 2026)</span>
+               <div className="py-3 first:pt-0">
+                  <h4 className="mb-4 block text-xs font-bold text-gray-700">{isEn ? 'Standardized tests' : '标化成绩'}</h4>
+                  <div className="space-y-3">
+                     {[
+                        { key: 'toefl', label: 'TOEFL (From 21 January 2026)', min: 0, max: 6, step: 0.5, sectionMax: 6 },
+                        { key: 'oldToefl', label: 'TOEFL (Before 21 January 2026)', min: 0, max: 120, step: 1, sectionMax: 30 },
+                        { key: 'ielts', label: 'IELTS', min: 4, max: 9, step: 0.5, sectionMax: 9 },
+                        { key: 'sat', label: 'SAT', min: 1000, max: 1600, step: 10, sectionMax: 0 },
+                        { key: 'act', label: 'ACT', min: 20, max: 36, step: 1, sectionMax: 0 },
+                     ].map(({ key, label, min, max, step, sectionMax }) => {
+                        const enabled = !!simParams[`${key}Enabled`];
+                        const expanded = !!simParams.expandedLanguageSections?.[key];
+                        const updateTotal = (value: string) => {
+                           const score = Number(value);
+                           const valid = value.trim() !== '' && Number.isFinite(score) && score >= min && score <= max;
+                           const derived = key === 'sat' ? { sat: valid ? score : 0 }
+                              : key === 'act' ? { sat: valid ? score * 40 : 0 }
+                              : { toefl: valid ? (key === 'toefl' ? Math.round(score * 20) : key === 'ielts' ? score * 12 : score) : 0 };
+                           setSimParams({...simParams, [`${key}Value`]: value, ...derived});
+                        };
+                        return (
+                           <div key={key}>
+                              <div className={sectionMax > 0
+                                 ? 'group grid grid-cols-[28px_minmax(0,1fr)_22px_56px] items-center gap-x-2'
+                                 : 'group flex items-center justify-between gap-3'}>
+                                 <div className={sectionMax > 0 ? 'contents' : 'flex items-center gap-3'}>
+                                    <button
+                                       type="button"
+                                       role="switch"
+                                       aria-checked={enabled}
+                                       aria-label={`${isEn ? 'Enable' : '启用'} ${label}`}
+                                       onClick={() => setSimParams({...simParams, [`${key}Enabled`]: !enabled, expandedLanguageSections: {...simParams.expandedLanguageSections, [key]: false}})}
+                                       className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary-400 ${enabled ? 'bg-primary-600' : 'bg-gray-300 dark:bg-zinc-600'}`}
+                                    >
+                                       <span className={`h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${enabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+                                    </button>
+                                    <span className={`text-sm transition-colors ${enabled ? 'font-bold text-primary-700' : 'text-gray-600 group-hover:text-primary-600'}`}>{label}</span>
+                                    {sectionMax > 0 && (
+                                       <button
+                                          type="button"
+                                          disabled={!enabled}
+                                          aria-expanded={expanded}
+                                          aria-controls={`sim-language-sections-${key}`}
+                                          title={isEn ? (expanded ? 'Collapse section scores' : 'Add section scores') : (expanded ? '收起单项成绩' : '添加单项成绩')}
+                                          aria-label={`${label} ${isEn ? (expanded ? 'Collapse section scores' : 'Add section scores') : (expanded ? '收起单项成绩' : '添加单项成绩')}`}
+                                          onClick={() => setSimParams({...simParams, expandedLanguageSections: {...simParams.expandedLanguageSections, [key]: !expanded}})}
+                                          className="inline-flex h-[26px] w-[22px] shrink-0 items-center justify-center rounded text-xs text-gray-500 transition-colors hover:text-primary-700 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary-400 disabled:cursor-not-allowed disabled:opacity-40"
+                                       >
+                                          <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                                       </button>
+                                    )}
+                                 </div>
+                                 <div className={sectionMax > 0 ? 'contents' : 'flex shrink-0 items-center gap-1'}>
+                                    <input
+                                       type="text"
+                                       inputMode={step < 1 ? 'decimal' : 'numeric'}
+                                       value={simParams[`${key}Value`] ?? ''}
+                                       disabled={!enabled}
+                                       aria-label={`${label} ${isEn ? 'score' : '成绩'}`}
+                                       onChange={event => {
+                                          const value = event.target.value;
+                                          if (!/^\d*\.?\d*$/.test(value)) return;
+                                          updateTotal(value);
+                                       }}
+                                       onBlur={event => {
+                                          if (event.target.value === '') return;
+                                          const score = Number(event.target.value);
+                                          if (!Number.isFinite(score)) return;
+                                          updateTotal(String(Math.min(max, Math.max(min, Math.round(score / step) * step))));
+                                       }}
+                                       className={`h-[26px] w-14 shrink-0 rounded-md border px-1.5 py-1 text-right text-xs font-bold outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-inset focus:ring-primary-200 ${enabled ? 'border-gray-200 bg-white text-primary-700' : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60'}`}
+                                    />
+                                 </div>
+                              </div>
+                              {sectionMax > 0 && (
+                                 <div id={`sim-language-sections-${key}`} hidden={!enabled || !expanded} className="mt-2">
+                                    <div className="grid grid-cols-4 gap-1.5">
+                                       {[['reading', 'R'], ['listening', 'L'], ['speaking', 'S'], ['writing', 'W']].map(([sectionKey, shortLabel]) => (
+                                          <label key={sectionKey} className="block">
+                                             <span className="mb-1 block text-center text-[10px] font-bold text-gray-500">{shortLabel}</span>
+                                             <input
+                                                type="text"
+                                                inputMode="decimal"
+                                                value={simParams.languageSectionScores?.[key]?.[sectionKey] ?? ''}
+                                                disabled={!enabled}
+                                                placeholder="—"
+                                                aria-label={`${label} ${shortLabel}`}
+                                                onChange={event => {
+                                                   const value = event.target.value;
+                                                   if (!/^\d*\.?\d*$/.test(value)) return;
+                                                   if (value !== '' && Number(value) > sectionMax) return;
+                                                   setSimParams({...simParams, languageSectionScores: {...simParams.languageSectionScores, [key]: {...simParams.languageSectionScores?.[key], [sectionKey]: value}}});
+                                                }}
+                                                className="w-full rounded-md border border-gray-200 bg-white px-1 py-1.5 text-right text-[11px] font-bold text-gray-700 outline-none focus:border-primary-400 focus:ring-1 focus:ring-inset focus:ring-primary-200"
+                                             />
+                                          </label>
+                                       ))}
+                                    </div>
+                                 </div>
+                              )}
                            </div>
-                           <span className={`text-xs font-bold ${simParams.toeflEnabled ? 'text-primary-700' : 'text-gray-400'}`}>{simParams.toeflValue || '5.0'}</span>
-                        </div>
-                        <input 
-                           type="range" min="0" max="6.0" step="0.5"
-                           disabled={!simParams.toeflEnabled}
-                           className={`w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600 ${!simParams.toeflEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                           value={simParams.toeflValue || '5.0'}
-                           onChange={(e) => {
-                              const val = e.target.value;
-                              setSimParams({...simParams, toeflValue: val, toefl: Math.round(parseFloat(val) * 20)});
-                           }}
-                        />
-                     </div>
-                     {/* Old TOEFL */}
-                     <div className="flex flex-col gap-2">
-                        <div className="flex justify-between items-center">
-                           <div className="flex items-center gap-2">
-                              <Toggle checked={simParams.oldToeflEnabled} onChange={(val) => setSimParams({...simParams, oldToeflEnabled: val})} title={isEn ? "Enable/Disable" : "启用/禁用"} />
-                              <span className={`text-xs font-medium ${simParams.oldToeflEnabled ? 'text-gray-700' : 'text-gray-400'}`}>TOEFL (Before 21 January 2026)</span>
-                           </div>
-                           <span className={`text-xs font-bold ${simParams.oldToeflEnabled ? 'text-primary-700' : 'text-gray-400'}`}>{simParams.oldToeflValue || '100'}</span>
-                        </div>
-                        <input 
-                           type="range" min="0" max="120" step="1"
-                           disabled={!simParams.oldToeflEnabled}
-                           className={`w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600 ${!simParams.oldToeflEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                           value={simParams.oldToeflValue || '100'}
-                           onChange={(e) => {
-                              const val = e.target.value;
-                              setSimParams({...simParams, oldToeflValue: val, toefl: parseInt(val)});
-                           }}
-                        />
-                     </div>
-                     {/* IELTS */}
-                     <div className="flex flex-col gap-2">
-                        <div className="flex justify-between items-center">
-                           <div className="flex items-center gap-2">
-                              <Toggle checked={simParams.ieltsEnabled} onChange={(val) => setSimParams({...simParams, ieltsEnabled: val})} title={isEn ? "Enable/Disable" : "启用/禁用"} />
-                              <span className={`text-xs font-medium ${simParams.ieltsEnabled ? 'text-gray-700' : 'text-gray-400'}`}>IELTS</span>
-                           </div>
-                           <span className={`text-xs font-bold ${simParams.ieltsEnabled ? 'text-primary-700' : 'text-gray-400'}`}>{parseFloat(simParams.ieltsValue || '7.0').toFixed(1)}</span>
-                        </div>
-                        <input 
-                           type="range" min="4.0" max="9.0" step="0.5"
-                           disabled={!simParams.ieltsEnabled}
-                           className={`w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600 ${!simParams.ieltsEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                           value={simParams.ieltsValue || '7.0'}
-                           onChange={(e) => {
-                              const val = e.target.value;
-                              setSimParams({...simParams, ieltsValue: val, toefl: (parseFloat(val) || 0) * 12});
-                           }}
-                        />
-                     </div>
-                     {/* SAT */}
-                     <div className="flex flex-col gap-2">
-                        <div className="flex justify-between items-center">
-                           <div className="flex items-center gap-2">
-                              <Toggle checked={simParams.satEnabled} onChange={(val) => setSimParams({...simParams, satEnabled: val})} title={isEn ? "Enable/Disable" : "启用/禁用"} />
-                              <span className={`text-xs font-medium ${simParams.satEnabled ? 'text-gray-700' : 'text-gray-400'}`}>SAT</span>
-                           </div>
-                           <span className={`text-xs font-bold ${simParams.satEnabled ? 'text-primary-700' : 'text-gray-400'}`}>{simParams.satValue || '1400'}</span>
-                        </div>
-                        <input 
-                           type="range" min="1000" max="1600" step="10"
-                           disabled={!simParams.satEnabled}
-                           className={`w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600 ${!simParams.satEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                           value={simParams.satValue || '1400'}
-                           onChange={(e) => {
-                              const val = e.target.value;
-                              setSimParams({...simParams, satValue: val, sat: parseInt(val) || 0});
-                           }}
-                        />
-                     </div>
-                     {/* ACT */}
-                     <div className="flex flex-col gap-2">
-                        <div className="flex justify-between items-center">
-                           <div className="flex items-center gap-2">
-                              <Toggle checked={simParams.actEnabled} onChange={(val) => setSimParams({...simParams, actEnabled: val})} title={isEn ? "Enable/Disable" : "启用/禁用"} />
-                              <span className={`text-xs font-medium ${simParams.actEnabled ? 'text-gray-700' : 'text-gray-400'}`}>ACT</span>
-                           </div>
-                           <span className={`text-xs font-bold ${simParams.actEnabled ? 'text-primary-700' : 'text-gray-400'}`}>{simParams.actValue || '30'}</span>
-                        </div>
-                        <input 
-                           type="range" min="20" max="36" step="1"
-                           disabled={!simParams.actEnabled}
-                           className={`w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600 ${!simParams.actEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                           value={simParams.actValue || '30'}
-                           onChange={(e) => {
-                              const val = e.target.value;
-                              setSimParams({...simParams, actValue: val, sat: (parseInt(val) || 0) * 40});
-                           }}
-                        />
-                     </div>
+                        );
+                     })}
                   </div>
                </div>
             </div>
 
             <div className="mt-6 p-3 bg-gray-50 rounded-lg text-xs text-gray-500 leading-relaxed border border-gray-100">
                <Lightbulb className="w-3 h-3 text-yellow-500 inline mr-1" />
-               {isEn ? 'Adjust sliders to simulate admission probabilities and refresh recommendations.' : '调整滑条可实时模拟不同成绩组合下的录取概率与推荐列表变化。'}
+               {isEn ? 'Adjust scores to simulate admission probabilities and refresh recommendations.' : '调整成绩可实时模拟不同成绩组合下的录取概率与推荐列表变化。'}
             </div>
          </div>
       </div>
@@ -547,86 +684,135 @@ const Step3Selection: React.FC<Step3Props> = ({
                {activeRegionTab && groupedUniversities[activeRegionTab] && groupedUniversities[activeRegionTab].map(uni => {
                   const isSelected = selectedSchools.some(s => s.uni.id === uni.id);
                   const matchingTarget = targetPreferences.find(t => t.region === uni.region);
-                  const targetMajors = matchingTarget?.majors || [];
+                  const configuredMajors = matchingTarget?.majors || [];
+                  const targetMajors = configuredMajors.length > 0
+                     ? configuredMajors
+                     : (SIMULATED_MAJOR_OPTIONS[uni.id] || []);
 
                   return (
                      <div key={uni.id} className={`bg-white border rounded-xl p-3 shadow-sm transition-all group relative
                         ${isSelected ? 'border-primary-200 bg-primary-50/30' : 'border-gray-200 hover:border-primary-300 hover:shadow-md'}
                      `}>
-                                 <div className="flex justify-between items-start">
-                                    <div className="flex gap-3">
-                                       <img src={uni.logo} className="w-10 h-10 rounded object-contain bg-white border border-gray-100 p-0.5" alt={uni.name} />
-                                       <div>
-                                          <div className="flex items-center gap-2">
-                                             <h4 className="font-bold text-gray-900 text-sm">{uni.name}</h4>
-                                             <span className="text-xs text-gray-500">#{uni.rank}</span>
-                                          </div>
-                                          
-                                          {targetMajors.length > 0 && (
-                                             <div className="mt-2 space-y-2">
-                                                <div className="flex items-center gap-1.5 text-xs text-indigo-900 px-2 py-0.5 rounded-md border border-indigo-100/50 bg-indigo-50/30 w-fit mb-1">
-                                                   <Target className="w-3 h-3 text-indigo-600" />
-                                                   <span className="font-bold text-indigo-700">{isEn ? 'Major Match:' : '专业匹配:'}</span>
-                                                </div>
-                                                {targetMajors.map(major => {
-                                                   const isMajorSelected = selectedSchools.some(s => s.uni.id === uni.id && s.major === major);
-                                                   return (
-                                                      <div key={major} className="flex justify-between items-center bg-gray-50/80 border border-gray-100 px-2 py-1.5 rounded text-xs hover:bg-white hover:shadow-sm transition-all group/major">
-                                                         <span className="font-medium text-gray-700 truncate max-w-[120px] pr-2" title={major}>{major}</span>
-                                                         
-                                                         {!isMajorSelected ? (
-                                                            <div className="flex gap-1 opacity-60 group-hover/major:opacity-100 transition-opacity">
-                                                               <button onClick={() => handleAddSchool(uni, 'Reach', major)} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-red-600 border border-red-200 rounded hover:bg-red-50 hover:border-red-300">+R</button>
-                                                               <button onClick={() => handleAddSchool(uni, 'Match', major)} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-blue-600 border border-blue-200 rounded hover:bg-blue-50 hover:border-blue-300">+M</button>
-                                                               <button onClick={() => handleAddSchool(uni, 'Safety', major)} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-green-600 border border-green-200 rounded hover:bg-green-50 hover:border-green-300">+S</button>
-                                                            </div>
-                                                         ) : (
-                                                            <span className="text-[10px] text-green-600 flex items-center gap-1 font-medium bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
-                                                               <CheckCircle className="w-3 h-3" /> Added
-                                                            </span>
-                                                         )}
-                                                      </div>
-                                                   )
-                                                })}
-                                             </div>
-                                          )}
-
-                                          <div className="flex flex-wrap gap-1 mt-2">
-                                             {uni.tags.map(t => <span key={t} className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">{t}</span>)}
-                                          </div>
-                                       </div>
-                                    </div>
-                                    <div className="text-right">
-                                       <div className={`text-lg font-bold ${uni.matchScore! >= 80 ? 'text-green-600' : (uni.matchScore ?? 0) >= 60 ? 'text-primary-600' : 'text-red-500'}`}>
-                                          {uni.matchScore}
-                                       </div>
-                                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold
-                                          ${uni.winRate === 'High' ? 'bg-green-100 text-green-700' : uni.winRate === 'Medium' ? 'bg-blue-100 text-blue-700' : 'bg-red-50 text-red-700 border border-red-100'}
-                                       `}>
-                                          Win: {uni.winRate}
+                        <div className="flex items-start gap-3">
+                           <img src={uni.logo} className="w-10 h-10 rounded object-contain bg-white border border-gray-100 p-0.5 flex-shrink-0" alt={uni.name} />
+                           <div className="flex-1 min-w-0 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                 <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                       <h4 className="font-bold text-gray-900 text-sm truncate max-w-full">{uni.name}</h4>
+                                       <span className="text-xs text-gray-500 truncate max-w-full" title={isEn ? `Ranking: #${uni.rank}` : `排名：#${uni.rank}`}>
+                                          #{uni.rank}
                                        </span>
                                     </div>
                                  </div>
-                                 
-                                 {uni.reason && (
-                                    <div className="mt-2 pt-2 border-t border-dashed border-gray-100 text-xs text-gray-500 leading-snug">
-                                       <span className="font-bold text-gray-400">{isEn ? 'AI Analysis: ' : 'AI 分析：'}</span>{uni.reason}
+                                 <div className="text-right flex-shrink-0">
+                                    <div className="flex items-start justify-end gap-0.5">
+                                       <div className={`text-lg font-bold leading-none ${uni.matchScore! >= 80 ? 'text-green-600' : (uni.matchScore ?? 0) >= 60 ? 'text-primary-600' : 'text-red-500'}`}>
+                                          {uni.matchScore}
+                                       </div>
+                                       <div className="group/match-info relative -mt-1">
+                                          <button
+                                             type="button"
+                                             aria-label={isEn ? 'How the match score is calculated' : '匹配度分数计算说明'}
+                                             className="rounded-full text-gray-400 transition-colors hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1"
+                                          >
+                                             <Info className="h-3 w-3" />
+                                          </button>
+                                          <div
+                                             role="tooltip"
+                                             className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 w-56 rounded-md bg-gray-900 px-2.5 py-2 text-left text-[11px] font-normal leading-relaxed text-white opacity-0 shadow-lg transition-opacity group-hover/match-info:opacity-100 group-focus-within/match-info:opacity-100"
+                                          >
+                                             {isEn ? 'The match score is calculated from xxxx.' : '匹配度分数由xxxx计算而来。'}
+                                          </div>
+                                       </div>
                                     </div>
-                                 )}
+                                 </div>
+                              </div>
 
-                                 {targetMajors.length === 0 && !isSelected && (
-                                    <div className="mt-3 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                       <button onClick={() => handleAddSchool(uni, 'Reach')} className="px-2 py-1 text-[10px] font-bold bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100">+ Reach</button>
-                                       <button onClick={() => handleAddSchool(uni, 'Match')} className="px-2 py-1 text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-200 rounded hover:bg-blue-100">+ Match</button>
-                                       <button onClick={() => handleAddSchool(uni, 'Safety')} className="px-2 py-1 text-[10px] font-bold bg-green-50 text-green-600 border border-green-200 rounded hover:bg-green-100">+ Safety</button>
+                              {targetMajors.length > 0 && (
+                                 <div className="space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                       <div className="flex items-center gap-1.5 text-xs text-indigo-900 px-2 py-0.5 rounded-md border border-indigo-100/50 bg-indigo-50/30 w-fit mb-1">
+                                          <Target className="w-3 h-3 text-indigo-600" />
+                                          <span className="font-bold text-indigo-700">{isEn ? 'Major Match:' : '专业匹配:'}</span>
+                                       </div>
+                                       <span className="group/win-rate relative inline-block mb-1 flex-shrink-0">
+                                          <span
+                                             tabIndex={0}
+                                             className={`inline-block cursor-help whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1
+                                                ${uni.winRate === 'High' ? 'bg-green-100 text-green-700' : uni.winRate === 'Medium' ? 'bg-blue-100 text-blue-700' : 'bg-red-50 text-red-700 border border-red-100'}
+                                             `}
+                                          >
+                                             Win: {uni.winRate}
+                                          </span>
+                                          <span
+                                             role="tooltip"
+                                             className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1.5 text-[11px] font-normal text-white opacity-0 shadow-lg transition-opacity group-hover/win-rate:opacity-100 group-focus-within/win-rate:opacity-100"
+                                          >
+                                             {isEn ? `Admission chance: ${uni.winRate}` : `录取率：${uni.winRate === 'High' ? '高' : uni.winRate === 'Medium' ? '中' : '低'}`}
+                                          </span>
+                                       </span>
                                     </div>
-                                 )}
+                                    {targetMajors.map(major => {
+                                       const isMajorSelected = selectedSchools.some(s => s.uni.id === uni.id && s.major === major);
+                                       return (
+                                          <div key={major} className="flex justify-between items-center bg-gray-50/80 border border-gray-100 px-2 py-1.5 rounded text-xs hover:bg-white hover:shadow-sm transition-all group/major gap-2">
+                                             <span className="font-medium text-gray-700 pr-2 min-w-0 flex-1" title={major}>{major}</span>
+                                             {!isMajorSelected ? (
+                                                <div className="flex gap-1 opacity-60 group-hover/major:opacity-100 transition-opacity flex-shrink-0">
+                                                   <TierAddButton label="+R" tooltip="Reach 冲刺" onClick={() => handleAddSchool(uni, 'Reach', major)} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-red-600 border border-red-200 rounded hover:bg-red-50 hover:border-red-300" />
+                                                   <TierAddButton label="+M" tooltip="Match 匹配" onClick={() => handleAddSchool(uni, 'Match', major)} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-blue-600 border border-blue-200 rounded hover:bg-blue-50 hover:border-blue-300" />
+                                                   <TierAddButton label="+S" tooltip="Safety 保底" onClick={() => handleAddSchool(uni, 'Safety', major)} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-green-600 border border-green-200 rounded hover:bg-green-50 hover:border-green-300" />
+                                                </div>
+                                             ) : (
+                                                <span className="text-[10px] text-green-600 flex items-center gap-1 font-medium bg-green-50 px-1.5 py-0.5 rounded border border-green-100 flex-shrink-0">
+                                                   <CheckCircle className="w-3 h-3" /> Added
+                                                </span>
+                                             )}
+                                          </div>
+                                       );
+                                    })}
+                                 </div>
+                              )}
+
+                              {targetMajors.length === 0 && (
+                                 <div className="flex justify-end">
+                                    <span className="group/win-rate relative inline-block">
+                                       <span tabIndex={0} className={`inline-block cursor-help whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1 ${uni.winRate === 'High' ? 'bg-green-100 text-green-700' : uni.winRate === 'Medium' ? 'bg-blue-100 text-blue-700' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                                          Win: {uni.winRate}
+                                       </span>
+                                       <span role="tooltip" className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1.5 text-[11px] font-normal text-white opacity-0 shadow-lg transition-opacity group-hover/win-rate:opacity-100 group-focus-within/win-rate:opacity-100">
+                                          {isEn ? `Admission chance: ${uni.winRate}` : `录取率：${uni.winRate === 'High' ? '高' : uni.winRate === 'Medium' ? '中' : '低'}`}
+                                       </span>
+                                    </span>
+                                 </div>
+                              )}
+
+                              <div className="flex flex-wrap gap-1">
+                                 {uni.tags.map(t => <span key={t} className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">{t}</span>)}
+                              </div>
+                           </div>
+                        </div>
+
+                        {uni.reason && (
+                           <div className="mt-2 pt-2 border-t border-dashed border-gray-100 text-xs text-gray-500 leading-snug">
+                              <span className="font-bold text-gray-400">{isEn ? 'AI Analysis: ' : 'AI 分析：'}</span>{uni.reason}
+                           </div>
+                        )}
+
+                        {targetMajors.length === 0 && !isSelected && (
+                           <div className="mt-3 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => handleAddSchool(uni, 'Reach')} className="px-2 py-1 text-[10px] font-bold bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100">+ Reach</button>
+                              <button onClick={() => handleAddSchool(uni, 'Match')} className="px-2 py-1 text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-200 rounded hover:bg-blue-100">+ Match</button>
+                              <button onClick={() => handleAddSchool(uni, 'Safety')} className="px-2 py-1 text-[10px] font-bold bg-green-50 text-green-600 border border-green-200 rounded hover:bg-green-100">+ Safety</button>
+                           </div>
+                        )}
                                  
-                                 {targetMajors.length === 0 && isSelected && (
-                                    <div className="absolute top-2 right-2">
-                                       <CheckCircle className="w-4 h-4 text-green-500" />
-                                    </div>
-                                 )}
+                        {targetMajors.length === 0 && isSelected && (
+                           <div className="absolute top-2 right-2">
+                              <CheckCircle className="w-4 h-4 text-green-500" />
+                           </div>
+                        )}
                      </div>
                   )
                })}
