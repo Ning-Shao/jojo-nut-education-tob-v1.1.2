@@ -514,11 +514,21 @@ const Step3Selection: React.FC<Step3Props> = ({
                                        onChange={event => {
                                           const value = event.target.value;
                                           if (!/^\d*\.?\d*$/.test(value)) return;
-                                          if (value !== '' && Number(value) > rule.totalMax) return;
                                           updateDirectTotal(value);
+                                          if (key === 'toefl' && value !== '') {
+                                             const numericValue = Number(value);
+                                             if (Number.isFinite(numericValue) && (numericValue < 1 || numericValue > 6)) {
+                                                setCalculatedTotalNotice(isEn ? 'Input value must be between 1 and 6' : '输入数值须在1—6之间');
+                                             } else {
+                                                setCalculatedTotalNotice(null);
+                                             }
+                                          } else if (key === 'toefl') {
+                                             setCalculatedTotalNotice(null);
+                                          }
                                        }}
                                        onBlur={event => {
                                           if (event.target.value === '') return;
+                                          if (key === 'toefl') return;
                                           const score = Number(event.target.value);
                                           if (!Number.isFinite(score)) return;
                                           const normalized = Math.min(rule.totalMax, Math.max(rule.totalMin, Math.round((score - rule.totalMin) / rule.totalStep) * rule.totalStep + rule.totalMin));
