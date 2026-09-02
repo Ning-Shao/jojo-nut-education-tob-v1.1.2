@@ -1,0 +1,158 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e171]:
+      - banner [ref=e172]:
+        - generic [ref=e173]:
+          - generic [ref=e174]:
+            - button "N Nut" [ref=e175] [cursor=pointer]:
+              - generic [ref=e176]: "N"
+              - generic [ref=e177]: Nut
+            - navigation [ref=e178]:
+              - button [ref=e180] [cursor=pointer]
+              - button [ref=e188] [cursor=pointer]
+              - button [ref=e196] [cursor=pointer]
+              - button [ref=e203] [cursor=pointer]
+              - button [ref=e209] [cursor=pointer]
+              - button [ref=e215] [cursor=pointer]
+          - button "Ms. Sarah Senior Counselor S" [ref=e221] [cursor=pointer]:
+            - generic [ref=e222]:
+              - paragraph [ref=e223]: Ms. Sarah
+              - paragraph [ref=e224]: Senior Counselor
+            - generic [ref=e225]: S
+      - main [ref=e228]:
+        - generic [ref=e915]:
+          - generic [ref=e916]:
+            - generic [ref=e917]:
+              - button "返回列表" [ref=e918] [cursor=pointer]
+              - generic [ref=e921]:
+                - img "avatar" [ref=e922]
+                - generic [ref=e923]:
+                  - heading "Alex Chen" [level=1] [ref=e924]
+                  - paragraph [ref=e925]: G11 • US Top 30 CS
+            - generic [ref=e927]:
+              - generic [ref=e928]: 学术
+              - generic [ref=e931]: 目标
+              - generic [ref=e934]: 任务
+              - generic [ref=e937]: 材料
+              - generic [ref=e940]: 沟通
+          - generic [ref=e943]:
+            - generic [ref=e944] [cursor=pointer]:
+              - generic [ref=e945]:
+                - button "AI 状态深度诊断" [ref=e946]
+                - generic [ref=e949]:
+                  - generic [ref=e950]: 成绩异常下滑
+                  - generic [ref=e953]: 家校互动断连
+              - generic [ref=e956]:
+                - button "重新诊断" [ref=e957]
+                - generic [ref=e963]: 展开深度诊断
+            - generic [ref=e966]:
+              - heading "维度诊断详情 (Dimensions)" [level=4] [ref=e967]
+              - generic [ref=e968]:
+                - generic [ref=e969]:
+                  - generic [ref=e970]: 成绩异常下滑
+                  - generic [ref=e976]:
+                    - paragraph [ref=e977]: 学术 状态
+                    - paragraph [ref=e978]: G11下学期 GPA 较上学期下滑 0.3，且 TOEFL 备考进度停滞（已逾期14天）。
+                - generic [ref=e979]:
+                  - generic [ref=e980]: 选校方案激进
+                  - generic [ref=e986]:
+                    - paragraph [ref=e987]: 目标 状态
+                    - paragraph [ref=e988]: 选校清单中 Reach 校占比达 90%，缺乏 Safety 方案，且申请专业未定。
+                - generic [ref=e989]:
+                  - generic [ref=e990]: 进度完全正常
+                  - generic [ref=e996]:
+                    - paragraph [ref=e997]: 任务 状态
+                    - paragraph [ref=e998]: 所有近期任务（个人陈述 V1、Brag Sheet）均在计划内完成。
+                - generic [ref=e999]:
+                  - generic [ref=e1000]: 推荐信待催办
+                  - generic [ref=e1005]:
+                    - paragraph [ref=e1006]: 材料 状态
+                    - paragraph [ref=e1007]: Mr. Li (Math) 尚未点击推荐信确认邮件，已等待 3 天。
+                - generic [ref=e1008]:
+                  - generic [ref=e1009]: 家校互动断连
+                  - generic [ref=e1014]:
+                    - paragraph [ref=e1015]: 沟通 状态
+                    - paragraph [ref=e1016]: 学生连续 14 天未登录，家长上周关于“预算”的咨询邮件尚未回复。
+          - navigation [ref=e1017]:
+            - generic [ref=e1018]:
+              - button "1. 基础信息" [ref=e1019] [cursor=pointer]
+              - button "2. 申请资料夹" [ref=e1023] [cursor=pointer]
+              - button "3. 升学规划" [ref=e1026] [cursor=pointer]
+              - button "4. 文书助手" [ref=e1030] [cursor=pointer]
+              - button "5. 推荐信助手" [ref=e1034] [cursor=pointer]
+              - button "6. Offer追踪" [ref=e1038] [cursor=pointer]
+              - button "7. 沟通记录" [ref=e1045] [cursor=pointer]
+          - main [ref=e1048]:
+            - generic [ref=e1378]:
+              - generic [ref=e1379]:
+                - generic [ref=e1380]:
+                  - heading "文书任务" [level=3] [ref=e1381]
+                  - button "下发新文书" [ref=e1382] [cursor=pointer]
+                - generic [ref=e1384]:
+                  - generic [ref=e1387] [cursor=pointer]:
+                    - paragraph [ref=e1388]: Common App
+                    - paragraph [ref=e1389]: Common App Main Essay
+                    - generic [ref=e1390]: 2024-11-01
+                  - generic [ref=e1397] [cursor=pointer]:
+                    - paragraph [ref=e1398]: Carnegie Mellon University
+                    - paragraph [ref=e1399]: Why Carnegie Mellon?
+                    - generic [ref=e1400]: 2025-01-01
+              - generic [ref=e1405]:
+                - generic [ref=e1406]:
+                  - generic [ref=e1407]:
+                    - generic [ref=e1408]:
+                      - heading "Common App Main Essay" [level=1] [ref=e1409]
+                      - generic [ref=e1410]:
+                        - generic [ref=e1411]: Common App
+                        - generic [ref=e1412]: •
+                        - generic [ref=e1413]: Personal Statement
+                    - generic [ref=e1414]:
+                      - button "发布本轮审阅" [ref=e1415] [cursor=pointer]
+                      - button "退回学生修改" [ref=e1419] [cursor=pointer]
+                      - button "定稿" [ref=e1423] [cursor=pointer]
+                  - generic [ref=e1427]:
+                    - generic [ref=e1428]:
+                      - button "构思" [ref=e1429] [cursor=pointer]
+                      - button "写作" [ref=e1432] [cursor=pointer]
+                      - button "历史版本" [ref=e1436] [cursor=pointer]
+                    - generic [ref=e1441]:
+                      - generic "文档模式" [ref=e1442]:
+                        - button "查看" [ref=e1443] [cursor=pointer]
+                        - button "建议" [active] [ref=e1444] [cursor=pointer]
+                        - button "编辑" [ref=e1445] [cursor=pointer]
+                      - generic [ref=e1446]: 已保存
+                      - generic [ref=e1450]: "当前状态:"
+                      - generic [ref=e1451]: 审阅中
+                - generic [ref=e1454]:
+                  - generic [ref=e1455]:
+                    - generic [ref=e1459]:
+                      - generic [ref=e1460]:
+                        - generic [ref=e1461]: 双击进入建议模式，可选中文字评论或建议修改
+                        - button "开始建议" [ref=e1466] [cursor=pointer]
+                      - generic "双击文本即可直接修改" [ref=e1472]: I have always been fascinated by the way small peices come together to create something larger than life. My journey began with Legos. These early builds were more than play; they were my first lessons in structural integrity. I think I am a very hard working student who likes to build things.
+                    - generic [ref=e1473]:
+                      - button "保存审阅草稿" [ref=e1474] [cursor=pointer]
+                      - button "创建版本" [ref=e1480] [cursor=pointer]
+                      - button "AI 深度批改" [ref=e1483] [cursor=pointer]
+                  - generic [ref=e1487]:
+                    - generic [ref=e1488]:
+                      - button "建议" [ref=e1489] [cursor=pointer]
+                      - button "批注" [ref=e1493] [cursor=pointer]
+                      - button "整体反馈" [ref=e1497] [cursor=pointer]
+                      - button "AI建议" [ref=e1502] [cursor=pointer]
+                    - generic [ref=e1507]:
+                      - generic [ref=e1508]:
+                        - generic [ref=e1509]:
+                          - generic [ref=e1510]: 0 条未解决批注
+                          - generic [ref=e1511]:
+                            - button "上一条" [disabled] [ref=e1512]
+                            - button "下一条" [disabled] [ref=e1513]
+                        - generic [ref=e1514]:
+                          - button "全部" [ref=e1515] [cursor=pointer]
+                          - button "未解决" [ref=e1516] [cursor=pointer]
+                          - button "已解决" [ref=e1517] [cursor=pointer]
+                      - paragraph [ref=e1521]: 进入审阅模式并选中文字，即可添加批注。
+    - button "问题反馈" [ref=e100] [cursor=pointer]
+  - generic [ref=e131]:
+    - button "Copy element" [ref=e136] [cursor=pointer]
+    - button "Collapse toolbar" [expanded] [ref=e140] [cursor=pointer]

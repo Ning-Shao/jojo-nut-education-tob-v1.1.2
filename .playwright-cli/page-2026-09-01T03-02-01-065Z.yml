@@ -1,0 +1,138 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e164]:
+      - banner [ref=e165]:
+        - generic [ref=e166]:
+          - generic [ref=e167]:
+            - button "N Nut" [ref=e168] [cursor=pointer]:
+              - generic [ref=e169]: "N"
+              - generic [ref=e170]: Nut
+            - navigation [ref=e171]:
+              - button [ref=e173] [cursor=pointer]
+              - button [ref=e181] [cursor=pointer]
+              - button [ref=e189] [cursor=pointer]
+              - button [ref=e196] [cursor=pointer]
+              - button [ref=e202] [cursor=pointer]
+              - button [ref=e208] [cursor=pointer]
+          - button "Ms. Sarah Senior Counselor S" [ref=e214] [cursor=pointer]:
+            - generic [ref=e215]:
+              - paragraph [ref=e216]: Ms. Sarah
+              - paragraph [ref=e217]: Senior Counselor
+            - generic [ref=e218]: S
+      - main [ref=e221]:
+        - generic [ref=e1298]:
+          - generic [ref=e1299]:
+            - generic [ref=e1300]:
+              - button "返回列表" [ref=e1301] [cursor=pointer]
+              - generic [ref=e1304]:
+                - img "avatar" [ref=e1305]
+                - generic [ref=e1306]:
+                  - heading "Alex Chen" [level=1] [ref=e1307]
+                  - paragraph [ref=e1308]: G11 • US Top 30 CS
+            - generic [ref=e1310]:
+              - generic [ref=e1311]: 学术
+              - generic [ref=e1314]: 目标
+              - generic [ref=e1317]: 任务
+              - generic [ref=e1320]: 材料
+              - generic [ref=e1323]: 沟通
+          - generic [ref=e1326]:
+            - generic [ref=e1327] [cursor=pointer]:
+              - generic [ref=e1328]:
+                - button "AI 状态深度诊断" [ref=e1329]
+                - generic [ref=e1332]:
+                  - generic [ref=e1333]: 成绩异常下滑
+                  - generic [ref=e1336]: 家校互动断连
+              - generic [ref=e1339]:
+                - button "重新诊断" [ref=e1340]
+                - generic [ref=e1346]: 展开深度诊断
+            - generic [ref=e1349]:
+              - heading "维度诊断详情 (Dimensions)" [level=4] [ref=e1350]
+              - generic [ref=e1351]:
+                - generic [ref=e1352]:
+                  - generic [ref=e1353]: 成绩异常下滑
+                  - generic [ref=e1359]:
+                    - paragraph [ref=e1360]: 学术 状态
+                    - paragraph [ref=e1361]: G11下学期 GPA 较上学期下滑 0.3，且 TOEFL 备考进度停滞（已逾期14天）。
+                - generic [ref=e1362]:
+                  - generic [ref=e1363]: 选校方案激进
+                  - generic [ref=e1369]:
+                    - paragraph [ref=e1370]: 目标 状态
+                    - paragraph [ref=e1371]: 选校清单中 Reach 校占比达 90%，缺乏 Safety 方案，且申请专业未定。
+                - generic [ref=e1372]:
+                  - generic [ref=e1373]: 进度完全正常
+                  - generic [ref=e1379]:
+                    - paragraph [ref=e1380]: 任务 状态
+                    - paragraph [ref=e1381]: 所有近期任务（个人陈述 V1、Brag Sheet）均在计划内完成。
+                - generic [ref=e1382]:
+                  - generic [ref=e1383]: 推荐信待催办
+                  - generic [ref=e1388]:
+                    - paragraph [ref=e1389]: 材料 状态
+                    - paragraph [ref=e1390]: Mr. Li (Math) 尚未点击推荐信确认邮件，已等待 3 天。
+                - generic [ref=e1391]:
+                  - generic [ref=e1392]: 家校互动断连
+                  - generic [ref=e1397]:
+                    - paragraph [ref=e1398]: 沟通 状态
+                    - paragraph [ref=e1399]: 学生连续 14 天未登录，家长上周关于“预算”的咨询邮件尚未回复。
+          - navigation [ref=e1400]:
+            - generic [ref=e1401]:
+              - button "1. 基础信息" [ref=e1402] [cursor=pointer]
+              - button "2. 申请资料夹" [ref=e1406] [cursor=pointer]
+              - button "3. 升学规划" [active] [ref=e1409] [cursor=pointer]
+              - button "4. 文书助手" [ref=e1413] [cursor=pointer]
+              - button "5. 推荐信助手" [ref=e1417] [cursor=pointer]
+              - button "6. Offer追踪" [ref=e1421] [cursor=pointer]
+              - button "7. 沟通记录" [ref=e1428] [cursor=pointer]
+          - main [ref=e1431]:
+            - generic [ref=e1761]:
+              - generic [ref=e1762]:
+                - button "1 职业与专业规划" [ref=e1763] [cursor=pointer]:
+                  - generic [ref=e1764]: "1"
+                  - generic [ref=e1765]: 职业与专业规划
+                - button "2 目标确认" [ref=e1767] [cursor=pointer]:
+                  - generic [ref=e1768]: "2"
+                  - generic [ref=e1769]: 目标确认
+                - button "3 定校助手 (AI)" [ref=e1771] [cursor=pointer]:
+                  - generic [ref=e1772]: "3"
+                  - generic [ref=e1773]: 定校助手 (AI)
+                - button "4 选校清单 (Final)" [ref=e1775] [cursor=pointer]:
+                  - generic [ref=e1776]: "4"
+                  - generic [ref=e1777]: 选校清单 (Final)
+                - button "5 差距分析报告" [ref=e1779] [cursor=pointer]:
+                  - generic [ref=e1780]: "5"
+                  - generic [ref=e1781]: 差距分析报告
+                - button "6 申请时间线" [ref=e1783] [cursor=pointer]:
+                  - generic [ref=e1784]: "6"
+                  - generic [ref=e1785]: 申请时间线
+              - generic [ref=e1787]:
+                - generic [ref=e1788]:
+                  - generic [ref=e1789]:
+                    - heading "职业与专业方向探索" [level=2] [ref=e1790]
+                    - paragraph [ref=e1794]: 结合家庭资源与学生特质，利用 AI 大模型进行联网检索与深度匹配，寻找最具发展潜力的赛道。
+                  - generic [ref=e1795]:
+                    - generic [ref=e1796]:
+                      - heading "家庭期望与资源 (Family Context)" [level=3] [ref=e1803]
+                      - generic [ref=e1804]:
+                        - generic [ref=e1805]:
+                          - generic [ref=e1806]: 家庭期望 (Expectations)
+                          - textbox "例如：行业偏好、职业稳定性、薪资期待..." [ref=e1807]: 希望从事金融或科技行业，偏好稳定且高薪的职业路径。
+                        - generic [ref=e1808]:
+                          - generic [ref=e1809]: 家庭资源 (Resources)
+                          - textbox "例如：人脉资源、行业背景、资金支持..." [ref=e1810]: 父母均为金融从业者，在国内头部券商有丰富人脉资源；预算充足。
+                    - generic [ref=e1811]:
+                      - heading "学生画像 (Student Profile)" [level=3] [ref=e1816]
+                      - generic [ref=e1817]:
+                        - generic [ref=e1818]:
+                          - generic [ref=e1819]: 兴趣 (Interests)
+                          - textbox "例如：羽毛球、乐高、科幻..." [ref=e1820]: 羽毛球、乐高搭建、科幻小说。
+                        - generic [ref=e1821]:
+                          - generic [ref=e1822]: 能力 (Abilities)
+                          - textbox "例如：数学逻辑强、擅长编程、写作..." [ref=e1823]: 数学逻辑思维强，AMC 12 获得 Distinction；具备 Python 基础。
+                        - generic [ref=e1824]:
+                          - generic [ref=e1825]: 意向 (Intentions)
+                          - textbox "例如：想做有挑战性的工作、改变世界..." [ref=e1826]: 想做很酷、很有挑战性的事情，不喜欢重复性工作。
+                  - button "生成 AI 规划建议" [ref=e1828] [cursor=pointer]
+                - button "下一步：目标确认 (Step 2)" [disabled] [ref=e1833]
+    - button "问题反馈" [ref=e100] [cursor=pointer]
+  - generic [ref=e104]:
+    - button "Copy element" [ref=e109] [cursor=pointer]
+    - button "Collapse toolbar" [expanded] [ref=e113] [cursor=pointer]

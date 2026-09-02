@@ -1,0 +1,160 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e1755]:
+      - banner [ref=e1756]:
+        - generic [ref=e1757]:
+          - generic [ref=e1758]:
+            - button "返回学生首页" [ref=e1759] [cursor=pointer]:
+              - generic [ref=e1760]: "N"
+              - generic [ref=e1761]: Nut Student
+            - navigation [ref=e1762]:
+              - button [ref=e1764] [cursor=pointer]
+              - button [active] [ref=e1772] [cursor=pointer]
+              - button [ref=e1777] [cursor=pointer]
+              - button [ref=e1784] [cursor=pointer]
+          - button "Alex Grade 11 A" [ref=e1790] [cursor=pointer]:
+            - generic [ref=e1791]:
+              - paragraph [ref=e1792]: Alex
+              - paragraph [ref=e1793]: Grade 11
+            - generic [ref=e1794]: A
+      - main [ref=e1797]:
+        - generic [ref=e1908]:
+          - generic [ref=e1909]:
+            - button "1. 基础信息" [ref=e1910] [cursor=pointer]
+            - button "2. 申请资料夹" [ref=e1914] [cursor=pointer]
+            - button "3. 升学规划" [ref=e1917] [cursor=pointer]
+            - button "4. 文书助手" [ref=e1921] [cursor=pointer]
+            - button "5. 推荐信助手" [ref=e1925] [cursor=pointer]
+            - button "6. Offer追踪" [ref=e1929] [cursor=pointer]
+          - generic [ref=e1933]:
+            - generic [ref=e1935]:
+              - generic [ref=e1936]:
+                - heading "基础资料" [level=3] [ref=e1937]
+                - generic [ref=e1941]: 已认证
+              - generic [ref=e1945]:
+                - generic [ref=e1946]:
+                  - generic [ref=e1947]: 学校
+                  - generic [ref=e1948]: Ascent International School
+                - generic [ref=e1949]:
+                  - generic [ref=e1950]: 年级
+                  - generic [ref=e1951]: G11
+                - generic [ref=e1952]:
+                  - generic [ref=e1953]: 学号
+                  - generic [ref=e1954]: "2025001"
+                - generic [ref=e1955]: 如需修改基础信息，请联系教务老师。
+            - generic [ref=e1959]:
+              - generic [ref=e1960]:
+                - generic [ref=e1961]:
+                  - heading "Alevel官考成绩" [level=3] [ref=e1962]
+                  - generic [ref=e1966]: 已同步校务系统
+                - generic [ref=e1970]:
+                  - generic [ref=e1973] [cursor=pointer]:
+                    - generic [ref=e1976]: AS Level - May/June 2023
+                    - generic [ref=e1977]: 3 Courses
+                  - generic [ref=e1978]:
+                    - generic [ref=e1980] [cursor=pointer]:
+                      - generic [ref=e1983]: A2 Level - May/June 2024
+                      - generic [ref=e1984]: 4 Courses
+                    - table [ref=e1986]:
+                      - rowgroup [ref=e1987]:
+                        - row [ref=e1988]:
+                          - columnheader "考试时间" [ref=e1989]
+                          - columnheader "科目" [ref=e1990]
+                          - columnheader "等第" [ref=e1991]
+                          - columnheader "分数" [ref=e1992]
+                      - rowgroup [ref=e1993]:
+                        - row [ref=e1994]:
+                          - cell "2024-05" [ref=e1995]
+                          - cell "Mathematics" [ref=e1996]
+                          - cell "A*" [ref=e1997]
+                          - cell "96" [ref=e1998]
+                        - row [ref=e1999]:
+                          - cell "2024-05" [ref=e2000]
+                          - cell "Physics" [ref=e2001]
+                          - cell "A*" [ref=e2002]
+                          - cell "94" [ref=e2003]
+                        - row [ref=e2004]:
+                          - cell "2024-05" [ref=e2005]
+                          - cell "Chemistry" [ref=e2006]
+                          - cell "A" [ref=e2007]
+                          - cell "87" [ref=e2008]
+                        - row [ref=e2009]:
+                          - cell "2024-05" [ref=e2010]
+                          - cell "Further Mathematics" [ref=e2011]
+                          - cell "A" [ref=e2012]
+                          - cell "89" [ref=e2013]
+              - generic [ref=e2014]:
+                - generic [ref=e2015]:
+                  - generic [ref=e2016]:
+                    - heading "标化考试" [level=3] [ref=e2017]
+                    - button "更新最新成绩" [ref=e2020] [cursor=pointer]
+                  - generic [ref=e2022]:
+                    - generic [ref=e2024]:
+                      - generic [ref=e2025]:
+                        - generic [ref=e2026]:
+                          - generic [ref=e2027]: TOEFL
+                          - generic [ref=e2028]: TOEFL
+                        - generic [ref=e2029]:
+                          - paragraph [ref=e2030]: 2023-10
+                          - generic [ref=e2031]: 已核验
+                      - generic [ref=e2035]: "102"
+                    - generic [ref=e2037]:
+                      - generic [ref=e2038]:
+                        - generic [ref=e2039]:
+                          - generic [ref=e2040]: SAT
+                          - generic [ref=e2041]: SAT
+                        - generic [ref=e2042]:
+                          - paragraph [ref=e2043]: 2023-12
+                          - generic [ref=e2044]: 已核验
+                      - generic [ref=e2048]: "1450"
+                    - generic [ref=e2050]:
+                      - generic [ref=e2051]:
+                        - generic [ref=e2052]:
+                          - generic [ref=e2053]: Calculus BC
+                          - generic [ref=e2054]: AP
+                        - generic [ref=e2055]:
+                          - paragraph [ref=e2056]: 2024-05
+                          - generic [ref=e2057]: 已核验
+                      - generic [ref=e2061]: "5"
+                    - generic [ref=e2063]:
+                      - generic [ref=e2064]:
+                        - generic [ref=e2065]:
+                          - generic [ref=e2066]: "Physics C: Mech"
+                          - generic [ref=e2067]: AP
+                        - generic [ref=e2068]:
+                          - paragraph [ref=e2069]: 2024-05
+                          - generic [ref=e2070]: 已核验
+                      - generic [ref=e2074]: "5"
+                    - generic [ref=e2076]:
+                      - generic [ref=e2077]:
+                        - generic [ref=e2078]:
+                          - generic [ref=e2079]: "Physics C: E&M"
+                          - generic [ref=e2080]: AP
+                        - generic [ref=e2081]:
+                          - paragraph [ref=e2082]: 2024-05
+                          - generic [ref=e2083]: 已核验
+                      - generic [ref=e2087]: "4"
+                - generic [ref=e2088]:
+                  - generic [ref=e2089]:
+                    - heading "活动列表" [level=3] [ref=e2090]
+                    - button "添加新活动" [ref=e2097] [cursor=pointer]
+                  - generic [ref=e2099]:
+                    - generic [ref=e2100]:
+                      - generic [ref=e2101]:
+                        - generic [ref=e2102]: School Robotics Club
+                        - generic [ref=e2103]: 已核验
+                      - paragraph [ref=e2107]: Founder & President • 4h/week
+                    - generic [ref=e2108]:
+                      - generic [ref=e2109]:
+                        - generic [ref=e2110]: AMC 12 Math Competition
+                        - generic [ref=e2111]: 已核验
+                      - paragraph [ref=e2115]: Participant (Distinction) • -
+                    - generic [ref=e2116]:
+                      - generic [ref=e2117]:
+                        - generic [ref=e2118]: Community Elderly Care
+                        - generic [ref=e2119]: 已核验
+                      - paragraph [ref=e2123]: Volunteer • 50h Total
+    - button "问题反馈" [ref=e100] [cursor=pointer]
+  - generic [ref=e131]:
+    - button "Copy element" [ref=e136] [cursor=pointer]
+    - button "Collapse toolbar" [expanded] [ref=e140] [cursor=pointer]
