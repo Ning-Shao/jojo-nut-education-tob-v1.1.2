@@ -510,10 +510,11 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
     const value = Number(raw);
     if (!Number.isFinite(value)) return null;
     const meta = scoreFilterMeta[key];
-    return value >= meta.min && value <= meta.max ? value : null;
+    const stepUnits = (value - meta.min) / meta.step;
+    return value >= meta.min && value <= meta.max && Math.abs(stepUnits - Math.round(stepUnits)) < 1e-8 ? value : null;
   };
 
-  const getLanguageTotal = (key: LanguageScoreKey) => calculateExamTotal(key, languageSectionScores[key]) ?? getScoreValue(key);
+  const getLanguageTotal = (key: LanguageScoreKey) => getScoreValue(key);
 
   const completedScoreEntries = enabledScoreEntries
     .filter(([key]) => key === 'alevel'
@@ -881,10 +882,11 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                                    const meta = scoreFilterMeta[key];
                                    const calculatedKey = (['toefl', 'oldToefl', 'ielts'] as ScoreFilterKey[]).includes(key) ? key as LanguageScoreKey : null;
                                    const languageTotal = calculatedKey ? getLanguageTotal(calculatedKey) : null;
+                                   const directScoreValue = scoreDrafts[key] ?? String(item.value);
                                    const formattedValue = key === 'alevel'
                                      ? (alevelScore || (isEn ? 'Incomplete' : '待填写'))
                                      : calculatedKey
-                                       ? (languageTotal === null ? (isEn ? 'Complete all' : '待补全') : calculatedExamRules[calculatedKey].totalStep < 1 ? languageTotal.toFixed(1) : languageTotal)
+                                       ? directScoreValue
                                        : (getScoreValue(key) ?? (isEn ? 'Incomplete' : '待补全'));
                                    return (
                                       <div key={key} className={key === 'ib' ? 'flex flex-col gap-2' : undefined}>
@@ -932,13 +934,22 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                                                      type="text"
                                                      inputMode={calculatedKey && calculatedExamRules[calculatedKey].totalStep < 1 || key === 'atar' ? 'decimal' : 'numeric'}
                                                      value={calculatedKey ? formattedValue : scoreDrafts[key] ?? String(item.value)}
+                                                     placeholder={calculatedKey ? (isEn ? 'Incomplete' : '待补全') : undefined}
                                                      aria-invalid={item.enabled && (calculatedKey ? languageTotal === null : getScoreValue(key) === null)}
                                                      disabled={!item.enabled}
                                                      aria-label={`${meta.label} ${isEn ? 'score' : '成绩'}`}
                                                      onChange={event => {
                                                         const nextValue = event.target.value;
                                                         if (!/^-?\d*\.?\d*$/.test(nextValue)) return;
+                                                        if (nextValue !== '' && Number(nextValue) > meta.max) return;
                                                         setScoreDrafts(previous => ({ ...previous, [key]: nextValue }));
+                                                     }}
+                                                     onBlur={event => {
+                                                        if (event.target.value === '') return;
+                                                        const score = Number(event.target.value);
+                                                        if (!Number.isFinite(score)) return;
+                                                        const normalized = Math.min(meta.max, Math.max(meta.min, Math.round((score - meta.min) / meta.step) * meta.step + meta.min));
+                                                        setScoreDrafts(previous => ({ ...previous, [key]: String(normalized) }));
                                                      }}
                                                      className={`w-14 ${calculatedKey ? 'h-[26px] shrink-0 focus:ring-inset' : ''} rounded-md border px-1.5 py-1 text-right text-xs font-bold outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-zinc-700 dark:bg-zinc-800 ${item.enabled ? `border-gray-200 ${calculatedKey ? 'bg-gray-50' : 'bg-white'} text-primary-700 dark:text-primary-300` : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60 dark:text-zinc-600'}`}
                                                   />
