@@ -34,6 +34,7 @@ import {
   ArrowLeft,
 } from "../common/Icons";
 import { StudentSummary } from "../../types";
+import { calculateExamTotal, calculatedExamRules, type CalculatedExamKey, type ExamSectionDrafts } from "../common/features/examScoreRules";
 import {
   AreaChart,
   Area,
@@ -504,6 +505,13 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
   const [tempSubjectScores, setTempSubjectScores] = useState<SubjectScore[]>(
     [],
   );
+  const [calculatedTotalNotice, setCalculatedTotalNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!calculatedTotalNotice) return;
+    const timer = window.setTimeout(() => setCalculatedTotalNotice(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [calculatedTotalNotice]);
   const [tempActivities, setTempActivities] = useState<Activity[]>([]);
 
   // --- Handlers: Profile ---
@@ -556,7 +564,53 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
   };
   const handleCancelTests = () => {
     setIsEditingTests(false);
+    setCalculatedTotalNotice(null);
   };
+
+  const getCalculatedSubjectTotal = (score: SubjectScore): { key: CalculatedExamKey; total: number } | null => {
+    let key: CalculatedExamKey;
+    let drafts: ExamSectionDrafts;
+
+    if (score.type === "TOEFL") {
+      const examDate = Date.parse(score.date || "");
+      if (!Number.isFinite(examDate)) return null;
+      key = examDate >= Date.parse("2026-01-21") ? "toefl" : "oldToefl";
+      drafts = {
+        reading: score.subScores?.R || "",
+        listening: score.subScores?.L || "",
+        speaking: score.subScores?.S || "",
+        writing: score.subScores?.W || "",
+      };
+    } else if (score.type === "IELTS") {
+      key = "ielts";
+      drafts = {
+        reading: score.subScores?.R || "",
+        listening: score.subScores?.L || "",
+        speaking: score.subScores?.S || "",
+        writing: score.subScores?.W || "",
+      };
+    } else if (score.type === "SAT") {
+      key = "sat";
+      drafts = {
+        readingWriting: score.subScores?.EBRW || "",
+        math: score.subScores?.M || "",
+      };
+    } else if (score.type === "ACT") {
+      key = "act";
+      drafts = {
+        english: score.subScores?.E || "",
+        math: score.subScores?.M || "",
+        reading: score.subScores?.R || "",
+        science: score.subScores?.SCI || "",
+      };
+    } else {
+      return null;
+    }
+
+    const total = calculateExamTotal(key, drafts);
+    return total === null ? null : { key, total };
+  };
+
   const handleUpdateTempSubjectScore = (
     id: string,
     field: keyof SubjectScore,
@@ -571,20 +625,36 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
     subField: keyof NonNullable<SubjectScore["subScores"]>,
     value: string,
   ) => {
-    setTempSubjectScores((prev) =>
-      prev.map((s) => {
+    setTempSubjectScores((prev) => {
+      let updatedScore: SubjectScore | null = null;
+      const nextScores = prev.map((s) => {
         if (s.id === id) {
-          return {
+          updatedScore = {
             ...s,
             subScores: {
               ...(s.subScores || {}),
               [subField]: value,
             },
           };
+          return updatedScore;
         }
         return s;
-      }),
-    );
+      });
+
+      if (updatedScore) {
+        const calculated = getCalculatedSubjectTotal(updatedScore);
+        if (calculated) {
+          const displayTotal = calculatedExamRules[calculated.key].totalStep < 1
+            ? calculated.total.toFixed(1)
+            : String(calculated.total);
+          setCalculatedTotalNotice(isEn ? `Total should be ${displayTotal}` : `总分应为${displayTotal}分`);
+        } else {
+          setCalculatedTotalNotice(null);
+        }
+      }
+
+      return nextScores;
+    });
   };
   const handleRemoveTempSubjectScore = (id: string) => {
     setTempSubjectScores((prev) => prev.filter((s) => s.id !== id));
@@ -996,6 +1066,24 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
 
   return (
     <>
+      {calculatedTotalNotice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed left-1/2 top-5 z-[10000] flex w-[340px] max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200 dark:border-red-500/30 dark:bg-red-950/90 dark:text-red-300"
+        >
+          <XCircle className="h-5 w-5 flex-shrink-0 text-red-500" />
+          <span className="flex-1">{calculatedTotalNotice}</span>
+          <button
+            type="button"
+            aria-label={isEn ? "Close total score notice" : "关闭总分提示"}
+            onClick={() => setCalculatedTotalNotice(null)}
+            className="rounded p-0.5 text-red-400 transition-colors hover:bg-red-100 hover:text-red-600 focus:outline-none focus:ring-1 focus:ring-red-400 dark:hover:bg-red-900/50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       {pendingLeaveTarget && (
         <div
           id="leave-warning-modal"
