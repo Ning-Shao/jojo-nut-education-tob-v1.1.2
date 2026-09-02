@@ -30,7 +30,6 @@ import {
   ExternalLink,
   AlertCircle,
   XCircle,
-  MessageSquare,
   ArrowLeft,
 } from "../common/Icons";
 import { StudentSummary } from "../../types";
@@ -1169,9 +1168,6 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                         <h3 className="font-bold text-red-900 dark:text-red-300 text-base">
                           {isEn ? "Reject & Provide Feedback" : "填写驳回原因与指导备注"}
                         </h3>
-                        <p className="text-[11px] text-red-600/80 dark:text-red-400/80">
-                          {isEn ? "Step 2: Enter note for student" : "步骤 2/2：填写修改指引后通知学生"}
-                        </p>
                       </div>
                     </>
                   ) : (
@@ -1206,93 +1202,14 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
               {/* Content */}
               <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
                 {reviewStep === "reject" ? (
-                  /* Dedicated Rejection Remarks Form */
-                  <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-200">
-                    {/* Item Summary Banner */}
-                    <div className="p-3.5 bg-red-50/80 dark:bg-red-950/40 border border-red-200 dark:border-red-500/20 rounded-xl flex items-center justify-between">
-                      <div className="min-w-0 pr-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400 block mb-0.5">
-                          {isEn ? "Target Application" : "正在驳回的申请项目"}
-                        </span>
-                        <p className="font-bold text-gray-900 dark:text-white text-sm truncate">
-                          {"subject" in reviewingItem
-                            ? `${reviewingItem.subject} (${reviewingItem.score}) • ${reviewingItem.date || "No Date"}`
-                            : `${reviewingItem.title} • ${reviewingItem.role}`}
-                        </p>
-                      </div>
-                      <span className="text-[11px] font-semibold bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 px-2.5 py-1 rounded-md border border-red-200 dark:border-red-800/50 flex-shrink-0">
-                        {isEn ? "Reject Flow" : "驳回核验"}
-                      </span>
-                    </div>
-
-                    {/* Feedback Prompt Banner */}
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-bold text-gray-800 dark:text-zinc-200 flex items-center gap-1.5">
-                          <MessageSquare className="w-4 h-4 text-red-600" />
-                          {isEn ? "Rejection Reason & Student Instructions" : "驳回原因与修改指引（将即时同步给学生）："}
-                        </label>
-                        <span className="text-[11px] text-red-600 dark:text-red-400 font-medium">
-                          {isEn ? "* Required/Recommended" : "建议详细填写"}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-gray-500 dark:text-zinc-400 leading-relaxed mb-3">
-                        {isEn
-                          ? "Please specify why the submission failed and what the student needs to provide."
-                          : "请指出材料中存在的问题（如未盖章、不清晰、成绩不符等），帮助学生快速修正。"}
-                      </p>
-
-                      {/* Quick Presets */}
-                      <div className="mb-3">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">
-                          {isEn ? "Quick Presets (Click to insert):" : "快捷常用理由（点击添加）："}
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {[
-                            isEn ? "Proof document is blurry / illegible" : "佐证材料模糊不清",
-                            isEn ? "Missing official seal or signature" : "缺少官方有效盖章或签名",
-                            isEn ? "Score/Test date does not match certificate" : "成绩或考试日期与凭证不符",
-                            isEn ? "Activity role & achievements lack detail" : "活动职责与成果描述不详",
-                            isEn ? "Please re-upload original electronic PDF score report" : "请重新上传官方原版PDF电子成绩单",
-                            isEn ? "Duplicate submission" : "重复提交",
-                          ].map((preset) => (
-                            <button
-                              key={preset}
-                              type="button"
-                              onClick={() => {
-                                setReviewRemark((prev) =>
-                                  prev ? `${prev}；${preset}` : preset
-                                );
-                              }}
-                              className="text-[11px] px-2.5 py-1 rounded-lg bg-red-50/70 hover:bg-red-100 text-red-700 dark:bg-red-950/30 dark:hover:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-800/40 font-medium transition-colors cursor-pointer text-left"
-                            >
-                              + {preset}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Main Textarea */}
-                      <div className="space-y-1">
-                        <textarea
-                          autoFocus
-                          value={reviewRemark}
-                          onChange={(e) => setReviewRemark(e.target.value)}
-                          rows={4}
-                          placeholder={
-                            isEn
-                              ? "Enter specific reasons for rejection or instructions for the student (e.g. please upload official sealed score report)..."
-                              : "请输入单条驳回的具体原因或修改指导（例如：佐证材料缺少官方有效盖章，请重新上传清晰的高清扫描件）..."
-                          }
-                          className="w-full bg-white dark:bg-zinc-800 border-2 border-red-200 dark:border-red-500/30 rounded-xl p-3.5 text-xs text-gray-800 dark:text-white placeholder:text-gray-400 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 outline-none transition-all resize-y min-h-[110px]"
-                        />
-                        <div className="flex justify-between items-center text-[10px] text-gray-400 px-1">
-                          <span>{isEn ? "Visible in student's profile under rejected status." : "学生端基础信息列表将以红色醒目提示此驳回备注。"}</span>
-                          <span>{reviewRemark.length} {isEn ? "characters" : "字"}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <textarea
+                    autoFocus
+                    value={reviewRemark}
+                    onChange={(e) => setReviewRemark(e.target.value)}
+                    rows={6}
+                    placeholder={isEn ? "Enter rejection reason" : "请输入驳回原因"}
+                    className="w-full rounded-lg border border-gray-300 bg-white p-3 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-primary-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                  />
                 ) : (
                   /* Standard Review View (Details + Proof) */
                   <div className="space-y-6">
