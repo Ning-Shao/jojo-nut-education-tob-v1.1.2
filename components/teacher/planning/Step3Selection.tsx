@@ -461,7 +461,6 @@ const Step3Selection: React.FC<Step3Props> = ({
                         const expanded = supportsSections && !!simParams.expandedLanguageSections?.[key];
                         const calculatedTotal = supportsSections ? calculateExamTotal(key, simParams.languageSectionScores?.[key] ?? {}) : null;
                         const directTotal = simParams[`${key}Value`] ?? '';
-                        const formattedTotal = calculatedTotal === null ? directTotal : rule.totalStep < 1 ? calculatedTotal.toFixed(1) : String(calculatedTotal);
                         const directScore = Number(directTotal);
                         const directTotalValid = directTotal !== '' && Number.isFinite(directScore) && directScore >= rule.totalMin && directScore <= rule.totalMax
                            && Math.abs((directScore - rule.totalMin) / rule.totalStep - Math.round((directScore - rule.totalMin) / rule.totalStep)) < 1e-8;
@@ -507,18 +506,19 @@ const Step3Selection: React.FC<Step3Props> = ({
                                     <input
                                        type="text"
                                        inputMode={rule.totalStep < 1 ? 'decimal' : 'numeric'}
-                                       value={formattedTotal}
+                                       value={directTotal}
+                                       placeholder={isEn ? 'Incomplete' : '待补全'}
                                        disabled={!enabled}
-                                       aria-invalid={enabled && calculatedTotal === null && !directTotalValid}
+                                       aria-invalid={enabled && !directTotalValid}
                                        aria-label={`${label} ${isEn ? 'score' : '成绩'}`}
                                        onChange={event => {
-                                          if (calculatedTotal !== null) return;
                                           const value = event.target.value;
                                           if (!/^\d*\.?\d*$/.test(value)) return;
+                                          if (value !== '' && Number(value) > rule.totalMax) return;
                                           updateDirectTotal(value);
                                        }}
                                        onBlur={event => {
-                                          if (calculatedTotal !== null || event.target.value === '') return;
+                                          if (event.target.value === '') return;
                                           const score = Number(event.target.value);
                                           if (!Number.isFinite(score)) return;
                                           const normalized = Math.min(rule.totalMax, Math.max(rule.totalMin, Math.round((score - rule.totalMin) / rule.totalStep) * rule.totalStep + rule.totalMin));
@@ -551,8 +551,7 @@ const Step3Selection: React.FC<Step3Props> = ({
                                                    } else {
                                                       setCalculatedTotalNotice(null);
                                                    }
-                                                   const derived = { toefl: nextTotal === null ? 0 : key === 'toefl' ? Math.round(nextTotal * 20) : key === 'ielts' ? nextTotal * 12 : nextTotal };
-                                                   setSimParams({...simParams, languageSectionScores: nextSections, [`${key}Value`]: nextTotal === null ? '' : String(nextTotal), ...derived});
+                                                   setSimParams({...simParams, languageSectionScores: nextSections});
                                                 }}
                                                 className="w-full rounded-md border border-gray-200 bg-white px-1 py-1.5 text-right text-[11px] font-bold text-gray-700 outline-none focus:border-primary-400 focus:ring-1 focus:ring-inset focus:ring-primary-200"
                                              />
