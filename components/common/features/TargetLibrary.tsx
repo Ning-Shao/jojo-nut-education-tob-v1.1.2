@@ -16,6 +16,7 @@ import {
 // Fix import path: Go up two levels from features/common to components, then to teacher
 import { mockStudents } from '../../teacher/StudentList';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { calculateExamTotal, calculatedExamRules, emptyCalculatedExamSections, type CalculatedExamKey } from './examScoreRules';
 
 // --- Types ---
 interface EmploymentStatItem {
@@ -82,9 +83,7 @@ interface ScoreFilterItem {
   value: number;
 }
 
-type LanguageScoreKey = 'toefl' | 'oldToefl' | 'ielts';
-type LanguageSectionKey = 'reading' | 'listening' | 'speaking' | 'writing';
-type LanguageSectionScores = Record<LanguageSectionKey, string>;
+type LanguageScoreKey = CalculatedExamKey;
 
 interface ALevelSubjectFilter {
   id: string;
@@ -100,11 +99,7 @@ interface IBSubjectFilter {
   grade: string;
 }
 
-const emptyLanguageSectionScores = (): Record<LanguageScoreKey, LanguageSectionScores> => ({
-  toefl: { reading: '', listening: '', speaking: '', writing: '' },
-  oldToefl: { reading: '', listening: '', speaking: '', writing: '' },
-  ielts: { reading: '', listening: '', speaking: '', writing: '' }
-});
+const emptyLanguageSectionScores = emptyCalculatedExamSections;
 
 const alevelSubjectOptions = [
   { name: 'Mathematics', aliases: ['math', 'maths'] },
@@ -146,11 +141,11 @@ const scoreFilterMeta: Record<ScoreFilterKey, { label: string; min: number; max:
   alevel: { label: 'A-Level', min: 1, max: 4, step: 1 },
   ap: { label: 'AP', min: 1, max: 5, step: 1, suffix: ' 分' },
   ib: { label: 'IB', min: 24, max: 45, step: 1, suffix: ' 分' },
-  toefl: { label: 'TOEFL (From 21 January 2026)', min: 60, max: 120, step: 1 },
-  oldToefl: { label: 'TOEFL (Before 21 January 2026)', min: 60, max: 120, step: 1 },
-  ielts: { label: 'IELTS', min: 4, max: 9, step: 0.5 },
-  sat: { label: 'SAT', min: 1000, max: 1600, step: 10 },
-  act: { label: 'ACT', min: 20, max: 36, step: 1 },
+  toefl: { label: calculatedExamRules.toefl.label, min: 1, max: 6, step: 0.5 },
+  oldToefl: { label: calculatedExamRules.oldToefl.label, min: 0, max: 120, step: 1 },
+  ielts: { label: calculatedExamRules.ielts.label, min: 0, max: 9, step: 0.5 },
+  sat: { label: calculatedExamRules.sat.label, min: 400, max: 1600, step: 10 },
+  act: { label: calculatedExamRules.act.label, min: 1, max: 36, step: 1 },
   atar: { label: 'ATAR', min: 0, max: 99.95, step: 0.05 }
 };
 
@@ -492,7 +487,7 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
   const [highlightedSubjectSuggestion, setHighlightedSubjectSuggestion] = useState(0);
   const [languageSectionScores, setLanguageSectionScores] = useState(emptyLanguageSectionScores);
   const [expandedLanguageSections, setExpandedLanguageSections] = useState<Record<LanguageScoreKey, boolean>>({
-    toefl: false, oldToefl: false, ielts: false
+    toefl: false, oldToefl: false, ielts: false, sat: false, act: false
   });
 
   const activeProgram = mockPrograms.find(p => p.id === selectedId);
@@ -500,28 +495,28 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
   const enabledScoreEntries = (Object.entries(scoreFilters) as [ScoreFilterKey, ScoreFilterItem][])
     .filter(([, item]) => item.enabled);
 
-  // Preserve editing text (including empty values and decimal points) separately
-  // from numbers used for matching. TOEFL has no scale/range/step restriction.
+  // Preserve editing text separately from numbers used for matching.
   const getScoreValue = (key: ScoreFilterKey): number | null => {
     const raw = scoreDrafts[key] ?? String(scoreFilters[key].value);
     if (!/^-?(?:\d+(?:\.\d+)?|\.\d+)$/.test(raw)) return null;
     const value = Number(raw);
     if (!Number.isFinite(value)) return null;
-    if (key === 'toefl' || key === 'oldToefl') return value;
     const meta = scoreFilterMeta[key];
     return value >= meta.min && value <= meta.max ? value : null;
   };
 
-  const getLanguageTotal = (key: LanguageScoreKey) => getScoreValue(key);
+  const getLanguageTotal = (key: LanguageScoreKey) => calculateExamTotal(key, languageSectionScores[key]);
 
   const completedScoreEntries = enabledScoreEntries
     .filter(([key]) => key === 'alevel'
       ? /^(?:\d+(?:\.\d+)?|(?:A\*|[A-E]){2,4})$/.test(alevelScore.toUpperCase().replace(/\s/g, ''))
-      : getScoreValue(key) !== null)
-    .map(([key, item]) => [key, { ...item, value: key === 'alevel' ? item.value : getScoreValue(key) as number }] as [ScoreFilterKey, ScoreFilterItem]);
+      : (['toefl', 'oldToefl', 'ielts', 'sat', 'act'] as ScoreFilterKey[]).includes(key)
+        ? getLanguageTotal(key as LanguageScoreKey) !== null
+        : getScoreValue(key) !== null)
+    .map(([key, item]) => [key, { ...item, value: key === 'alevel' ? item.value : (['toefl', 'oldToefl', 'ielts', 'sat', 'act'] as ScoreFilterKey[]).includes(key) ? getLanguageTotal(key as LanguageScoreKey) as number : getScoreValue(key) as number }] as [ScoreFilterKey, ScoreFilterItem]);
 
   const updateScoreFilter = (key: ScoreFilterKey, patch: Partial<ScoreFilterItem>) => {
-    if (patch.enabled === false && (key === 'toefl' || key === 'oldToefl' || key === 'ielts')) {
+    if (patch.enabled === false && (['toefl', 'oldToefl', 'ielts', 'sat', 'act'] as ScoreFilterKey[]).includes(key)) {
       setExpandedLanguageSections(previous => ({ ...previous, [key]: false }));
     }
     setScoreFilters(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }));
@@ -537,7 +532,7 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
     setActiveAlevelSubjectId(null);
     setHighlightedSubjectSuggestion(0);
     setLanguageSectionScores(emptyLanguageSectionScores());
-    setExpandedLanguageSections({ toefl: false, oldToefl: false, ielts: false });
+    setExpandedLanguageSections({ toefl: false, oldToefl: false, ielts: false, sat: false, act: false });
   };
 
   const getAlevelSubjectSuggestions = (value: string) => {
@@ -867,18 +862,19 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                                 {section.keys.map(key => {
                                    const item = scoreFilters[key];
                                    const meta = scoreFilterMeta[key];
-                                   const languageTotal = key === 'toefl' || key === 'oldToefl' || key === 'ielts' ? getLanguageTotal(key) : null;
+                                   const calculatedKey = (['toefl', 'oldToefl', 'ielts', 'sat', 'act'] as ScoreFilterKey[]).includes(key) ? key as LanguageScoreKey : null;
+                                   const languageTotal = calculatedKey ? getLanguageTotal(calculatedKey) : null;
                                    const formattedValue = key === 'alevel'
                                      ? (alevelScore || (isEn ? 'Incomplete' : '待填写'))
-                                     : key === 'toefl' || key === 'oldToefl' || key === 'ielts'
-                                       ? (languageTotal === null ? (isEn ? 'Complete all' : '待补全') : key === 'ielts' ? languageTotal.toFixed(1) : languageTotal)
+                                     : calculatedKey
+                                       ? (languageTotal === null ? (isEn ? 'Complete all' : '待补全') : calculatedExamRules[calculatedKey].totalStep < 1 ? languageTotal.toFixed(1) : languageTotal)
                                        : (getScoreValue(key) ?? (isEn ? 'Incomplete' : '待补全'));
                                    return (
                                       <div key={key} className={key === 'ib' ? 'flex flex-col gap-2' : undefined}>
-                                         <div className={(key === 'toefl' || key === 'oldToefl' || key === 'ielts')
+                                         <div className={calculatedKey
                                             ? 'group grid grid-cols-[28px_minmax(0,1fr)_22px_56px] items-center gap-x-2'
                                             : 'group flex items-center justify-between gap-3'}>
-                                            <div className={(key === 'toefl' || key === 'oldToefl' || key === 'ielts') ? 'contents' : 'flex items-center gap-3'}>
+                                            <div className={calculatedKey ? 'contents' : 'flex items-center gap-3'}>
                                                <FilterToggle
                                                   checked={item.enabled}
                                                   onChange={enabled => updateScoreFilter(key, { enabled })}
@@ -887,18 +883,18 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                                                <span className={`text-sm transition-colors ${item.enabled ? `font-bold text-${theme}-700 dark:text-${theme}-400` : `text-gray-600 group-hover:text-${theme}-600 dark:text-zinc-400 dark:group-hover:text-${theme}-300`}`}>
                                                   {meta.label}
                                                </span>
-                                               {(key === 'toefl' || key === 'oldToefl' || key === 'ielts') && (
+                                               {calculatedKey && (
                                                   <button
                                                      type="button"
                                                      disabled={!item.enabled}
-                                                     aria-expanded={expandedLanguageSections[key]}
+                                                     aria-expanded={expandedLanguageSections[calculatedKey]}
                                                      aria-controls={`language-sections-${key}`}
-                                                     title={isEn ? (expandedLanguageSections[key] ? 'Collapse section scores' : 'Add section scores') : (expandedLanguageSections[key] ? '收起单项成绩' : '添加单项成绩')}
-                                                     aria-label={`${meta.label} ${isEn ? (expandedLanguageSections[key] ? 'Collapse section scores' : 'Add section scores') : (expandedLanguageSections[key] ? '收起单项成绩' : '添加单项成绩')}`}
-                                                     onClick={() => setExpandedLanguageSections(previous => ({ ...previous, [key]: !previous[key] }))}
+                                                     title={isEn ? (expandedLanguageSections[calculatedKey] ? 'Collapse section scores' : 'Add section scores') : (expandedLanguageSections[calculatedKey] ? '收起单项成绩' : '添加单项成绩')}
+                                                     aria-label={`${meta.label} ${isEn ? (expandedLanguageSections[calculatedKey] ? 'Collapse section scores' : 'Add section scores') : (expandedLanguageSections[calculatedKey] ? '收起单项成绩' : '添加单项成绩')}`}
+                                                     onClick={() => setExpandedLanguageSections(previous => ({ ...previous, [calculatedKey]: !previous[calculatedKey] }))}
                                                      className="inline-flex h-[26px] w-[22px] shrink-0 items-center justify-center rounded text-xs text-gray-500 transition-colors hover:text-primary-700 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary-400 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-400 dark:hover:text-primary-300"
                                                   >
-                                                     <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${expandedLanguageSections[key] ? 'rotate-180' : ''}`} />
+                                                     <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${expandedLanguageSections[calculatedKey] ? 'rotate-180' : ''}`} />
                                                   </button>
                                                )}
                                             </div>
@@ -913,21 +909,23 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                                                   onChange={event => setAlevelScore(event.target.value.toUpperCase().replace(/[^A-E*0-9.\s]/g, ''))}
                                                   className={`w-14 rounded-md border px-1.5 py-1 text-right text-xs font-bold uppercase outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-zinc-700 dark:bg-zinc-800 ${item.enabled ? 'border-gray-200 bg-white text-primary-700 dark:text-primary-300' : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60 dark:text-zinc-600'}`}
                                                />
-                                            ) : (['ap', 'ib', 'sat', 'act', 'atar', 'toefl', 'oldToefl', 'ielts'] as ScoreFilterKey[]).includes(key) ? (
-                                               <div className={(key === 'toefl' || key === 'oldToefl' || key === 'ielts') ? 'contents' : 'flex shrink-0 items-center gap-1'}>
+                                            ) : (['ap', 'ib', 'atar', 'toefl', 'oldToefl', 'ielts', 'sat', 'act'] as ScoreFilterKey[]).includes(key) ? (
+                                               <div className={calculatedKey ? 'contents' : 'flex shrink-0 items-center gap-1'}>
                                                   <input
                                                      type="text"
-                                                     inputMode={['atar', 'ielts', 'toefl', 'oldToefl'].includes(key) ? 'decimal' : 'numeric'}
-                                                     value={scoreDrafts[key] ?? String(item.value)}
-                                                     aria-invalid={item.enabled && getScoreValue(key) === null}
+                                                     inputMode={calculatedKey && calculatedExamRules[calculatedKey].totalStep < 1 || key === 'atar' ? 'decimal' : 'numeric'}
+                                                     value={calculatedKey ? formattedValue : scoreDrafts[key] ?? String(item.value)}
+                                                     readOnly={!!calculatedKey}
+                                                     aria-invalid={item.enabled && (calculatedKey ? languageTotal === null : getScoreValue(key) === null)}
                                                      disabled={!item.enabled}
                                                      aria-label={`${meta.label} ${isEn ? 'score' : '成绩'}`}
                                                      onChange={event => {
+                                                        if (calculatedKey) return;
                                                         const nextValue = event.target.value;
                                                         if (!/^-?\d*\.?\d*$/.test(nextValue)) return;
                                                         setScoreDrafts(previous => ({ ...previous, [key]: nextValue }));
                                                      }}
-                                                     className={`w-14 ${['toefl', 'oldToefl', 'ielts', 'sat', 'act'].includes(key) ? 'h-[26px] shrink-0 focus:ring-inset' : ''} rounded-md border px-1.5 py-1 text-right text-xs font-bold outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-zinc-700 dark:bg-zinc-800 ${item.enabled ? 'border-gray-200 bg-white text-primary-700 dark:text-primary-300' : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60 dark:text-zinc-600'}`}
+                                                     className={`w-14 ${calculatedKey ? 'h-[26px] shrink-0 focus:ring-inset' : ''} rounded-md border px-1.5 py-1 text-right text-xs font-bold outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-zinc-700 dark:bg-zinc-800 ${item.enabled ? `border-gray-200 ${calculatedKey ? 'bg-gray-50' : 'bg-white'} text-primary-700 dark:text-primary-300` : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60 dark:text-zinc-600'}`}
                                                   />
                                                </div>
                                             ) : (
@@ -1130,30 +1128,24 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                                                   </button>
                                                </div>
                                             )
-                                         ) : key === 'toefl' || key === 'oldToefl' || key === 'ielts' ? (
-                                               <div id={`language-sections-${key}`} hidden={!item.enabled || !expandedLanguageSections[key]} className="mt-2">
-                                                  <div className="grid grid-cols-4 gap-1.5">
-                                                     {([
-                                                        ['reading', 'R'],
-                                                        ['listening', 'L'],
-                                                        ['speaking', 'S'],
-                                                        ['writing', 'W']
-                                                     ] as [LanguageSectionKey, string][]).map(([sectionKey, shortLabel]) => (
-                                                        <label key={sectionKey} className="block">
-                                                           <span className="mb-1 block text-center text-[10px] font-bold text-gray-500 dark:text-zinc-400">{shortLabel}</span>
+                                         ) : calculatedKey ? (
+                                               <div id={`language-sections-${calculatedKey}`} hidden={!item.enabled || !expandedLanguageSections[calculatedKey]} className="mt-2">
+                                                  <div className={`grid gap-1.5 ${calculatedExamRules[calculatedKey].sections.length === 2 ? 'grid-cols-2' : 'grid-cols-4'}`}>
+                                                     {calculatedExamRules[calculatedKey].sections.map(sectionRule => (
+                                                        <label key={sectionRule.key} className="block">
+                                                           <span className="mb-1 block truncate text-center text-[10px] font-bold text-gray-500 dark:text-zinc-400" title={sectionRule.label}>{sectionRule.shortLabel}</span>
                                                            <input
                                                               type="text"
-                                                              inputMode="decimal"
-                                                              value={languageSectionScores[key][sectionKey]}
+                                                              inputMode={sectionRule.step < 1 ? 'decimal' : 'numeric'}
+                                                              value={languageSectionScores[calculatedKey][sectionRule.key] ?? ''}
                                                               placeholder="—"
-                                                              aria-label={`${meta.label} ${shortLabel}`}
+                                                              aria-label={`${meta.label} ${sectionRule.label}${sectionRule.optional ? ` ${isEn ? 'optional' : '可选'}` : ''}`}
                                                               onChange={event => {
                                                                  const nextValue = event.target.value;
-                                                                 if (!/^-?\d*\.?\d*$/.test(nextValue)) return;
-                                                                 if (key === 'ielts' && nextValue !== '' && (Number(nextValue) < 0 || Number(nextValue) > 9)) return;
+                                                                 if (!/^\d*\.?\d*$/.test(nextValue)) return;
                                                                  setLanguageSectionScores(previous => ({
                                                                     ...previous,
-                                                                    [key]: { ...previous[key], [sectionKey]: nextValue }
+                                                                    [calculatedKey]: { ...previous[calculatedKey], [sectionRule.key]: nextValue }
                                                                  }));
                                                               }}
                                                               className="w-full rounded-md border border-gray-200 bg-white px-1 py-1.5 text-right text-[11px] font-bold text-gray-700 outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
