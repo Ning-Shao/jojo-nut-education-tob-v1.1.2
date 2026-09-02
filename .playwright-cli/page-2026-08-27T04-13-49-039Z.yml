@@ -1,0 +1,32 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]: "N"
+        - generic [ref=e7]: Nut Education
+      - generic [ref=e8]:
+        - generic [ref=e10]:
+          - img:
+            - generic:
+              - generic:
+                - generic: Welcome Class!
+                - generic: E=mc²
+        - generic [ref=e67]:
+          - heading "Your Journey Starts Here." [level=2] [ref=e68]
+          - paragraph [ref=e69]: Connecting counselors, students, and parents in one unified ecosystem for international education success.
+      - generic [ref=e70]: © 2026 Nut Education Group. All rights reserved.
+    - generic [ref=e73]:
+      - generic [ref=e74]:
+        - heading "Welcome back!" [level=1] [ref=e75]
+        - paragraph [ref=e76]: Please choose your portal to continue.
+      - generic [ref=e77]:
+        - button [ref=e78] [cursor=pointer]:
+          - generic [ref=e83]:
+            - heading "Teacher Portal" [level=3] [ref=e84]
+            - paragraph [ref=e85]: Counselors, Admins & Staff
+        - button [ref=e88] [cursor=pointer]:
+          - generic [ref=e93]:
+            - heading "Student Portal" [level=3] [ref=e94]
+            - paragraph [ref=e95]: Students & Parents
+      - paragraph [ref=e99]: Trouble logging in? Contact Admin
+  - button "问题反馈" [ref=e100] [cursor=pointer]

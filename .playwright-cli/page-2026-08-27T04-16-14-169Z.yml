@@ -1,0 +1,327 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e171]:
+      - banner [ref=e172]:
+        - generic [ref=e173]:
+          - generic [ref=e174]:
+            - button "N Nut" [ref=e175] [cursor=pointer]:
+              - generic [ref=e176]: "N"
+              - generic [ref=e177]: Nut
+            - navigation [ref=e178]:
+              - button [ref=e180] [cursor=pointer]
+              - button [ref=e188] [cursor=pointer]
+              - button [ref=e196] [cursor=pointer]
+              - button [ref=e203] [cursor=pointer]
+              - button [ref=e209] [cursor=pointer]
+              - button [ref=e215] [cursor=pointer]
+          - button "Ms. Sarah Senior Counselor S" [ref=e221] [cursor=pointer]:
+            - generic [ref=e222]:
+              - paragraph [ref=e223]: Ms. Sarah
+              - paragraph [ref=e224]: Senior Counselor
+            - generic [ref=e225]: S
+      - main [ref=e228]:
+        - generic [ref=e915]:
+          - generic [ref=e916]:
+            - generic [ref=e917]:
+              - button "返回列表" [ref=e918] [cursor=pointer]
+              - generic [ref=e921]:
+                - img "avatar" [ref=e922]
+                - generic [ref=e923]:
+                  - heading "Alex Chen" [level=1] [ref=e924]
+                  - paragraph [ref=e925]: G11 • US Top 30 CS
+            - generic [ref=e927]:
+              - generic [ref=e928]: 学术
+              - generic [ref=e931]: 目标
+              - generic [ref=e934]: 任务
+              - generic [ref=e937]: 材料
+              - generic [ref=e940]: 沟通
+          - generic [ref=e943]:
+            - generic [ref=e944] [cursor=pointer]:
+              - generic [ref=e945]:
+                - button "AI 状态深度诊断" [ref=e946]
+                - generic [ref=e949]:
+                  - generic [ref=e950]: 成绩异常下滑
+                  - generic [ref=e953]: 家校互动断连
+              - generic [ref=e956]:
+                - button "重新诊断" [ref=e957]
+                - generic [ref=e963]: 展开深度诊断
+            - generic [ref=e966]:
+              - heading "维度诊断详情 (Dimensions)" [level=4] [ref=e967]
+              - generic [ref=e968]:
+                - generic [ref=e969]:
+                  - generic [ref=e970]: 成绩异常下滑
+                  - generic [ref=e976]:
+                    - paragraph [ref=e977]: 学术 状态
+                    - paragraph [ref=e978]: G11下学期 GPA 较上学期下滑 0.3，且 TOEFL 备考进度停滞（已逾期14天）。
+                - generic [ref=e979]:
+                  - generic [ref=e980]: 选校方案激进
+                  - generic [ref=e986]:
+                    - paragraph [ref=e987]: 目标 状态
+                    - paragraph [ref=e988]: 选校清单中 Reach 校占比达 90%，缺乏 Safety 方案，且申请专业未定。
+                - generic [ref=e989]:
+                  - generic [ref=e990]: 进度完全正常
+                  - generic [ref=e996]:
+                    - paragraph [ref=e997]: 任务 状态
+                    - paragraph [ref=e998]: 所有近期任务（个人陈述 V1、Brag Sheet）均在计划内完成。
+                - generic [ref=e999]:
+                  - generic [ref=e1000]: 推荐信待催办
+                  - generic [ref=e1005]:
+                    - paragraph [ref=e1006]: 材料 状态
+                    - paragraph [ref=e1007]: Mr. Li (Math) 尚未点击推荐信确认邮件，已等待 3 天。
+                - generic [ref=e1008]:
+                  - generic [ref=e1009]: 家校互动断连
+                  - generic [ref=e1014]:
+                    - paragraph [ref=e1015]: 沟通 状态
+                    - paragraph [ref=e1016]: 学生连续 14 天未登录，家长上周关于“预算”的咨询邮件尚未回复。
+          - navigation [ref=e1017]:
+            - generic [ref=e1018]:
+              - button "1. 基础信息" [ref=e1019] [cursor=pointer]
+              - button "2. 申请资料夹" [ref=e1023] [cursor=pointer]
+              - button "3. 升学规划" [ref=e1026] [cursor=pointer]
+              - button "4. 文书助手" [ref=e1030] [cursor=pointer]
+              - button "5. 推荐信助手" [ref=e1034] [cursor=pointer]
+              - button "6. Offer追踪" [ref=e1038] [cursor=pointer]
+              - button "7. 沟通记录" [ref=e1045] [cursor=pointer]
+          - main [ref=e1048]:
+            - generic [ref=e1050]:
+              - generic [ref=e1051]:
+                - generic [ref=e1052]: 您有 2 条来自学生的更新申请待审核。
+                - generic [ref=e1056]: Action Required
+              - generic [ref=e1057]:
+                - generic [ref=e1058]:
+                  - generic [ref=e1059]:
+                    - heading "基础资料" [level=3] [ref=e1060]
+                    - button [ref=e1064] [cursor=pointer]
+                  - generic [ref=e1068]:
+                    - generic [ref=e1069]:
+                      - generic [ref=e1070]: 学校
+                      - generic [ref=e1071]: Ascent International School
+                    - generic [ref=e1072]:
+                      - generic [ref=e1073]: 年级
+                      - generic [ref=e1074]: G11
+                    - generic [ref=e1075]:
+                      - generic [ref=e1076]: 方向
+                      - generic [ref=e1077]: US
+                    - generic [ref=e1079]:
+                      - generic [ref=e1080]: 学号
+                      - generic [ref=e1081]: "2025001"
+                    - generic [ref=e1082]:
+                      - generic [ref=e1083]: 国籍
+                      - generic [ref=e1084]: 中国
+                    - generic [ref=e1085]:
+                      - generic [ref=e1086]: 当前阶段
+                      - generic [ref=e1087]: Phase 2 教学运营
+                - generic [ref=e1088]:
+                  - generic [ref=e1089]:
+                    - heading "家庭偏好与约束" [level=3] [ref=e1090]
+                    - button [ref=e1096] [cursor=pointer]
+                  - generic [ref=e1100]:
+                    - generic [ref=e1101]:
+                      - paragraph [ref=e1102]: 预算范围
+                      - paragraph [ref=e1103]: 50-80w RMB/年
+                    - generic [ref=e1104]:
+                      - paragraph [ref=e1105]: 地理偏好
+                      - paragraph [ref=e1106]: 美国东海岸 / 加州
+                - generic [ref=e1107]:
+                  - generic [ref=e1108]:
+                    - heading "升学顾问备注" [level=3] [ref=e1109]
+                    - button [ref=e1112] [cursor=pointer]
+                  - paragraph [ref=e1116]: 暂无备注。
+              - generic [ref=e1117]:
+                - generic [ref=e1118]:
+                  - generic [ref=e1119]:
+                    - heading "学术活动背景" [level=3] [ref=e1121]
+                    - generic [ref=e1125]:
+                      - button "添加活动" [ref=e1126] [cursor=pointer]
+                      - button "预览PDF" [ref=e1128] [cursor=pointer]
+                      - button "编辑成绩" [ref=e1132] [cursor=pointer]
+                  - generic [ref=e1136]:
+                    - generic [ref=e1137]:
+                      - heading "官方成绩" [level=4] [ref=e1139]
+                      - generic [ref=e1141]:
+                        - generic [ref=e1142] [cursor=pointer]: A Level | AS | 2023-05 | Cambridge
+                        - table [ref=e1148]:
+                          - rowgroup [ref=e1149]:
+                            - row [ref=e1150]:
+                              - columnheader "科目" [ref=e1151]
+                              - columnheader "等第" [ref=e1152]
+                              - columnheader "分数" [ref=e1153]
+                          - rowgroup [ref=e1154]:
+                            - row [ref=e1155]:
+                              - cell "Mathematics" [ref=e1156]
+                              - cell "a" [ref=e1157]
+                              - cell "92" [ref=e1158]
+                            - row [ref=e1159]:
+                              - cell "Physics" [ref=e1160]
+                              - cell "a" [ref=e1161]
+                              - cell "88" [ref=e1162]
+                            - row [ref=e1163]:
+                              - cell "Chemistry" [ref=e1164]
+                              - cell "a" [ref=e1165]
+                              - cell "90" [ref=e1166]
+                    - generic [ref=e1167]:
+                      - heading "预估成绩" [level=4] [ref=e1169]
+                      - generic [ref=e1171]:
+                        - generic [ref=e1172] [cursor=pointer]: A Level | A Level | 2024 Entry | 2023 Fall
+                        - table [ref=e1178]:
+                          - rowgroup [ref=e1179]:
+                            - row [ref=e1180]:
+                              - columnheader "科目" [ref=e1181]
+                              - columnheader "预估等第" [ref=e1182]
+                          - rowgroup [ref=e1183]:
+                            - row [ref=e1184]:
+                              - cell "Mathematics" [ref=e1185]
+                              - cell "A*" [ref=e1186]
+                            - row [ref=e1187]:
+                              - cell "Physics" [ref=e1188]
+                              - cell "A*" [ref=e1189]
+                            - row [ref=e1190]:
+                              - cell "Chemistry" [ref=e1191]
+                              - cell "A" [ref=e1192]
+                - generic [ref=e1193]:
+                  - generic [ref=e1194]:
+                    - generic [ref=e1195]:
+                      - heading "标化考试" [level=3] [ref=e1196]
+                      - button "编辑" [ref=e1199] [cursor=pointer]
+                    - generic [ref=e1203]:
+                      - generic [ref=e1205] [cursor=pointer]:
+                        - generic [ref=e1206]:
+                          - generic [ref=e1207]:
+                            - generic [ref=e1208]: TOEFL
+                            - button "Review Request" [ref=e1209]
+                          - generic [ref=e1210]:
+                            - generic [ref=e1211]: "Total:"
+                            - generic [ref=e1212]: "112"
+                        - paragraph [ref=e1214]: 2024-10-20
+                        - generic [ref=e1215]:
+                          - generic [ref=e1216]:
+                            - text: "R:"
+                            - strong [ref=e1217]: "29"
+                          - generic [ref=e1218]:
+                            - text: "L:"
+                            - strong [ref=e1219]: "30"
+                          - generic [ref=e1220]:
+                            - text: "S:"
+                            - strong [ref=e1221]: "26"
+                          - generic [ref=e1222]:
+                            - text: "W:"
+                            - strong [ref=e1223]: "27"
+                      - generic [ref=e1225]:
+                        - generic [ref=e1226]:
+                          - generic [ref=e1227]: TOEFL
+                          - generic [ref=e1229]:
+                            - generic [ref=e1230]: "Total:"
+                            - generic [ref=e1231]: "102"
+                            - generic "Verified" [ref=e1232]
+                        - paragraph [ref=e1237]: 2023-10
+                        - generic [ref=e1238]:
+                          - generic [ref=e1239]:
+                            - text: "R:"
+                            - strong [ref=e1240]: "28"
+                          - generic [ref=e1241]:
+                            - text: "L:"
+                            - strong [ref=e1242]: "26"
+                          - generic [ref=e1243]:
+                            - text: "S:"
+                            - strong [ref=e1244]: "23"
+                          - generic [ref=e1245]:
+                            - text: "W:"
+                            - strong [ref=e1246]: "25"
+                      - generic [ref=e1248]:
+                        - generic [ref=e1249]:
+                          - generic [ref=e1250]: SAT
+                          - generic [ref=e1252]:
+                            - generic [ref=e1253]: "Total:"
+                            - generic [ref=e1254]: "1520"
+                            - generic "Verified" [ref=e1255]
+                        - paragraph [ref=e1260]: 2023-12
+                        - generic [ref=e1261]:
+                          - generic [ref=e1262]:
+                            - text: "EBRW:"
+                            - strong [ref=e1263]: "720"
+                          - generic [ref=e1264]:
+                            - text: "M:"
+                            - strong [ref=e1265]: "800"
+                      - generic [ref=e1267]:
+                        - generic [ref=e1268]:
+                          - generic [ref=e1269]: IELTS
+                          - generic [ref=e1271]:
+                            - generic [ref=e1272]: "Total:"
+                            - generic [ref=e1273]: "7.5"
+                            - generic "Verified" [ref=e1274]
+                        - paragraph [ref=e1279]: 2024-02
+                        - generic [ref=e1280]:
+                          - generic [ref=e1281]:
+                            - text: "R:"
+                            - strong [ref=e1282]: "8.0"
+                          - generic [ref=e1283]:
+                            - text: "L:"
+                            - strong [ref=e1284]: "8.5"
+                          - generic [ref=e1285]:
+                            - text: "S:"
+                            - strong [ref=e1286]: "6.5"
+                          - generic [ref=e1287]:
+                            - text: "W:"
+                            - strong [ref=e1288]: "6.5"
+                      - generic [ref=e1290]:
+                        - generic [ref=e1291]:
+                          - generic [ref=e1292]: ACT
+                          - generic [ref=e1294]:
+                            - generic [ref=e1295]: "Total:"
+                            - generic [ref=e1296]: "34"
+                            - generic "Verified" [ref=e1297]
+                        - paragraph [ref=e1302]: 2024-05
+                        - generic [ref=e1303]:
+                          - generic [ref=e1304]:
+                            - text: "E:"
+                            - strong [ref=e1305]: "34"
+                          - generic [ref=e1306]:
+                            - text: "M:"
+                            - strong [ref=e1307]: "35"
+                          - generic [ref=e1308]:
+                            - text: "R:"
+                            - strong [ref=e1309]: "33"
+                          - generic [ref=e1310]:
+                            - text: "SCI:"
+                            - strong [ref=e1311]: "34"
+                  - generic [ref=e1312]:
+                    - generic [ref=e1313]:
+                      - heading "活动列表" [level=3] [ref=e1314]
+                      - generic [ref=e1321]:
+                        - button "添加活动" [ref=e1322] [cursor=pointer]
+                        - button "编辑" [ref=e1324] [cursor=pointer]
+                        - button "AI 整理" [ref=e1328] [cursor=pointer]
+                    - generic [ref=e1332]:
+                      - generic [ref=e1333] [cursor=pointer]:
+                        - generic [ref=e1334]:
+                          - generic [ref=e1335]: 2023.07-2023.08
+                          - button "Review Request" [ref=e1337]
+                        - heading "AI Research Summer Camp" [level=4] [ref=e1338]
+                        - paragraph [ref=e1339]: Team Leader
+                        - paragraph [ref=e1340]: Led a team of 4 to develop a machine learning model for predicting crop yield. Awarded 'Best Project'.
+                        - generic [ref=e1341]: Proof Attached
+                      - generic [ref=e1345]:
+                        - generic [ref=e1346]:
+                          - generic [ref=e1347]: 2022.09-Present
+                          - generic "Verified" [ref=e1349]
+                        - heading "School Robotics Club" [level=4] [ref=e1353]
+                        - paragraph [ref=e1354]: Founder & President
+                        - paragraph [ref=e1355]: Founded the club and grew it to 50+ members. Organized 3 inter-school robotics competitions.
+                      - generic [ref=e1356]:
+                        - generic [ref=e1357]:
+                          - generic [ref=e1358]: "2022.11"
+                          - generic "Verified" [ref=e1360]
+                        - heading "AMC 12 Math Competition" [level=4] [ref=e1364]
+                        - paragraph [ref=e1365]: Participant (Distinction)
+                        - paragraph [ref=e1366]: Scored in the top 5% globally, advancing to the AIME. Dedicated 100+ hours to preparation.
+                      - generic [ref=e1367]:
+                        - generic [ref=e1368]:
+                          - generic [ref=e1369]: 2021.09-2023.06
+                          - generic "Verified" [ref=e1371]
+                        - heading "Community Elderly Care" [level=4] [ref=e1375]
+                        - paragraph [ref=e1376]: Volunteer
+                        - paragraph [ref=e1377]: Volunteered weekly at a local nursing home, assisting seniors with technology and organizing social events.
+    - button "问题反馈" [ref=e100] [cursor=pointer]
+  - generic [ref=e131]:
+    - button "Copy element" [ref=e136] [cursor=pointer]
+    - button "Collapse toolbar" [expanded] [ref=e140] [cursor=pointer]
