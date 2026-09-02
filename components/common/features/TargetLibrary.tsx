@@ -941,11 +941,21 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                                                      onChange={event => {
                                                         const nextValue = event.target.value;
                                                         if (!/^-?\d*\.?\d*$/.test(nextValue)) return;
-                                                        if (nextValue !== '' && Number(nextValue) > meta.max) return;
                                                         setScoreDrafts(previous => ({ ...previous, [key]: nextValue }));
+                                                        if (key === 'toefl' && nextValue !== '') {
+                                                           const numericValue = Number(nextValue);
+                                                           if (Number.isFinite(numericValue) && (numericValue < 1 || numericValue > 6)) {
+                                                              setCalculatedTotalNotice(isEn ? 'Input value must be between 1 and 6' : '输入数值须在1—6之间');
+                                                           } else {
+                                                              setCalculatedTotalNotice(null);
+                                                           }
+                                                        } else if (key === 'toefl') {
+                                                           setCalculatedTotalNotice(null);
+                                                        }
                                                      }}
                                                      onBlur={event => {
                                                         if (event.target.value === '') return;
+                                                        if (key === 'toefl') return;
                                                         const score = Number(event.target.value);
                                                         if (!Number.isFinite(score)) return;
                                                         const normalized = Math.min(meta.max, Math.max(meta.min, Math.round((score - meta.min) / meta.step) * meta.step + meta.min));
