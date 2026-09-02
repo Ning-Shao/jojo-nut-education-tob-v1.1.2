@@ -3395,9 +3395,7 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                       <option value="10年级">10年级 (Grade 10)</option>
                       <option value="11年级">11年级 (Grade 11)</option>
                       <option value="12年级">12年级 (Grade 12)</option>
-                      <option value="高一">高一</option>
-                      <option value="高二">高二</option>
-                      <option value="高三">高三</option>
+                      <option value="13年级">13年级 (Grade 13)</option>
                       <option value="其他">{isEn ? "Other" : "其他"}</option>
                     </select>
                     <ChevronDown className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
