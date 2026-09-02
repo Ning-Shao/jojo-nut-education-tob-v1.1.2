@@ -46,6 +46,18 @@ const sectionScoresFrom = (score?: SubjectScore) => ({
   writing: score?.subScores?.W || '',
 });
 
+const satSectionScoresFrom = (score?: SubjectScore) => ({
+  readingWriting: score?.subScores?.EBRW || '',
+  math: score?.subScores?.M || '',
+});
+
+const actSectionScoresFrom = (score?: SubjectScore) => ({
+  english: score?.subScores?.E || '',
+  math: score?.subScores?.M || '',
+  reading: score?.subScores?.R || '',
+  science: score?.subScores?.SCI || '',
+});
+
 export const getInitialSimParams = ({ officialBatches, predictedBatches, subjectScores }: StudentScoreData) => {
   let academicSystem = 'GPA';
   let academicScoreText = '3.8';
@@ -161,11 +173,13 @@ export const getInitialSimParams = ({ officialBatches, predictedBatches, subject
     alevelScore,
     apScore,
     ibScore: ibScoreRecord?.score || '',
-    expandedLanguageSections: { toefl: false, oldToefl: false, ielts: false },
+    expandedLanguageSections: { toefl: false, oldToefl: false, ielts: false, sat: false, act: false },
     languageSectionScores: {
       toefl: sectionScoresFrom(newToefl),
       oldToefl: sectionScoresFrom(oldToefl),
       ielts: sectionScoresFrom(ieltsRecord),
+      sat: satSectionScoresFrom(satRecord),
+      act: actSectionScoresFrom(actRecord),
     },
     // Enable flags
     alevelEnabled: /A[ -]?Level/i.test(curriculum),

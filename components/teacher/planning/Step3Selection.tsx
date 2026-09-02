@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { Target, Sliders, RotateCcw, Lightbulb, Sparkles, Search, Loader2, RefreshCw, AlertTriangle, CheckCircle, School, X, BookOpen, Plus, ChevronRight, ChevronLeft, ChevronDown, Info } from '../../common/Icons';
 import { TargetPreference, UniversityDisplay, SelectedSchool } from './PlanningData';
 import { useLanguage } from '../../../contexts/LanguageContext';
+import { calculateExamTotal, calculatedExamRules, type CalculatedExamKey } from '../../common/features/examScoreRules';
 
 interface Step3Props {
   targetPreferences: TargetPreference[];
@@ -434,29 +435,17 @@ const Step3Selection: React.FC<Step3Props> = ({
                <div className="py-3 first:pt-0">
                   <h4 className="mb-4 block text-xs font-bold text-gray-700">{isEn ? 'Standardized tests' : '标化成绩'}</h4>
                   <div className="space-y-3">
-                     {[
-                        { key: 'toefl', label: 'TOEFL (From 21 January 2026)', min: 0, max: 6, step: 0.5, sectionMax: 6 },
-                        { key: 'oldToefl', label: 'TOEFL (Before 21 January 2026)', min: 0, max: 120, step: 1, sectionMax: 30 },
-                        { key: 'ielts', label: 'IELTS', min: 4, max: 9, step: 0.5, sectionMax: 9 },
-                        { key: 'sat', label: 'SAT', min: 1000, max: 1600, step: 10, sectionMax: 0 },
-                        { key: 'act', label: 'ACT', min: 20, max: 36, step: 1, sectionMax: 0 },
-                     ].map(({ key, label, min, max, step, sectionMax }) => {
+                     {(Object.keys(calculatedExamRules) as CalculatedExamKey[]).map(key => {
+                        const rule = calculatedExamRules[key];
+                        const label = rule.label;
                         const enabled = !!simParams[`${key}Enabled`];
                         const expanded = !!simParams.expandedLanguageSections?.[key];
-                        const updateTotal = (value: string) => {
-                           const score = Number(value);
-                           const valid = value.trim() !== '' && Number.isFinite(score) && score >= min && score <= max;
-                           const derived = key === 'sat' ? { sat: valid ? score : 0 }
-                              : key === 'act' ? { sat: valid ? score * 40 : 0 }
-                              : { toefl: valid ? (key === 'toefl' ? Math.round(score * 20) : key === 'ielts' ? score * 12 : score) : 0 };
-                           setSimParams({...simParams, [`${key}Value`]: value, ...derived});
-                        };
+                        const total = calculateExamTotal(key, simParams.languageSectionScores?.[key] ?? {});
+                        const formattedTotal = total === null ? (isEn ? 'Complete all' : '待补全') : rule.totalStep < 1 ? total.toFixed(1) : String(total);
                         return (
                            <div key={key}>
-                              <div className={sectionMax > 0
-                                 ? 'group grid grid-cols-[28px_minmax(0,1fr)_22px_56px] items-center gap-x-2'
-                                 : 'group flex items-center justify-between gap-3'}>
-                                 <div className={sectionMax > 0 ? 'contents' : 'flex items-center gap-3'}>
+                              <div className="group grid grid-cols-[28px_minmax(0,1fr)_22px_56px] items-center gap-x-2">
+                                 <div className="contents">
                                     <button
                                        type="button"
                                        role="switch"
@@ -468,8 +457,7 @@ const Step3Selection: React.FC<Step3Props> = ({
                                        <span className={`h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${enabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
                                     </button>
                                     <span className={`text-sm transition-colors ${enabled ? 'font-bold text-primary-700' : 'text-gray-600 group-hover:text-primary-600'}`}>{label}</span>
-                                    {sectionMax > 0 && (
-                                       <button
+                                    <button
                                           type="button"
                                           disabled={!enabled}
                                           aria-expanded={expanded}
@@ -480,49 +468,42 @@ const Step3Selection: React.FC<Step3Props> = ({
                                           className="inline-flex h-[26px] w-[22px] shrink-0 items-center justify-center rounded text-xs text-gray-500 transition-colors hover:text-primary-700 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary-400 disabled:cursor-not-allowed disabled:opacity-40"
                                        >
                                           <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                                       </button>
-                                    )}
+                                    </button>
                                  </div>
-                                 <div className={sectionMax > 0 ? 'contents' : 'flex shrink-0 items-center gap-1'}>
+                                 <div className="contents">
                                     <input
                                        type="text"
-                                       inputMode={step < 1 ? 'decimal' : 'numeric'}
-                                       value={simParams[`${key}Value`] ?? ''}
+                                       inputMode={rule.totalStep < 1 ? 'decimal' : 'numeric'}
+                                       value={formattedTotal}
                                        disabled={!enabled}
+                                       readOnly
+                                       aria-invalid={enabled && total === null}
                                        aria-label={`${label} ${isEn ? 'score' : '成绩'}`}
-                                       onChange={event => {
-                                          const value = event.target.value;
-                                          if (!/^\d*\.?\d*$/.test(value)) return;
-                                          updateTotal(value);
-                                       }}
-                                       onBlur={event => {
-                                          if (event.target.value === '') return;
-                                          const score = Number(event.target.value);
-                                          if (!Number.isFinite(score)) return;
-                                          updateTotal(String(Math.min(max, Math.max(min, Math.round(score / step) * step))));
-                                       }}
-                                       className={`h-[26px] w-14 shrink-0 rounded-md border px-1.5 py-1 text-right text-xs font-bold outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-inset focus:ring-primary-200 ${enabled ? 'border-gray-200 bg-white text-primary-700' : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60'}`}
+                                       className={`h-[26px] w-14 shrink-0 rounded-md border px-1.5 py-1 text-right text-xs font-bold outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-inset focus:ring-primary-200 ${enabled ? 'border-gray-200 bg-gray-50 text-primary-700' : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60'}`}
                                     />
                                  </div>
                               </div>
-                              {sectionMax > 0 && (
-                                 <div id={`sim-language-sections-${key}`} hidden={!enabled || !expanded} className="mt-2">
-                                    <div className="grid grid-cols-4 gap-1.5">
-                                       {[['reading', 'R'], ['listening', 'L'], ['speaking', 'S'], ['writing', 'W']].map(([sectionKey, shortLabel]) => (
-                                          <label key={sectionKey} className="block">
-                                             <span className="mb-1 block text-center text-[10px] font-bold text-gray-500">{shortLabel}</span>
+                              <div id={`sim-language-sections-${key}`} hidden={!enabled || !expanded} className="mt-2">
+                                    <div className={`grid gap-1.5 ${rule.sections.length === 2 ? 'grid-cols-2' : 'grid-cols-4'}`}>
+                                       {rule.sections.map(sectionRule => (
+                                          <label key={sectionRule.key} className="block">
+                                             <span className="mb-1 block truncate text-center text-[10px] font-bold text-gray-500" title={sectionRule.label}>{sectionRule.shortLabel}</span>
                                              <input
                                                 type="text"
-                                                inputMode="decimal"
-                                                value={simParams.languageSectionScores?.[key]?.[sectionKey] ?? ''}
+                                                inputMode={sectionRule.step < 1 ? 'decimal' : 'numeric'}
+                                                value={simParams.languageSectionScores?.[key]?.[sectionRule.key] ?? ''}
                                                 disabled={!enabled}
                                                 placeholder="—"
-                                                aria-label={`${label} ${shortLabel}`}
+                                                aria-label={`${label} ${sectionRule.label}${sectionRule.optional ? ` ${isEn ? 'optional' : '可选'}` : ''}`}
                                                 onChange={event => {
                                                    const value = event.target.value;
                                                    if (!/^\d*\.?\d*$/.test(value)) return;
-                                                   if (value !== '' && Number(value) > sectionMax) return;
-                                                   setSimParams({...simParams, languageSectionScores: {...simParams.languageSectionScores, [key]: {...simParams.languageSectionScores?.[key], [sectionKey]: value}}});
+                                                   const nextSections = {...simParams.languageSectionScores, [key]: {...simParams.languageSectionScores?.[key], [sectionRule.key]: value}};
+                                                   const nextTotal = calculateExamTotal(key, nextSections[key]);
+                                                   const derived = key === 'sat' ? { sat: nextTotal ?? 0 }
+                                                      : key === 'act' ? { sat: nextTotal === null ? 0 : nextTotal * 40 }
+                                                      : { toefl: nextTotal === null ? 0 : key === 'toefl' ? Math.round(nextTotal * 20) : key === 'ielts' ? nextTotal * 12 : nextTotal };
+                                                   setSimParams({...simParams, languageSectionScores: nextSections, [`${key}Value`]: nextTotal === null ? '' : String(nextTotal), ...derived});
                                                 }}
                                                 className="w-full rounded-md border border-gray-200 bg-white px-1 py-1.5 text-right text-[11px] font-bold text-gray-700 outline-none focus:border-primary-400 focus:ring-1 focus:ring-inset focus:ring-primary-200"
                                              />
@@ -530,7 +511,6 @@ const Step3Selection: React.FC<Step3Props> = ({
                                        ))}
                                     </div>
                                  </div>
-                              )}
                            </div>
                         );
                      })}
