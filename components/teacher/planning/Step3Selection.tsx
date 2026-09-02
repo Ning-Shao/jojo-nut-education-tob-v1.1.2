@@ -1,7 +1,8 @@
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
-import { Target, Sliders, RotateCcw, Lightbulb, Sparkles, Search, Loader2, RefreshCw, AlertTriangle, CheckCircle, School, X, BookOpen, Plus, ChevronRight, ChevronLeft, ChevronDown, Info } from '../../common/Icons';
+import { Target, Sliders, RotateCcw, Lightbulb, Sparkles, Search, Loader2, RefreshCw, AlertTriangle, CheckCircle, XCircle, School, X, BookOpen, Plus, ChevronRight, ChevronLeft, ChevronDown, Info } from '../../common/Icons';
 import { TargetPreference, UniversityDisplay, SelectedSchool } from './PlanningData';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { calculateExamTotal, calculatedExamRules, type CalculatedExamKey } from '../../common/features/examScoreRules';
@@ -97,6 +98,13 @@ const Step3Selection: React.FC<Step3Props> = ({
   const isEn = language === 'en-US';
 
   const [activeRegionTab, setActiveRegionTab] = React.useState<string | null>(null);
+  const [calculatedTotalNotice, setCalculatedTotalNotice] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+     if (!calculatedTotalNotice) return;
+     const timer = window.setTimeout(() => setCalculatedTotalNotice(null), 5000);
+     return () => window.clearTimeout(timer);
+  }, [calculatedTotalNotice]);
 
   const groupedUniversities = React.useMemo(() => {
      return recommendedUniversities.reduce((acc, uni) => {
@@ -150,6 +158,16 @@ const Step3Selection: React.FC<Step3Props> = ({
 
   return (
     <div className="flex h-full gap-6">
+      {calculatedTotalNotice && typeof document !== 'undefined' && createPortal(
+         <div role="status" aria-live="polite" className="fixed left-1/2 top-[35%] z-[10000] flex w-[340px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 shadow-lg animate-in fade-in zoom-in-95 duration-200">
+            <XCircle className="h-5 w-5 flex-shrink-0 text-red-500" />
+            <span className="flex-1">{calculatedTotalNotice}</span>
+            <button type="button" aria-label={isEn ? 'Close total score notice' : '关闭总分提示'} onClick={() => setCalculatedTotalNotice(null)} className="rounded p-0.5 text-red-400 transition-colors hover:bg-red-100 hover:text-red-600 focus:outline-none focus:ring-1 focus:ring-red-400">
+               <X className="h-4 w-4" />
+            </button>
+         </div>,
+         document.body
+      )}
       {/* Left Column: Context & Simulator */}
       <div className="w-72 flex-shrink-0 flex flex-col gap-6">
          {/* Target Context */}
@@ -439,13 +457,28 @@ const Step3Selection: React.FC<Step3Props> = ({
                         const rule = calculatedExamRules[key];
                         const label = rule.label;
                         const enabled = !!simParams[`${key}Enabled`];
-                        const expanded = !!simParams.expandedLanguageSections?.[key];
-                        const total = calculateExamTotal(key, simParams.languageSectionScores?.[key] ?? {});
-                        const formattedTotal = total === null ? (isEn ? 'Complete all' : '待补全') : rule.totalStep < 1 ? total.toFixed(1) : String(total);
+                        const supportsSections = key === 'toefl' || key === 'oldToefl' || key === 'ielts';
+                        const expanded = supportsSections && !!simParams.expandedLanguageSections?.[key];
+                        const calculatedTotal = supportsSections ? calculateExamTotal(key, simParams.languageSectionScores?.[key] ?? {}) : null;
+                        const directTotal = simParams[`${key}Value`] ?? '';
+                        const formattedTotal = calculatedTotal === null ? directTotal : rule.totalStep < 1 ? calculatedTotal.toFixed(1) : String(calculatedTotal);
+                        const directScore = Number(directTotal);
+                        const directTotalValid = directTotal !== '' && Number.isFinite(directScore) && directScore >= rule.totalMin && directScore <= rule.totalMax
+                           && Math.abs((directScore - rule.totalMin) / rule.totalStep - Math.round((directScore - rule.totalMin) / rule.totalStep)) < 1e-8;
+                        const updateDirectTotal = (value: string) => {
+                           const score = Number(value);
+                           const valid = value !== '' && Number.isFinite(score) && score >= rule.totalMin && score <= rule.totalMax;
+                           const derived = key === 'sat' ? { sat: valid ? score : 0 }
+                              : key === 'act' ? { sat: valid ? score * 40 : 0 }
+                              : { toefl: valid ? (key === 'toefl' ? Math.round(score * 20) : key === 'ielts' ? score * 12 : score) : 0 };
+                           setSimParams({...simParams, [`${key}Value`]: value, ...derived});
+                        };
                         return (
                            <div key={key}>
-                              <div className="group grid grid-cols-[28px_minmax(0,1fr)_22px_56px] items-center gap-x-2">
-                                 <div className="contents">
+                              <div className={supportsSections
+                                 ? 'group grid grid-cols-[28px_minmax(0,1fr)_22px_56px] items-center gap-x-2'
+                                 : 'group flex items-center justify-between gap-3'}>
+                                 <div className={supportsSections ? 'contents' : 'flex items-center gap-3'}>
                                     <button
                                        type="button"
                                        role="switch"
@@ -457,7 +490,7 @@ const Step3Selection: React.FC<Step3Props> = ({
                                        <span className={`h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${enabled ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
                                     </button>
                                     <span className={`text-sm transition-colors ${enabled ? 'font-bold text-primary-700' : 'text-gray-600 group-hover:text-primary-600'}`}>{label}</span>
-                                    <button
+                                    {supportsSections && <button
                                           type="button"
                                           disabled={!enabled}
                                           aria-expanded={expanded}
@@ -468,22 +501,34 @@ const Step3Selection: React.FC<Step3Props> = ({
                                           className="inline-flex h-[26px] w-[22px] shrink-0 items-center justify-center rounded text-xs text-gray-500 transition-colors hover:text-primary-700 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary-400 disabled:cursor-not-allowed disabled:opacity-40"
                                        >
                                           <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                                    </button>
+                                    </button>}
                                  </div>
-                                 <div className="contents">
+                                 <div className={supportsSections ? 'contents' : 'flex shrink-0 items-center gap-1'}>
                                     <input
                                        type="text"
                                        inputMode={rule.totalStep < 1 ? 'decimal' : 'numeric'}
                                        value={formattedTotal}
                                        disabled={!enabled}
-                                       readOnly
-                                       aria-invalid={enabled && total === null}
+                                       aria-invalid={enabled && calculatedTotal === null && !directTotalValid}
                                        aria-label={`${label} ${isEn ? 'score' : '成绩'}`}
+                                       onChange={event => {
+                                          if (calculatedTotal !== null) return;
+                                          const value = event.target.value;
+                                          if (!/^\d*\.?\d*$/.test(value)) return;
+                                          updateDirectTotal(value);
+                                       }}
+                                       onBlur={event => {
+                                          if (calculatedTotal !== null || event.target.value === '') return;
+                                          const score = Number(event.target.value);
+                                          if (!Number.isFinite(score)) return;
+                                          const normalized = Math.min(rule.totalMax, Math.max(rule.totalMin, Math.round((score - rule.totalMin) / rule.totalStep) * rule.totalStep + rule.totalMin));
+                                          updateDirectTotal(String(normalized));
+                                       }}
                                        className={`h-[26px] w-14 shrink-0 rounded-md border px-1.5 py-1 text-right text-xs font-bold outline-none transition-colors focus:border-primary-400 focus:ring-1 focus:ring-inset focus:ring-primary-200 ${enabled ? 'border-gray-200 bg-gray-50 text-primary-700' : 'cursor-not-allowed border-gray-100 bg-gray-50 text-gray-400 opacity-60'}`}
                                     />
                                  </div>
                               </div>
-                              <div id={`sim-language-sections-${key}`} hidden={!enabled || !expanded} className="mt-2">
+                              {supportsSections && <div id={`sim-language-sections-${key}`} hidden={!enabled || !expanded} className="mt-2">
                                     <div className={`grid gap-1.5 ${rule.sections.length === 2 ? 'grid-cols-2' : 'grid-cols-4'}`}>
                                        {rule.sections.map(sectionRule => (
                                           <label key={sectionRule.key} className="block">
@@ -500,9 +545,13 @@ const Step3Selection: React.FC<Step3Props> = ({
                                                    if (!/^\d*\.?\d*$/.test(value)) return;
                                                    const nextSections = {...simParams.languageSectionScores, [key]: {...simParams.languageSectionScores?.[key], [sectionRule.key]: value}};
                                                    const nextTotal = calculateExamTotal(key, nextSections[key]);
-                                                   const derived = key === 'sat' ? { sat: nextTotal ?? 0 }
-                                                      : key === 'act' ? { sat: nextTotal === null ? 0 : nextTotal * 40 }
-                                                      : { toefl: nextTotal === null ? 0 : key === 'toefl' ? Math.round(nextTotal * 20) : key === 'ielts' ? nextTotal * 12 : nextTotal };
+                                                   if (nextTotal !== null) {
+                                                      const displayTotal = rule.totalStep < 1 ? nextTotal.toFixed(1) : String(nextTotal);
+                                                      setCalculatedTotalNotice(isEn ? `Total should be ${displayTotal}` : `总分应为${displayTotal}分`);
+                                                   } else {
+                                                      setCalculatedTotalNotice(null);
+                                                   }
+                                                   const derived = { toefl: nextTotal === null ? 0 : key === 'toefl' ? Math.round(nextTotal * 20) : key === 'ielts' ? nextTotal * 12 : nextTotal };
                                                    setSimParams({...simParams, languageSectionScores: nextSections, [`${key}Value`]: nextTotal === null ? '' : String(nextTotal), ...derived});
                                                 }}
                                                 className="w-full rounded-md border border-gray-200 bg-white px-1 py-1.5 text-right text-[11px] font-bold text-gray-700 outline-none focus:border-primary-400 focus:ring-1 focus:ring-inset focus:ring-primary-200"
@@ -511,6 +560,7 @@ const Step3Selection: React.FC<Step3Props> = ({
                                        ))}
                                     </div>
                                  </div>
+                              }
                            </div>
                         );
                      })}
