@@ -1,0 +1,192 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e164]:
+      - banner [ref=e165]:
+        - generic [ref=e166]:
+          - generic [ref=e167]:
+            - button "N Nut" [ref=e168] [cursor=pointer]:
+              - generic [ref=e169]: "N"
+              - generic [ref=e170]: Nut
+            - navigation [ref=e171]:
+              - button [ref=e173] [cursor=pointer]
+              - button [ref=e181] [cursor=pointer]
+              - button [ref=e189] [cursor=pointer]
+              - button [ref=e196] [cursor=pointer]
+              - button [ref=e202] [cursor=pointer]
+              - button [ref=e208] [cursor=pointer]
+          - button "Ms. Sarah Senior Counselor S" [ref=e214] [cursor=pointer]:
+            - generic [ref=e215]:
+              - paragraph [ref=e216]: Ms. Sarah
+              - paragraph [ref=e217]: Senior Counselor
+            - generic [ref=e218]: S
+      - main [ref=e221]:
+        - generic [ref=e504]:
+          - generic [ref=e505]:
+            - generic [ref=e506]: 筛选条件
+            - generic [ref=e510]:
+              - generic [ref=e511]:
+                - generic [ref=e512]: 国家/地区
+                - generic [ref=e513]:
+                  - generic [ref=e514] [cursor=pointer]:
+                    - radio "全部" [checked] [ref=e516]
+                    - generic [ref=e518]: 全部
+                  - generic [ref=e519] [cursor=pointer]:
+                    - radio "US 美国" [ref=e521]
+                    - generic [ref=e522]: US 美国
+                  - generic [ref=e523] [cursor=pointer]:
+                    - radio "UK 英国" [ref=e525]
+                    - generic [ref=e526]: UK 英国
+                  - generic [ref=e527] [cursor=pointer]:
+                    - radio "HK 中国香港" [ref=e529]
+                    - generic [ref=e530]: HK 中国香港
+                  - generic [ref=e531] [cursor=pointer]:
+                    - radio "SG 新加坡" [ref=e533]
+                    - generic [ref=e534]: SG 新加坡
+                  - generic [ref=e535] [cursor=pointer]:
+                    - radio "Australia 澳大利亚" [ref=e537]
+                    - generic [ref=e538]: Australia 澳大利亚
+                  - generic [ref=e539] [cursor=pointer]:
+                    - radio "Canada 加拿大" [ref=e541]
+                    - generic [ref=e542]: Canada 加拿大
+              - generic [ref=e543]:
+                - generic [ref=e544]: 专业大类
+                - generic [ref=e545]:
+                  - generic [ref=e546] [cursor=pointer]:
+                    - radio "全部" [checked] [ref=e548]
+                    - generic [ref=e550]: 全部
+                  - generic [ref=e551] [cursor=pointer]:
+                    - radio "STEM 理工" [ref=e553]
+                    - generic [ref=e554]: STEM 理工
+                  - generic [ref=e555] [cursor=pointer]:
+                    - radio "Business 商科" [ref=e557]
+                    - generic [ref=e558]: Business 商科
+                  - generic [ref=e559] [cursor=pointer]:
+                    - radio "Arts 艺术" [ref=e561]
+                    - generic [ref=e562]: Arts 艺术
+                  - generic [ref=e563] [cursor=pointer]:
+                    - radio "Humanities 人文" [ref=e565]
+                    - generic [ref=e566]: Humanities 人文
+              - generic [ref=e567]:
+                - generic [ref=e568]:
+                  - heading "学术成绩" [level=4] [ref=e569]
+                  - generic [ref=e570]:
+                    - generic [ref=e572]:
+                      - generic [ref=e573]:
+                        - switch "启用 A-Level" [ref=e574] [cursor=pointer]
+                        - generic [ref=e576]: A-Level
+                      - textbox "A-Level等级组合或分数" [disabled] [ref=e577]:
+                        - /placeholder: AAB / 12
+                    - generic [ref=e579]:
+                      - generic [ref=e580]:
+                        - switch "启用 AP" [ref=e581] [cursor=pointer]
+                        - generic [ref=e583]: AP
+                      - textbox "AP 成绩" [disabled] [ref=e585]: "4"
+                    - generic [ref=e587]:
+                      - generic [ref=e588]:
+                        - switch "启用 IB" [ref=e589] [cursor=pointer]
+                        - generic [ref=e591]: IB
+                      - textbox "IB 成绩" [disabled] [ref=e593]: "38"
+                    - generic [ref=e595]:
+                      - generic [ref=e596]:
+                        - switch "启用 ATAR" [ref=e597] [cursor=pointer]
+                        - generic [ref=e599]: ATAR
+                      - textbox "ATAR 成绩" [disabled] [ref=e601]: "90"
+                - generic [ref=e602]:
+                  - heading "标化成绩" [level=4] [ref=e603]
+                  - generic [ref=e604]:
+                    - generic [ref=e606]:
+                      - generic [ref=e607]:
+                        - switch "启用 TOEFL (From 21 January 2026)" [ref=e608] [cursor=pointer]
+                        - generic [ref=e610]: TOEFL (From 21 January 2026)
+                      - generic [ref=e611]:
+                        - textbox "TOEFL (From 21 January 2026) 成绩" [disabled] [ref=e612]: "100"
+                        - button "TOEFL (From 21 January 2026) 展开单项成绩" [disabled] [ref=e613]
+                    - generic [ref=e617]:
+                      - generic [ref=e618]:
+                        - switch "启用 TOEFL (Before 21 January 2026)" [ref=e619] [cursor=pointer]
+                        - generic [ref=e621]: TOEFL (Before 21 January 2026)
+                      - generic [ref=e622]:
+                        - textbox "TOEFL (Before 21 January 2026) 成绩" [disabled] [ref=e623]: "100"
+                        - button "TOEFL (Before 21 January 2026) 展开单项成绩" [disabled] [ref=e624]
+                    - generic [ref=e628]:
+                      - generic [ref=e629]:
+                        - switch "启用 IELTS" [checked] [active] [ref=e630] [cursor=pointer]
+                        - generic [ref=e632]: IELTS
+                        - button "IELTS 展开单项成绩" [ref=e633] [cursor=pointer]
+                      - textbox "IELTS 成绩" [ref=e637]: "7"
+                    - generic [ref=e639]:
+                      - generic [ref=e640]:
+                        - switch "启用 SAT" [ref=e641] [cursor=pointer]
+                        - generic [ref=e643]: SAT
+                      - textbox "SAT 成绩" [disabled] [ref=e645]: "1450"
+                    - generic [ref=e647]:
+                      - generic [ref=e648]:
+                        - switch "启用 ACT" [ref=e649] [cursor=pointer]
+                        - generic [ref=e651]: ACT
+                      - textbox "ACT 成绩" [disabled] [ref=e653]: "32"
+              - generic [ref=e654]:
+                - generic [ref=e655]: 录取难度
+                - generic [ref=e656]:
+                  - button "全部" [ref=e657] [cursor=pointer]
+                  - button "高" [ref=e658] [cursor=pointer]
+                  - button "中" [ref=e659] [cursor=pointer]
+                  - button "低" [ref=e660] [cursor=pointer]
+            - generic [ref=e661]:
+              - button "我的收藏库" [ref=e662] [cursor=pointer]
+              - button "最近浏览" [ref=e667] [cursor=pointer]
+          - generic [ref=e673]:
+            - generic [ref=e674]:
+              - textbox "搜索学校、项目、专业关键词..." [ref=e676]
+              - button "搜索" [ref=e677] [cursor=pointer]
+            - generic [ref=e681]:
+              - generic [ref=e682]:
+                - generic [ref=e841]:
+                  - text: IELTS 7.0
+                  - button "×" [ref=e842] [cursor=pointer]
+                - paragraph [ref=e683]: 找到 2 个相关项目
+              - generic [ref=e684]:
+                - generic [ref=e685]: "排序:"
+                - generic [ref=e686] [cursor=pointer]: 综合排名
+            - generic [ref=e689]:
+              - generic [ref=e719] [cursor=pointer]:
+                - generic [ref=e720]:
+                  - generic [ref=e721]:
+                    - img "logo" [ref=e723]
+                    - generic [ref=e724]:
+                      - heading "University College London" [level=3] [ref=e726]
+                      - generic [ref=e727]:
+                        - generic [ref=e728]: London, UK
+                        - generic [ref=e729]: "QS Edu #1"
+                  - button [ref=e730]
+                - heading "BA Education Studies" [level=4] [ref=e733]
+                - paragraph [ref=e734]: IOE 学院连续多年世界排名第一，课程涵盖教育社会学、心理学等。虽然不是最难进的G5专业，但PS要求极高。
+                - generic [ref=e735]:
+                  - generic [ref=e736]: G5
+                  - generic [ref=e737]: 社科
+                  - generic [ref=e738]: 伦敦
+                - generic [ref=e739]:
+                  - generic [ref=e740]: 难度稳定
+                  - generic [ref=e747]: 查看详情
+              - generic [ref=e750] [cursor=pointer]:
+                - generic [ref=e751]:
+                  - generic [ref=e752]:
+                    - img "logo" [ref=e754]
+                    - generic [ref=e755]:
+                      - heading "Imperial College London" [level=3] [ref=e757]
+                      - generic [ref=e758]:
+                        - generic [ref=e759]: London, UK
+                        - generic [ref=e760]: "QS #2"
+                  - button [ref=e761]
+                - heading "MEng Mechanical Engineering" [level=4] [ref=e764]
+                - paragraph [ref=e765]: 帝国理工机械工程，强调数学与物理的深度结合。申请过程中包含高难度的笔试与学术面试。
+                - generic [ref=e766]:
+                  - generic [ref=e767]: G5
+                  - generic [ref=e768]: STEM
+                  - generic [ref=e769]: 面试强
+                - generic [ref=e770]:
+                  - generic [ref=e771]: 难度稳定
+                  - generic [ref=e778]: 查看详情
+    - button "问题反馈" [ref=e100] [cursor=pointer]
+  - generic [ref=e104]:
+    - button "Copy element" [ref=e109] [cursor=pointer]
+    - button "Collapse toolbar" [expanded] [ref=e113] [cursor=pointer]

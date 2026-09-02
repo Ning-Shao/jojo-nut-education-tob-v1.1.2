@@ -1,0 +1,274 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e164]:
+      - banner [ref=e165]:
+        - generic [ref=e166]:
+          - generic [ref=e167]:
+            - button "N Nut" [ref=e168] [cursor=pointer]:
+              - generic [ref=e169]: "N"
+              - generic [ref=e170]: Nut
+            - navigation [ref=e171]:
+              - button [ref=e173] [cursor=pointer]
+              - button [active] [ref=e181] [cursor=pointer]
+              - button [ref=e189] [cursor=pointer]
+              - button [ref=e196] [cursor=pointer]
+              - button [ref=e202] [cursor=pointer]
+              - button [ref=e208] [cursor=pointer]
+          - button "Ms. Sarah Senior Counselor S" [ref=e214] [cursor=pointer]:
+            - generic [ref=e215]:
+              - paragraph [ref=e216]: Ms. Sarah
+              - paragraph [ref=e217]: Senior Counselor
+            - generic [ref=e218]: S
+      - main [ref=e221]:
+        - generic [ref=e476]:
+          - generic [ref=e477]:
+            - generic [ref=e478]:
+              - heading "学生管理" [level=2] [ref=e479]
+              - generic [ref=e480]:
+                - button "新增沟通记录" [ref=e481] [cursor=pointer]
+                - button "新建学生" [ref=e484] [cursor=pointer]
+            - generic [ref=e486]:
+              - textbox "搜索姓名" [ref=e491]
+              - 'button "年级: 全部" [ref=e494] [cursor=pointer]':
+                - text: "年级:"
+                - generic [ref=e495]: 全部
+              - 'button "方向: 全部" [ref=e499] [cursor=pointer]':
+                - text: "方向:"
+                - generic [ref=e500]: 全部
+              - 'button "阶段: 全部" [ref=e504] [cursor=pointer]':
+                - text: "阶段:"
+                - generic [ref=e505]: 全部
+              - button "风险筛选" [ref=e509] [cursor=pointer]
+          - table [ref=e513]:
+            - rowgroup [ref=e514]:
+              - row [ref=e515]:
+                - columnheader "学生信息" [ref=e516]
+                - columnheader "阶段/状态" [ref=e517]
+                - columnheader "目标摘要" [ref=e518]
+                - columnheader "风险/需关注" [ref=e519]
+                - columnheader "下一步待办" [ref=e520]
+                - columnheader "完整度" [ref=e521]
+                - columnheader "操作" [ref=e522]
+            - rowgroup [ref=e523]:
+              - row [ref=e524] [cursor=pointer]:
+                - cell [ref=e525]:
+                  - generic [ref=e526]:
+                    - img "Alex Chen" [ref=e527]
+                    - generic [ref=e528]:
+                      - paragraph [ref=e529]: Alex Chen
+                      - paragraph [ref=e530]: G11 11-A • US
+                - cell "Phase 2 教学运营" [ref=e531]
+                - cell "US Top 30 CS" [ref=e534]
+                - cell "成绩风险" [ref=e536]
+                - cell "选校名单确认 Today" [ref=e542]:
+                  - generic [ref=e543]: 选校名单确认
+                  - generic [ref=e544]: Today
+                - 'cell "100% 基础: 10/10 标化: 20/20 选校: 30/30 文书: 20/20 活动: 10/10 推荐信: 10/10" [ref=e548]':
+                  - generic [ref=e549]:
+                    - generic [ref=e552]: 100%
+                    - generic: "基础: 10/10 标化: 20/20 选校: 30/30 文书: 20/20 活动: 10/10 推荐信: 10/10"
+                - cell [ref=e553]:
+                  - generic [ref=e554]:
+                    - button "编辑" [ref=e555]
+                    - button "删除" [ref=e559]
+              - row [ref=e563] [cursor=pointer]:
+                - cell [ref=e564]:
+                  - generic [ref=e565]:
+                    - img "Sarah Li" [ref=e566]
+                    - generic [ref=e567]:
+                      - paragraph [ref=e568]: Sarah Li
+                      - paragraph [ref=e569]: G12 12-B • UK
+                - cell "Phase 4 录取" [ref=e570]
+                - cell "G5 Bio" [ref=e573]
+                - cell "-" [ref=e575]
+                - cell "文书终稿审核 Tomorrow" [ref=e576]:
+                  - generic [ref=e577]: 文书终稿审核
+                  - generic [ref=e578]: Tomorrow
+                - 'cell "100% 基础: 10/10 标化: 20/20 选校: 30/30 文书: 20/20 活动: 10/10 推荐信: 10/10" [ref=e582]':
+                  - generic [ref=e583]:
+                    - generic [ref=e586]: 100%
+                    - generic: "基础: 10/10 标化: 20/20 选校: 30/30 文书: 20/20 活动: 10/10 推荐信: 10/10"
+                - cell [ref=e587]:
+                  - generic [ref=e588]:
+                    - button "编辑" [ref=e589]
+                    - button "删除" [ref=e593]
+              - row [ref=e597] [cursor=pointer]:
+                - cell [ref=e598]:
+                  - generic [ref=e599]:
+                    - img "James Wang" [ref=e600]
+                    - generic [ref=e601]:
+                      - paragraph [ref=e602]: James Wang
+                      - paragraph [ref=e603]: G10 10-C • Global
+                - cell "Phase 1 规划" [ref=e604]
+                - cell "待规划" [ref=e607]
+                - cell "任务风险" [ref=e609]
+                - cell "首次面谈 Next Week" [ref=e615]:
+                  - generic [ref=e616]: 首次面谈
+                  - generic [ref=e617]: Next Week
+                - 'cell "10% 基础: 10/10 标化: 0/20 选校: 0/30 文书: 0/20 活动: 0/10 推荐信: 0/10" [ref=e621]':
+                  - generic [ref=e622]:
+                    - generic [ref=e625]: 10%
+                    - generic: "基础: 10/10 标化: 0/20 选校: 0/30 文书: 0/20 活动: 0/10 推荐信: 0/10"
+                - cell [ref=e626]:
+                  - generic [ref=e627]:
+                    - button "编辑" [ref=e628]
+                    - button "删除" [ref=e632]
+              - row [ref=e636] [cursor=pointer]:
+                - cell [ref=e637]:
+                  - generic [ref=e638]:
+                    - img "Emily Zhang" [ref=e639]
+                    - generic [ref=e640]:
+                      - paragraph [ref=e641]: Emily Zhang
+                      - paragraph [ref=e642]: G12 12-A • US
+                - cell "Phase 3 申请" [ref=e643]
+                - cell "US Top 20 Arts" [ref=e646]
+                - cell "材料风险" [ref=e648]
+                - cell "作品集Review In 2 days" [ref=e654]:
+                  - generic [ref=e655]: 作品集Review
+                  - generic [ref=e656]: In 2 days
+                - 'cell "100% 基础: 10/10 标化: 20/20 选校: 30/30 文书: 20/20 活动: 10/10 推荐信: 10/10" [ref=e660]':
+                  - generic [ref=e661]:
+                    - generic [ref=e664]: 100%
+                    - generic: "基础: 10/10 标化: 20/20 选校: 30/30 文书: 20/20 活动: 10/10 推荐信: 10/10"
+                - cell [ref=e665]:
+                  - generic [ref=e666]:
+                    - button "编辑" [ref=e667]
+                    - button "删除" [ref=e671]
+              - row [ref=e675] [cursor=pointer]:
+                - cell [ref=e676]:
+                  - generic [ref=e677]:
+                    - img "Michael Wu" [ref=e678]
+                    - generic [ref=e679]:
+                      - paragraph [ref=e680]: Michael Wu
+                      - paragraph [ref=e681]: G11 11-A • US
+                - cell "Phase 2 教学运营" [ref=e682]
+                - cell "Top 50 Undecided" [ref=e685]
+                - cell [ref=e687]:
+                  - generic [ref=e689]:
+                    - generic [ref=e690]: 沟通风险
+                    - generic [ref=e693]: 目标风险
+                - cell "家长会预约 Overdue" [ref=e696]:
+                  - generic [ref=e697]: 家长会预约
+                  - generic [ref=e698]: Overdue
+                - 'cell "70% 基础: 10/10 标化: 20/20 选校: 30/30 文书: 0/20 活动: 10/10 推荐信: 0/10" [ref=e702]':
+                  - generic [ref=e703]:
+                    - generic [ref=e706]: 70%
+                    - generic: "基础: 10/10 标化: 20/20 选校: 30/30 文书: 0/20 活动: 10/10 推荐信: 0/10"
+                - cell [ref=e707]:
+                  - generic [ref=e708]:
+                    - button "编辑" [ref=e709]
+                    - button "删除" [ref=e713]
+              - row [ref=e717] [cursor=pointer]:
+                - cell [ref=e718]:
+                  - generic [ref=e719]:
+                    - img "Olivia Chen" [ref=e720]
+                    - generic [ref=e721]:
+                      - paragraph [ref=e722]: Olivia Chen
+                      - paragraph [ref=e723]: G10 10-B • UK
+                - cell "Phase 1 规划" [ref=e724]
+                - cell "G5 Prep" [ref=e727]
+                - cell "-" [ref=e729]
+                - cell "IGCSE Review Next Week" [ref=e730]:
+                  - generic [ref=e731]: IGCSE Review
+                  - generic [ref=e732]: Next Week
+                - cell "15% 新档案" [ref=e736]:
+                  - generic [ref=e737]:
+                    - generic [ref=e740]: 15%
+                    - generic: 新档案
+                - cell [ref=e741]:
+                  - generic [ref=e742]:
+                    - button "编辑" [ref=e743]
+                    - button "删除" [ref=e747]
+              - row [ref=e751] [cursor=pointer]:
+                - cell [ref=e752]:
+                  - generic [ref=e753]:
+                    - img "Daniel Liu" [ref=e754]
+                    - generic [ref=e755]:
+                      - paragraph [ref=e756]: Daniel Liu
+                      - paragraph [ref=e757]: G11 11-C • Canada
+                - cell "Phase 2 教学运营" [ref=e758]
+                - cell "Waterloo CS" [ref=e761]
+                - cell "成绩风险" [ref=e763]
+                - cell "Math Tutor Assign Tomorrow" [ref=e769]:
+                  - generic [ref=e770]: Math Tutor Assign
+                  - generic [ref=e771]: Tomorrow
+                - cell "15% 新档案" [ref=e775]:
+                  - generic [ref=e776]:
+                    - generic [ref=e779]: 15%
+                    - generic: 新档案
+                - cell [ref=e780]:
+                  - generic [ref=e781]:
+                    - button "编辑" [ref=e782]
+                    - button "删除" [ref=e786]
+              - row [ref=e790] [cursor=pointer]:
+                - cell [ref=e791]:
+                  - generic [ref=e792]:
+                    - img "Grace Kim" [ref=e793]
+                    - generic [ref=e794]:
+                      - paragraph [ref=e795]: Grace Kim
+                      - paragraph [ref=e796]: G12 12-A • US
+                - cell "Phase 4 录取" [ref=e797]
+                - cell "NYU" [ref=e800]
+                - cell "-" [ref=e802]
+                - cell "Deposit Payment In 3 days" [ref=e803]:
+                  - generic [ref=e804]: Deposit Payment
+                  - generic [ref=e805]: In 3 days
+                - cell "15% 新档案" [ref=e809]:
+                  - generic [ref=e810]:
+                    - generic [ref=e813]: 15%
+                    - generic: 新档案
+                - cell [ref=e814]:
+                  - generic [ref=e815]:
+                    - button "编辑" [ref=e816]
+                    - button "删除" [ref=e820]
+              - row [ref=e824] [cursor=pointer]:
+                - cell [ref=e825]:
+                  - generic [ref=e826]:
+                    - img "Henry Wilson" [ref=e827]
+                    - generic [ref=e828]:
+                      - paragraph [ref=e829]: Henry Wilson
+                      - paragraph [ref=e830]: G9 9-A • Global
+                - cell "Phase 0 建档" [ref=e831]
+                - cell "Exploration" [ref=e834]
+                - cell "沟通风险" [ref=e836]
+                - cell "Parent Onboarding Overdue" [ref=e842]:
+                  - generic [ref=e843]: Parent Onboarding
+                  - generic [ref=e844]: Overdue
+                - cell "15% 新档案" [ref=e848]:
+                  - generic [ref=e849]:
+                    - generic [ref=e852]: 15%
+                    - generic: 新档案
+                - cell [ref=e853]:
+                  - generic [ref=e854]:
+                    - button "编辑" [ref=e855]
+                    - button "删除" [ref=e859]
+              - row [ref=e863] [cursor=pointer]:
+                - cell [ref=e864]:
+                  - generic [ref=e865]:
+                    - img "Isabella Wang" [ref=e866]
+                    - generic [ref=e867]:
+                      - paragraph [ref=e868]: Isabella Wang
+                      - paragraph [ref=e869]: G11 11-B • HK
+                - cell "Phase 2 教学运营" [ref=e870]
+                - cell "HKU/HKUST" [ref=e873]
+                - cell "目标风险" [ref=e875]
+                - cell "School List Review Today" [ref=e881]:
+                  - generic [ref=e882]: School List Review
+                  - generic [ref=e883]: Today
+                - cell "15% 新档案" [ref=e887]:
+                  - generic [ref=e888]:
+                    - generic [ref=e891]: 15%
+                    - generic: 新档案
+                - cell [ref=e892]:
+                  - generic [ref=e893]:
+                    - button "编辑" [ref=e894]
+                    - button "删除" [ref=e898]
+          - generic [ref=e902]:
+            - generic [ref=e903]: 显示 1-10 共 12 名学生
+            - generic [ref=e904]:
+              - button "上一页" [disabled] [ref=e905]
+              - button "下一页" [ref=e906] [cursor=pointer]
+    - button "问题反馈" [ref=e100] [cursor=pointer]
+  - generic [ref=e104]:
+    - button "Copy element" [ref=e109] [cursor=pointer]
+    - button "Collapse toolbar" [expanded] [ref=e113] [cursor=pointer]

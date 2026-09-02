@@ -1,0 +1,256 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e173]:
+      - banner [ref=e174]:
+        - generic [ref=e175]:
+          - generic [ref=e176]:
+            - button "N Nut" [ref=e177] [cursor=pointer]:
+              - generic [ref=e178]: "N"
+              - generic [ref=e179]: Nut
+            - navigation [ref=e180]:
+              - button [ref=e182] [cursor=pointer]
+              - button [ref=e190] [cursor=pointer]
+              - generic [ref=e197]:
+                - button [active] [ref=e198] [cursor=pointer]
+                - generic [ref=e485]:
+                  - button [ref=e486] [cursor=pointer]
+                  - button [ref=e490] [cursor=pointer]
+                  - button [ref=e495] [cursor=pointer]
+                  - button [ref=e500] [cursor=pointer]
+                  - button [ref=e504] [cursor=pointer]
+              - button [ref=e205] [cursor=pointer]
+              - button [ref=e211] [cursor=pointer]
+              - button [ref=e217] [cursor=pointer]
+          - button "Ms. Sarah Senior Counselor S" [ref=e223] [cursor=pointer]:
+            - generic [ref=e224]:
+              - paragraph [ref=e225]: Ms. Sarah
+              - paragraph [ref=e226]: Senior Counselor
+            - generic [ref=e227]: S
+      - main [ref=e230]:
+        - generic [ref=e513]:
+          - generic [ref=e514]:
+            - generic [ref=e515]: 筛选条件
+            - generic [ref=e519]:
+              - generic [ref=e520]:
+                - generic [ref=e521]: 国家/地区
+                - generic [ref=e522]:
+                  - generic [ref=e523] [cursor=pointer]:
+                    - radio "全部" [checked] [ref=e525]
+                    - generic [ref=e527]: 全部
+                  - generic [ref=e528] [cursor=pointer]:
+                    - radio "US 美国" [ref=e530]
+                    - generic [ref=e531]: US 美国
+                  - generic [ref=e532] [cursor=pointer]:
+                    - radio "UK 英国" [ref=e534]
+                    - generic [ref=e535]: UK 英国
+                  - generic [ref=e536] [cursor=pointer]:
+                    - radio "HK 中国香港" [ref=e538]
+                    - generic [ref=e539]: HK 中国香港
+                  - generic [ref=e540] [cursor=pointer]:
+                    - radio "SG 新加坡" [ref=e542]
+                    - generic [ref=e543]: SG 新加坡
+                  - generic [ref=e544] [cursor=pointer]:
+                    - radio "Australia 澳大利亚" [ref=e546]
+                    - generic [ref=e547]: Australia 澳大利亚
+                  - generic [ref=e548] [cursor=pointer]:
+                    - radio "Canada 加拿大" [ref=e550]
+                    - generic [ref=e551]: Canada 加拿大
+              - generic [ref=e552]:
+                - generic [ref=e553]: 专业大类
+                - generic [ref=e554]:
+                  - generic [ref=e555] [cursor=pointer]:
+                    - radio "全部" [checked] [ref=e557]
+                    - generic [ref=e559]: 全部
+                  - generic [ref=e560] [cursor=pointer]:
+                    - radio "STEM 理工" [ref=e562]
+                    - generic [ref=e563]: STEM 理工
+                  - generic [ref=e564] [cursor=pointer]:
+                    - radio "Business 商科" [ref=e566]
+                    - generic [ref=e567]: Business 商科
+                  - generic [ref=e568] [cursor=pointer]:
+                    - radio "Arts 艺术" [ref=e570]
+                    - generic [ref=e571]: Arts 艺术
+                  - generic [ref=e572] [cursor=pointer]:
+                    - radio "Humanities 人文" [ref=e574]
+                    - generic [ref=e575]: Humanities 人文
+              - generic [ref=e576]:
+                - generic [ref=e578]:
+                  - generic [ref=e579]: 成绩模拟筛选
+                  - paragraph [ref=e581]: 基于现有院校要求文本进行模拟匹配
+                - generic [ref=e582]:
+                  - button "学术成绩" [ref=e583] [cursor=pointer]
+                  - generic [ref=e587]:
+                    - generic [ref=e588]:
+                      - generic [ref=e589]:
+                        - generic [ref=e590]:
+                          - switch "启用 A-Level" [ref=e591] [cursor=pointer]
+                          - generic [ref=e593]: A-Level
+                        - generic [ref=e594]: 3 门 A/A*
+                      - slider "A-Level 成绩" [disabled] [ref=e595]: "3"
+                    - generic [ref=e596]:
+                      - generic [ref=e597]:
+                        - generic [ref=e598]:
+                          - switch "启用 AP" [ref=e599] [cursor=pointer]
+                          - generic [ref=e601]: AP
+                        - generic [ref=e602]: 4 分
+                      - slider "AP 成绩" [disabled] [ref=e603]: "4"
+                    - generic [ref=e604]:
+                      - generic [ref=e605]:
+                        - generic [ref=e606]:
+                          - switch "启用 IB" [ref=e607] [cursor=pointer]
+                          - generic [ref=e609]: IB
+                        - generic [ref=e610]: 38 分
+                      - slider "IB 成绩" [disabled] [ref=e611]: "38"
+                - generic [ref=e612]:
+                  - button "标化成绩" [ref=e613] [cursor=pointer]
+                  - generic [ref=e617]:
+                    - generic [ref=e618]:
+                      - generic [ref=e619]:
+                        - generic [ref=e620]:
+                          - switch "启用 TOEFL" [ref=e621] [cursor=pointer]
+                          - generic [ref=e623]: TOEFL
+                        - generic [ref=e624]: "100"
+                      - slider "TOEFL 成绩" [disabled] [ref=e625]: "100"
+                    - generic [ref=e626]:
+                      - generic [ref=e627]:
+                        - generic [ref=e628]:
+                          - switch "启用 IELTS" [ref=e629] [cursor=pointer]
+                          - generic [ref=e631]: IELTS
+                        - generic [ref=e632]: "7.0"
+                      - slider "IELTS 成绩" [disabled] [ref=e633]: "7"
+                    - generic [ref=e634]:
+                      - generic [ref=e635]:
+                        - generic [ref=e636]:
+                          - switch "启用 SAT" [ref=e637] [cursor=pointer]
+                          - generic [ref=e639]: SAT
+                        - generic [ref=e640]: "1450"
+                      - slider "SAT 成绩" [disabled] [ref=e641]: "1450"
+                    - generic [ref=e642]:
+                      - generic [ref=e643]:
+                        - generic [ref=e644]:
+                          - switch "启用 ACT" [ref=e645] [cursor=pointer]
+                          - generic [ref=e647]: ACT
+                        - generic [ref=e648]: "32"
+                      - slider "ACT 成绩" [disabled] [ref=e649]: "32"
+                - generic [ref=e650]:
+                  - generic [ref=e651]: 隐藏低于门槛的项目
+                  - switch "隐藏低于门槛的项目" [disabled] [ref=e652]
+              - generic [ref=e654]:
+                - generic [ref=e655]: 录取难度
+                - generic [ref=e656]:
+                  - button "全部" [ref=e657] [cursor=pointer]
+                  - button "高" [ref=e658] [cursor=pointer]
+                  - button "中" [ref=e659] [cursor=pointer]
+                  - button "低" [ref=e660] [cursor=pointer]
+            - generic [ref=e661]:
+              - button "我的收藏库" [ref=e662] [cursor=pointer]
+              - button "最近浏览" [ref=e667] [cursor=pointer]
+          - generic [ref=e673]:
+            - generic [ref=e674]:
+              - textbox "搜索学校、项目、专业关键词..." [ref=e676]
+              - button "搜索" [ref=e677] [cursor=pointer]
+            - generic [ref=e681]:
+              - paragraph [ref=e683]: 找到 5 个相关项目
+              - generic [ref=e684]:
+                - generic [ref=e685]: "排序:"
+                - generic [ref=e686] [cursor=pointer]: 综合排名
+            - generic [ref=e689]:
+              - generic [ref=e690] [cursor=pointer]:
+                - generic [ref=e691]:
+                  - generic [ref=e692]:
+                    - img "logo" [ref=e694]
+                    - generic [ref=e695]:
+                      - heading "Carnegie Mellon University" [level=3] [ref=e697]
+                      - generic [ref=e698]:
+                        - generic [ref=e699]: Pittsburgh, PA
+                        - generic [ref=e700]: "CS Ranking #1"
+                  - button [ref=e701]
+                - heading "B.S. in Computer Science" [level=4] [ref=e704]
+                - paragraph [ref=e705]: CMU CS 是全球最顶尖的计算机项目之一，侧重于算法、系统和人工智能。课程设置极具挑战性，竞争极其惨烈。
+                - generic [ref=e706]:
+                  - generic [ref=e707]: STEM
+                  - generic [ref=e708]: 高薪就业
+                  - generic [ref=e709]: 科研强
+                - generic [ref=e710]:
+                  - generic [ref=e711]: 难度上升
+                  - generic [ref=e716]: 查看详情
+              - generic [ref=e719] [cursor=pointer]:
+                - generic [ref=e720]:
+                  - generic [ref=e721]:
+                    - img "logo" [ref=e723]
+                    - generic [ref=e724]:
+                      - heading "University College London" [level=3] [ref=e726]
+                      - generic [ref=e727]:
+                        - generic [ref=e728]: London, UK
+                        - generic [ref=e729]: "QS Edu #1"
+                  - button [ref=e730]
+                - heading "BA Education Studies" [level=4] [ref=e733]
+                - paragraph [ref=e734]: IOE 学院连续多年世界排名第一，课程涵盖教育社会学、心理学等。虽然不是最难进的G5专业，但PS要求极高。
+                - generic [ref=e735]:
+                  - generic [ref=e736]: G5
+                  - generic [ref=e737]: 社科
+                  - generic [ref=e738]: 伦敦
+                - generic [ref=e739]:
+                  - generic [ref=e740]: 难度稳定
+                  - generic [ref=e747]: 查看详情
+              - generic [ref=e750] [cursor=pointer]:
+                - generic [ref=e751]:
+                  - generic [ref=e752]:
+                    - img "logo" [ref=e754]
+                    - generic [ref=e755]:
+                      - heading "New York University" [level=3] [ref=e757]
+                      - generic [ref=e758]:
+                        - generic [ref=e759]: New York, NY
+                        - generic [ref=e760]: Top Arts
+                  - button [ref=e761]
+                - heading "Game Design (Tisch)" [level=4] [ref=e764]
+                - paragraph [ref=e765]: Tisch 游戏中心专注于游戏作为一种创意艺术形式，结合了编程、视觉艺术和叙事。需要极强的创意作品集。
+                - generic [ref=e766]:
+                  - generic [ref=e767]: 作品集
+                  - generic [ref=e768]: 就业强
+                  - generic [ref=e769]: 跨学科
+                - generic [ref=e770]:
+                  - generic [ref=e771]: 难度上升
+                  - generic [ref=e776]: 查看详情
+              - generic [ref=e779] [cursor=pointer]:
+                - generic [ref=e780]:
+                  - generic [ref=e781]:
+                    - img "logo" [ref=e783]
+                    - generic [ref=e784]:
+                      - heading "Imperial College London" [level=3] [ref=e786]
+                      - generic [ref=e787]:
+                        - generic [ref=e788]: London, UK
+                        - generic [ref=e789]: "QS #2"
+                  - button [ref=e790]
+                - heading "MEng Mechanical Engineering" [level=4] [ref=e793]
+                - paragraph [ref=e794]: 帝国理工机械工程，强调数学与物理的深度结合。申请过程中包含高难度的笔试与学术面试。
+                - generic [ref=e795]:
+                  - generic [ref=e796]: G5
+                  - generic [ref=e797]: STEM
+                  - generic [ref=e798]: 面试强
+                - generic [ref=e799]:
+                  - generic [ref=e800]: 难度稳定
+                  - generic [ref=e807]: 查看详情
+              - generic [ref=e810] [cursor=pointer]:
+                - generic [ref=e811]:
+                  - generic [ref=e812]:
+                    - img "logo" [ref=e814]
+                    - generic [ref=e815]:
+                      - heading "University of Hong Kong" [level=3] [ref=e817]
+                      - generic [ref=e818]:
+                        - generic [ref=e819]: Hong Kong
+                        - generic [ref=e820]: Asia Top
+                  - button [ref=e821]
+                - heading "Bachelor of Finance (IBGM)" [level=4] [ref=e824]
+                - paragraph [ref=e825]: 港大王牌 IBGM，不仅看重学术成绩，还极度看重面试表现、领导力与国际视野。
+                - generic [ref=e826]:
+                  - generic [ref=e827]: 商科
+                  - generic [ref=e828]: 高薪
+                  - generic [ref=e829]: 亚洲金融
+                - generic [ref=e830]:
+                  - generic [ref=e831]: 难度稳定
+                  - generic [ref=e838]: 查看详情
+    - button "问题反馈" [ref=e100] [cursor=pointer]
+  - generic [ref=e104]:
+    - button "Copy element" [ref=e109] [cursor=pointer]
+    - button "Collapse toolbar" [expanded] [ref=e113] [cursor=pointer]

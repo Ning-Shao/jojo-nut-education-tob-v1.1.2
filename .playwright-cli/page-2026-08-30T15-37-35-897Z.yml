@@ -1,0 +1,39 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - generic [ref=e6]: "N"
+          - generic [ref=e7]: Nut Education
+        - generic [ref=e8]:
+          - generic [ref=e10]:
+            - img:
+              - generic:
+                - generic:
+                  - generic: Welcome Class!
+                  - generic: E=mc²
+          - generic [ref=e67]:
+            - heading "Your Journey Starts Here." [level=2] [ref=e68]
+            - paragraph [ref=e69]: Connecting counselors, students, and parents in one unified ecosystem for international education success.
+        - generic [ref=e70]: © 2026 Nut Education Group. All rights reserved.
+      - generic [ref=e73]:
+        - button "Back" [ref=e116] [cursor=pointer]
+        - generic [ref=e77]:
+          - heading "Counselor Login" [level=1] [ref=e119]
+          - paragraph [ref=e120]: Please enter your details to sign in.
+        - generic [ref=e121]:
+          - generic [ref=e122]:
+            - text: Email Address
+            - textbox "name@school.edu" [ref=e124]: demo@school.edu
+          - generic [ref=e128]:
+            - generic [ref=e129]:
+              - generic [ref=e130]: Password
+              - button "Forgot password?" [ref=e131] [cursor=pointer]
+            - generic [ref=e132]:
+              - textbox "••••••••" [ref=e133]: demo
+              - button [ref=e137] [cursor=pointer]
+          - button "Signing in..." [disabled] [ref=e161]
+    - button "问题反馈" [ref=e100] [cursor=pointer]
+  - generic [ref=e104]:
+    - button "Copy element" [ref=e109] [cursor=pointer]
+    - button "Collapse toolbar" [expanded] [ref=e113] [cursor=pointer]

@@ -1,0 +1,113 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e1755]:
+      - banner [ref=e1756]:
+        - generic [ref=e1757]:
+          - generic [ref=e1758]:
+            - button "返回学生首页" [ref=e1759] [cursor=pointer]:
+              - generic [ref=e1760]: "N"
+              - generic [ref=e1761]: Nut Student
+            - navigation [ref=e1762]:
+              - button [ref=e1764] [cursor=pointer]
+              - button [ref=e1772] [cursor=pointer]
+              - button [ref=e1777] [cursor=pointer]
+              - button [ref=e1784] [cursor=pointer]
+          - button "Alex Grade 11 A" [ref=e1790] [cursor=pointer]:
+            - generic [ref=e1791]:
+              - paragraph [ref=e1792]: Alex
+              - paragraph [ref=e1793]: Grade 11
+            - generic [ref=e1794]: A
+      - main [ref=e1797]:
+        - generic [ref=e1908]:
+          - generic [ref=e1909]:
+            - button "1. 基础信息" [ref=e1910] [cursor=pointer]
+            - button "2. 申请资料夹" [ref=e1914] [cursor=pointer]
+            - button "3. 升学规划" [ref=e1917] [cursor=pointer]
+            - button "4. 文书助手" [ref=e1921] [cursor=pointer]
+            - button "5. 推荐信助手" [ref=e1925] [cursor=pointer]
+            - button "6. Offer追踪" [ref=e1929] [cursor=pointer]
+          - generic [ref=e2124]:
+            - generic [ref=e2125]:
+              - heading "文书任务清单" [level=3] [ref=e2127]
+              - generic [ref=e2131]:
+                - generic [ref=e2134] [cursor=pointer]:
+                  - paragraph [ref=e2135]: Common App
+                  - paragraph [ref=e2136]: Personal Statement
+                  - generic [ref=e2137]:
+                    - generic [ref=e2138]: Reviewing
+                    - generic [ref=e2139]: Nov 1
+                - generic [ref=e2145] [cursor=pointer]:
+                  - paragraph [ref=e2146]: Carnegie Mellon Univ.
+                  - paragraph [ref=e2147]: Why Major (SCS)
+                  - generic [ref=e2148]:
+                    - generic [ref=e2149]: Reviewing
+                    - generic [ref=e2150]: Jan 1
+                - generic [ref=e2155] [cursor=pointer]:
+                  - paragraph [ref=e2156]: New York Univ.
+                  - paragraph [ref=e2157]: Global Network Essay
+                  - generic [ref=e2158]:
+                    - generic [ref=e2159]: Not Started
+                    - generic [ref=e2160]: Jan 5
+            - generic [ref=e2164]:
+              - generic [ref=e2165]:
+                - generic [ref=e2166]:
+                  - generic [ref=e2169]:
+                    - heading "Personal Statement" [level=2] [ref=e2170]
+                    - generic [ref=e2171]: "@ Common App"
+                  - generic [ref=e2172]:
+                    - generic [ref=e2173]:
+                      - generic [ref=e2174]: "48"
+                      - generic [ref=e2175]: /
+                      - generic [ref=e2176]: 650 words
+                    - button "审阅中" [disabled] [ref=e2177]
+                    - button "保存" [disabled] [ref=e2182]
+                    - button "下载 Word" [ref=e2187] [cursor=pointer]
+                    - button [ref=e2193] [cursor=pointer]
+                - generic [ref=e2200]:
+                  - paragraph [ref=e2201]: Essay Prompt
+                  - paragraph [ref=e2202]: The lessons we take from obstacles we encounter can be fundamental to later success. Recount a time when you faced a challenge, setback, or failure. How did it affect you, and what did you learn from the experience?
+                  - button [ref=e2203] [cursor=pointer]
+              - generic [ref=e2206]:
+                - generic [ref=e2207]:
+                  - generic [ref=e2208]:
+                    - paragraph [ref=e2209]: 可查看上一轮老师审阅记录
+                    - paragraph [ref=e2210]: 重新提交后，老师意见、文本批注和版本记录仍会保留。
+                  - button "收起审阅详情" [ref=e2233] [cursor=pointer]
+                - generic [ref=e2234]:
+                  - generic [ref=e2235]:
+                    - generic [ref=e2236]:
+                      - heading "老师审阅详情" [level=3] [ref=e2237]
+                      - paragraph [ref=e2238]: 修改老师：Ms. Sarah · 审阅时间：8/27/2026, 12:18:54 PM · V2.0
+                    - generic [ref=e2239]:
+                      - button "学生原稿" [ref=e2240] [cursor=pointer]
+                      - button "老师修改稿" [ref=e2241] [cursor=pointer]
+                      - button "修改对比" [ref=e2242] [cursor=pointer]
+                      - button "版本历史" [ref=e2243] [cursor=pointer]
+                  - generic [ref=e2244]: I have always been fascinated by the way small peices come together to create something larger than life. My journey began with Legos. These early builds were more than play; they were my first lessons in structural integrity. I think I am a very hard working student who likes to build things.
+                  - generic [ref=e2246]:
+                    - generic [ref=e2247]:
+                      - heading "老师修改建议" [level=4] [ref=e2248]
+                      - generic [ref=e2249]:
+                        - button "全部拒绝" [ref=e2250] [cursor=pointer]
+                        - button "全部接受" [ref=e2251] [cursor=pointer]
+                    - article [ref=e2253]:
+                      - generic [ref=e2254]:
+                        - generic [ref=e2255]: 已接受
+                        - generic [ref=e2256]: Ms. Sarah · 8/27/2026, 12:18:35 PM
+                      - paragraph [ref=e2257]: I have always been fascinated by the way small peices come together to create something larger than life. My journey began with Legos. These early builds were more than play; they were my first lessons in structural integrity. I think I am a very hard working student who likes to build things.
+                      - paragraph [ref=e2258]: I have always been fascinated by the way small pieces come together to create something larger than life. My journey began with LEGO. These early builds were more than play; they were my first lessons in structural integrity. I am a hardworking student who loves to build things.
+                      - paragraph [ref=e2259]: 修正拼写与表达，使语气更自然。
+                  - generic [ref=e2263]:
+                    - heading "具体文本批注" [level=4] [ref=e2264]
+                    - paragraph [ref=e2265]: 老师本轮未提供具体文本批注。
+                - textbox "在此开始书写你的故事..." [ref=e2213]: I have always been fascinated by the way small pieces come together to create something larger than life. My journey began with LEGO. These early builds were more than play; they were my first lessons in structural integrity. I am a hardworking student who loves to build things.
+            - generic [ref=e2214]:
+              - generic [ref=e2215]:
+                - button "指引" [ref=e2216] [cursor=pointer]
+                - button "灵感" [ref=e2221] [cursor=pointer]
+                - button "助手" [ref=e2225] [cursor=pointer]
+              - generic [ref=e2230]: 老师本轮未提供整体修改指引。
+    - button "问题反馈" [ref=e100] [cursor=pointer]
+  - generic [ref=e131]:
+    - button "Copy element" [ref=e136] [cursor=pointer]
+    - button "Collapse toolbar" [expanded] [ref=e140] [cursor=pointer]
