@@ -2,6 +2,24 @@ export type EssayReviewStatus = 'Not Started' | 'Drafting' | 'Reviewing' | 'Retu
 export type EssayDocumentMode = 'Viewing' | 'Suggesting' | 'Editing';
 export type EssayCommentCategory = 'Content' | 'Structure' | 'Language' | 'Fact Check' | 'Grammar';
 
+export interface SharedEssayTextStyle {
+  fontFamily?: string;
+  fontSize?: number;
+  lineHeight?: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  darkText?: boolean;
+  paragraphStyle?: string;
+}
+
+export interface SharedEssayFormatRange {
+  id: string;
+  start: number;
+  end: number;
+  style: SharedEssayTextStyle;
+}
+
 export interface SharedEssayCommentReply {
   id: string;
   message: string;
@@ -50,6 +68,7 @@ export interface SharedEssayVersion {
   note?: string;
   updatedAt: string;
   timestamp: number;
+  formatting?: SharedEssayFormatRange[];
 }
 
 export interface SharedEssayReview {
@@ -63,6 +82,7 @@ export interface SharedEssayReview {
   publishedTeacherModifiedContent?: string;
   comments: SharedEssayComment[];
   suggestions: SharedEssaySuggestion[];
+  formatting: SharedEssayFormatRange[];
   versions: SharedEssayVersion[];
   reviewAuthor?: string;
   reviewedAt?: string;
@@ -103,6 +123,7 @@ export const getEssayReview = (essayId: string): SharedEssayReview | null => {
       replies: comment.replies || []
     })),
     suggestions: review.suggestions || [],
+    formatting: review.formatting || [],
     reviewDimensions: review.reviewDimensions || {},
     auditLog: review.auditLog || [],
     reviewAuthor: review.reviewAuthor || (review.overallFeedback || latestComment ? latestComment?.author || 'Ms. Sarah' : undefined),
@@ -138,6 +159,7 @@ export const ensureEssayReview = (
     currentContent: content,
     comments: [],
     suggestions: [],
+    formatting: [],
     versions,
     lastModifiedBy: 'Student',
     lastModifiedAt: now,
