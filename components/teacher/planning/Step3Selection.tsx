@@ -2,7 +2,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
-import { Target, Sliders, RotateCcw, Lightbulb, Sparkles, Search, Loader2, RefreshCw, AlertTriangle, CheckCircle, XCircle, School, X, BookOpen, Plus, ChevronRight, ChevronLeft, ChevronDown, Info } from '../../common/Icons';
+import { Target, Sliders, RotateCcw, Lightbulb, Sparkles, Search, Loader2, RefreshCw, AlertTriangle, CheckCircle, XCircle, School, X, BookOpen, Plus, ChevronRight, ChevronLeft, ChevronDown } from '../../common/Icons';
 import { TargetPreference, UniversityDisplay, SelectedSchool } from './PlanningData';
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { calculateExamTotal, calculatedExamRules, type CalculatedExamKey } from '../../common/features/examScoreRules';
@@ -721,7 +721,8 @@ const Step3Selection: React.FC<Step3Props> = ({
                   </div>
                )}
                {activeRegionTab && groupedUniversities[activeRegionTab] && groupedUniversities[activeRegionTab].map(uni => {
-                  const isSelected = selectedSchools.some(s => s.uni.id === uni.id);
+                  const selectedSchool = selectedSchools.find(s => s.uni.id === uni.id);
+                  const isSelected = Boolean(selectedSchool);
                   const matchingTarget = targetPreferences.find(t => t.region === uni.region);
                   const configuredMajors = matchingTarget?.majors || [];
                   const targetMajors = configuredMajors.length > 0
@@ -744,29 +745,50 @@ const Step3Selection: React.FC<Step3Props> = ({
                                        </span>
                                     </div>
                                  </div>
-                                 <div className="text-right flex-shrink-0">
-                                    <div className="flex items-start justify-end gap-0.5">
-                                       <div className={`text-lg font-bold leading-none ${uni.matchScore! >= 80 ? 'text-green-600' : (uni.matchScore ?? 0) >= 60 ? 'text-primary-600' : 'text-red-500'}`}>
-                                          {uni.matchScore}
+                              </div>
+
+                              {uni.region === 'US' && (
+                                 <div className="flex items-center justify-end gap-2">
+                                    <span className="group/win-rate relative inline-block flex-shrink-0">
+                                       <span
+                                          tabIndex={0}
+                                          className={`inline-block cursor-help whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1
+                                             ${uni.winRate === 'High' ? 'bg-green-100 text-green-700' : uni.winRate === 'Medium' ? 'bg-blue-100 text-blue-700' : 'bg-red-50 text-red-700 border border-red-100'}
+                                          `}
+                                       >
+                                          Win: {uni.winRate}
+                                       </span>
+                                       <span
+                                          role="tooltip"
+                                          className="pointer-events-none absolute left-0 top-full z-20 mt-1.5 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1.5 text-[11px] font-normal text-white opacity-0 shadow-lg transition-opacity group-hover/win-rate:opacity-100 group-focus-within/win-rate:opacity-100"
+                                       >
+                                          {isEn ? `Admission chance: ${uni.winRate}` : `录取率：${uni.winRate === 'High' ? '高' : uni.winRate === 'Medium' ? '中' : '低'}`}
+                                       </span>
+                                    </span>
+                                    {!isSelected ? (
+                                       <div className="flex gap-1 flex-shrink-0">
+                                          <TierAddButton label="+R" tooltip="Reach 冲刺" onClick={() => handleAddSchool(uni, 'Reach', 'Undecided')} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-red-600 border border-red-200 rounded hover:bg-red-50 hover:border-red-300" />
+                                          <TierAddButton label="+M" tooltip="Match 匹配" onClick={() => handleAddSchool(uni, 'Match', 'Undecided')} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-blue-600 border border-blue-200 rounded hover:bg-blue-50 hover:border-blue-300" />
+                                          <TierAddButton label="+S" tooltip="Safety 保底" onClick={() => handleAddSchool(uni, 'Safety', 'Undecided')} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-green-600 border border-green-200 rounded hover:bg-green-50 hover:border-green-300" />
                                        </div>
-                                       <div className="group/match-info relative -mt-1">
+                                    ) : (
+                                       <div className="flex items-center gap-1 flex-shrink-0">
+                                          <span className="text-[10px] text-green-600 flex items-center gap-1 font-medium bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
+                                             <CheckCircle className="w-3 h-3" /> Added
+                                          </span>
                                           <button
                                              type="button"
-                                             aria-label={isEn ? 'How the match score is calculated' : '匹配度分数计算说明'}
-                                             className="rounded-full text-gray-400 transition-colors hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1"
+                                             onClick={() => selectedSchool && handleRemoveSchool(selectedSchool.id)}
+                                             aria-label={isEn ? `Undo adding ${uni.name}` : `撤销添加${uni.name}`}
+                                             title={isEn ? 'Undo' : '撤销'}
+                                             className="inline-flex h-5 w-5 items-center justify-center rounded border border-gray-200 bg-white text-gray-400 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1"
                                           >
-                                             <Info className="h-3 w-3" />
+                                             <X className="h-3 w-3" />
                                           </button>
-                                          <div
-                                             role="tooltip"
-                                             className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 w-56 rounded-md bg-gray-900 px-2.5 py-2 text-left text-[11px] font-normal leading-relaxed text-white opacity-0 shadow-lg transition-opacity group-hover/match-info:opacity-100 group-focus-within/match-info:opacity-100"
-                                          >
-                                             {isEn ? 'The match score is calculated from xxxx.' : '匹配度分数由xxxx计算而来。'}
-                                          </div>
                                        </div>
-                                    </div>
+                                    )}
                                  </div>
-                              </div>
+                              )}
 
                               {targetMajors.length > 0 && (
                                  <div className="space-y-2">
@@ -775,46 +797,60 @@ const Step3Selection: React.FC<Step3Props> = ({
                                           <Target className="w-3 h-3 text-indigo-600" />
                                           <span className="font-bold text-indigo-700">{isEn ? 'Major Match:' : '专业匹配:'}</span>
                                        </div>
-                                       <span className="group/win-rate relative inline-block mb-1 flex-shrink-0">
-                                          <span
-                                             tabIndex={0}
-                                             className={`inline-block cursor-help whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1
-                                                ${uni.winRate === 'High' ? 'bg-green-100 text-green-700' : uni.winRate === 'Medium' ? 'bg-blue-100 text-blue-700' : 'bg-red-50 text-red-700 border border-red-100'}
-                                             `}
-                                          >
-                                             Win: {uni.winRate}
-                                          </span>
-                                          <span
-                                             role="tooltip"
-                                             className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1.5 text-[11px] font-normal text-white opacity-0 shadow-lg transition-opacity group-hover/win-rate:opacity-100 group-focus-within/win-rate:opacity-100"
-                                          >
-                                             {isEn ? `Admission chance: ${uni.winRate}` : `录取率：${uni.winRate === 'High' ? '高' : uni.winRate === 'Medium' ? '中' : '低'}`}
-                                          </span>
-                                       </span>
                                     </div>
                                     {targetMajors.map(major => {
-                                       const isMajorSelected = selectedSchools.some(s => s.uni.id === uni.id && s.major === major);
+                                       const selectedMajor = selectedSchools.find(s => s.uni.id === uni.id && s.major === major);
+                                       const isMajorSelected = Boolean(selectedMajor);
                                        return (
                                           <div key={major} className="flex justify-between items-center bg-gray-50/80 border border-gray-100 px-2 py-1.5 rounded text-xs hover:bg-white hover:shadow-sm transition-all group/major gap-2">
                                              <span className="font-medium text-gray-700 pr-2 min-w-0 flex-1" title={major}>{major}</span>
-                                             {!isMajorSelected ? (
+                                             {uni.region !== 'US' && (
+                                                <span className="group/win-rate relative inline-block flex-shrink-0">
+                                                   <span
+                                                      tabIndex={0}
+                                                      className={`inline-block cursor-help whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1
+                                                         ${uni.winRate === 'High' ? 'bg-green-100 text-green-700' : uni.winRate === 'Medium' ? 'bg-blue-100 text-blue-700' : 'bg-red-50 text-red-700 border border-red-100'}
+                                                      `}
+                                                   >
+                                                      Win: {uni.winRate}
+                                                   </span>
+                                                   <span
+                                                      role="tooltip"
+                                                      className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1.5 text-[11px] font-normal text-white opacity-0 shadow-lg transition-opacity group-hover/win-rate:opacity-100 group-focus-within/win-rate:opacity-100"
+                                                   >
+                                                      {isEn ? `Admission chance: ${uni.winRate}` : `录取率：${uni.winRate === 'High' ? '高' : uni.winRate === 'Medium' ? '中' : '低'}`}
+                                                   </span>
+                                                </span>
+                                             )}
+                                             {uni.region !== 'US' && (!isMajorSelected ? (
                                                 <div className="flex gap-1 opacity-60 group-hover/major:opacity-100 transition-opacity flex-shrink-0">
                                                    <TierAddButton label="+R" tooltip="Reach 冲刺" onClick={() => handleAddSchool(uni, 'Reach', major)} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-red-600 border border-red-200 rounded hover:bg-red-50 hover:border-red-300" />
                                                    <TierAddButton label="+M" tooltip="Match 匹配" onClick={() => handleAddSchool(uni, 'Match', major)} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-blue-600 border border-blue-200 rounded hover:bg-blue-50 hover:border-blue-300" />
                                                    <TierAddButton label="+S" tooltip="Safety 保底" onClick={() => handleAddSchool(uni, 'Safety', major)} className="px-1.5 py-0.5 text-[10px] font-bold bg-white text-green-600 border border-green-200 rounded hover:bg-green-50 hover:border-green-300" />
                                                 </div>
                                              ) : (
-                                                <span className="text-[10px] text-green-600 flex items-center gap-1 font-medium bg-green-50 px-1.5 py-0.5 rounded border border-green-100 flex-shrink-0">
-                                                   <CheckCircle className="w-3 h-3" /> Added
-                                                </span>
-                                             )}
+                                                <div className="flex items-center gap-1 flex-shrink-0">
+                                                   <span className="text-[10px] text-green-600 flex items-center gap-1 font-medium bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
+                                                      <CheckCircle className="w-3 h-3" /> Added
+                                                   </span>
+                                                   <button
+                                                      type="button"
+                                                      onClick={() => selectedMajor && handleRemoveSchool(selectedMajor.id)}
+                                                      aria-label={isEn ? `Undo adding ${major}` : `撤销添加${major}`}
+                                                      title={isEn ? 'Undo' : '撤销'}
+                                                      className="inline-flex h-5 w-5 items-center justify-center rounded border border-gray-200 bg-white text-gray-400 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1"
+                                                   >
+                                                      <X className="h-3 w-3" />
+                                                   </button>
+                                                </div>
+                                             ))}
                                           </div>
                                        );
                                     })}
                                  </div>
                               )}
 
-                              {targetMajors.length === 0 && (
+                              {targetMajors.length === 0 && uni.region !== 'US' && (
                                  <div className="flex justify-end">
                                     <span className="group/win-rate relative inline-block">
                                        <span tabIndex={0} className={`inline-block cursor-help whitespace-nowrap rounded px-1.5 py-0.5 text-[10px] font-bold focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1 ${uni.winRate === 'High' ? 'bg-green-100 text-green-700' : uni.winRate === 'Medium' ? 'bg-blue-100 text-blue-700' : 'bg-red-50 text-red-700 border border-red-100'}`}>
@@ -839,7 +875,7 @@ const Step3Selection: React.FC<Step3Props> = ({
                            </div>
                         )}
 
-                        {targetMajors.length === 0 && !isSelected && (
+                        {targetMajors.length === 0 && uni.region !== 'US' && !isSelected && (
                            <div className="mt-3 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button onClick={() => handleAddSchool(uni, 'Reach')} className="px-2 py-1 text-[10px] font-bold bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100">+ Reach</button>
                               <button onClick={() => handleAddSchool(uni, 'Match')} className="px-2 py-1 text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-200 rounded hover:bg-blue-100">+ Match</button>
@@ -847,7 +883,7 @@ const Step3Selection: React.FC<Step3Props> = ({
                            </div>
                         )}
                                  
-                        {targetMajors.length === 0 && isSelected && (
+                        {targetMajors.length === 0 && uni.region !== 'US' && isSelected && (
                            <div className="absolute top-2 right-2">
                               <CheckCircle className="w-4 h-4 text-green-500" />
                            </div>

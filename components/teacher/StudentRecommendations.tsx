@@ -7,7 +7,7 @@ import {
   FolderOpen, Zap, ThumbsUp, XCircle, Info, ExternalLink
 } from '../common/Icons';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { RecommenderReq, RecommendationVersion, AIReviewReport, AuditMode, AuditStatus } from '../../types';
+import { RecommenderReq, RecommendationVersion, AIReviewReport, AuditStatus } from '../../types';
 import { analyzeRecommendationLetter } from '../../services/geminiService';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -126,13 +126,13 @@ const StudentRecommendations: React.FC = () => {
     name: '', role: '', status: 'Not Started'
   });
 
-  // Upload Modal State (Decoupled with 4 Options)
+  // Upload Modal State
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadTargetReqId, setUploadTargetReqId] = useState<string | null>(null);
   const [uploadVersionLabel, setUploadVersionLabel] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedAuditMode, setSelectedAuditMode] = useState<AuditMode>('full');
   const [customFileContent, setCustomFileContent] = useState<string>('');
+  const [simulateAuditFailure, setSimulateAuditFailure] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -191,13 +191,10 @@ const StudentRecommendations: React.FC = () => {
   };
 
   const openUploadDialog = (reqId: string) => {
-    const targetReq = recommenders.find(r => r.id === reqId);
-    const nextVerNumber = targetReq ? targetReq.versions.length + 1 : 1;
     setUploadTargetReqId(reqId);
-    setUploadVersionLabel(`v${nextVerNumber}.0 ${isEn ? 'Draft' : '草稿'}`);
+    setUploadVersionLabel('');
     setSelectedFile(null);
     setCustomFileContent('');
-    setSelectedAuditMode('full');
     setUploadModalOpen(true);
   };
 
@@ -250,6 +247,11 @@ const StudentRecommendations: React.FC = () => {
     }));
 
     try {
+      if (import.meta.env.DEV && simulateAuditFailure) {
+        await new Promise(resolve => setTimeout(resolve, 15000));
+        throw new Error('Simulated AI review failure');
+      }
+
       const report = await analyzeRecommendationLetter(content, isEn, mode);
 
       // Check if cancelled during execution
@@ -305,7 +307,11 @@ const StudentRecommendations: React.FC = () => {
           }
           return r;
         }));
-        showToast(isEn ? 'AI review encountered an error. Original file is safely saved.' : 'AI 审查遇到问题，原始文件已妥善保存，可随时重试。');
+        setActiveRecommenderId(currentId => currentId === reqId ? null : currentId);
+        setActiveVersionId(currentId => currentId === versionId ? null : currentId);
+        showToast(isEn
+          ? 'AI review failed. The uploaded file has been saved. Open the workspace and click Re-audit to try again.'
+          : 'AI 审查失败，上传的信件已自动保存。请重新打开工作台并点击“重新审查”。');
       }
     } finally {
       // Remove from running tasks
@@ -339,7 +345,7 @@ const StudentRecommendations: React.FC = () => {
     showToast(isEn ? 'AI audit cancelled. File is preserved.' : '已取消 AI 审查，文件保持原样无损。');
   };
 
-  // Submit Decoupled Upload
+  // Save the uploaded version first, then always start a full AI review.
   const handleConfirmUpload = () => {
     if (!uploadTargetReqId) return;
     if (!selectedFile) {
@@ -360,10 +366,10 @@ const StudentRecommendations: React.FC = () => {
       fileSize: `${(selectedFile.size / 1024).toFixed(1)} KB`,
       content: content,
       uploadDate: new Date().toISOString().split('T')[0],
-      auditStatus: selectedAuditMode === 'save_only' ? 'not_started' : 'running'
+      auditStatus: 'running'
     };
 
-    // Step 1: ALWAYS SAVE FILE FIRST (Decoupled!)
+    // Persist the file before starting AI review so a review failure never loses the upload.
     setRecommenders(prev => prev.map(r => {
       if (r.id === uploadTargetReqId) {
         return {
@@ -382,19 +388,15 @@ const StudentRecommendations: React.FC = () => {
 
     setUploadModalOpen(false);
 
-    if (selectedAuditMode === 'save_only') {
-      showToast(isEn ? `File "${selectedFile.name}" saved successfully (No AI audit).` : `文件 "${selectedFile.name}" 已成功保存入库（未开启 AI 审查）。`);
-    } else {
-      showToast(isEn ? `File saved. Starting ${selectedAuditMode} AI audit in background...` : `文件已安全入库，正在启动 AI 审查...`);
-      executeAudit(
-        uploadTargetReqId,
-        newVersionId,
-        selectedAuditMode as ('full' | 'risk_only' | 'language_only'),
-        content,
-        label,
-        targetReq.name
-      );
-    }
+    showToast(isEn ? 'File saved. Starting AI review...' : '信件已保存，正在启动 AI 审查...');
+    executeAudit(
+      uploadTargetReqId,
+      newVersionId,
+      'full',
+      content,
+      label,
+      targetReq.name
+    );
   };
 
   const copyToClipboard = (text: string, idx: number) => {
@@ -429,16 +431,30 @@ const StudentRecommendations: React.FC = () => {
           <div className="flex items-center gap-3">
             <h3 className="font-bold text-gray-900 dark:text-zinc-100 text-xl">{isEn ? 'Recommendation Letter Hub' : '推荐信管理与智能审查'}</h3>
             <span className="text-xs bg-primary-50 dark:bg-primary-950/50 text-primary-700 dark:text-primary-300 font-semibold px-2.5 py-1 rounded-full border border-primary-200/60 dark:border-primary-800/40">
-              {isEn ? 'Decoupled Upload & AI Audit' : '上传与审查解耦 • 支持多模式'}
+              {isEn ? 'Automatic AI Review' : '上传后自动 AI 审查'}
             </span>
           </div>
           <p className="text-sm text-gray-500 dark:text-zinc-400 mt-1 max-w-2xl">
             {isEn 
-              ? 'Upload recommendation letters without forced audit. Freely choose between Save-Only, Risk Audit, Language Optimization, or Full Review at any time.' 
-              : '推荐信上传与 AI 审查完全解耦：支持仅保存文件、观点风险审查、语言优化或完整双向审查。后台长任务支持取消与重试。'}
+              ? 'Every uploaded recommendation letter is saved first and then automatically reviewed for content risks, academic tone, and grammar.'
+              : '推荐信上传后先安全保存，再自动进行观点风险、学术措辞与语法完整审查；审查失败可重新发起。'}
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {import.meta.env.DEV && (
+            <button
+              type="button"
+              onClick={() => setSimulateAuditFailure(current => !current)}
+              className={`rounded-xl border px-3 py-2.5 text-xs font-bold transition-colors ${
+                simulateAuditFailure
+                  ? 'border-red-300 bg-red-50 text-red-700'
+                  : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+              }`}
+              title="仅用于本地验证 AI 审查失败恢复流程"
+            >
+              {simulateAuditFailure ? '模拟失败：开启' : '模拟审查失败'}
+            </button>
+          )}
           <button 
             onClick={() => handleOpenEdit()}
             className="px-4 py-2.5 bg-primary-600 text-white text-sm font-bold rounded-xl hover:bg-primary-700 flex items-center gap-2 shadow-sm transition-all active:scale-95 cursor-pointer"
@@ -571,7 +587,7 @@ const StudentRecommendations: React.FC = () => {
                             className="text-[11px] text-primary-600 hover:text-primary-800 dark:text-primary-400 font-bold flex items-center gap-0.5 cursor-pointer"
                           >
                             <RotateCcw className="w-3 h-3" />
-                            {isEn ? 'Retry' : '重试'}
+                            {isEn ? 'Re-audit' : '重新审查'}
                           </button>
                         </div>
                       ) : latestVersion?.auditStatus === 'completed' && latestVersion.auditReport ? (
@@ -613,14 +629,6 @@ const StudentRecommendations: React.FC = () => {
 
                     <td className="px-6 py-5 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => openUploadDialog(req.id)}
-                          className="px-2.5 py-1.5 text-xs font-semibold text-gray-700 dark:text-zinc-300 hover:text-primary-700 bg-gray-100 hover:bg-primary-50 dark:bg-zinc-800 dark:hover:bg-primary-950/50 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                          title={isEn ? "Upload new version" : "上传新版本信件"}
-                        >
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>{isEn ? 'Upload' : '上传'}</span>
-                        </button>
                         <button 
                           onClick={() => {
                             setActiveRecommenderId(req.id);
@@ -1070,68 +1078,63 @@ const StudentRecommendations: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* --- DECOUPLED UPLOAD MODAL (With 4 Options: Save Only, Risk, Language, Full) --- */}
+      {/* --- SIMPLE VERSION UPLOAD MODAL --- */}
       {uploadModalOpen && (
         <div 
           className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => setUploadModalOpen(false)}
         >
           <div 
-            className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl w-full max-w-lg p-6 md:p-8 border border-gray-200 dark:border-white/10 max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-lg rounded-[28px] bg-white p-8 shadow-2xl dark:bg-zinc-900 md:p-10"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h3 className="font-bold text-gray-900 dark:text-zinc-100 text-lg">{isEn ? 'Upload Recommendation Letter' : '上传推荐信版本'}</h3>
-                <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">
-                  {isEn ? 'File is saved first. You can choose whether and how to run AI review.' : '文件将立即安全入库。您可以自由选择是否进行 AI 审查。'}
-                </p>
-              </div>
-              <button onClick={() => setUploadModalOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-zinc-200 rounded-full cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <h3 className="mb-8 text-3xl font-bold text-slate-900 dark:text-zinc-100">
+              {isEn ? 'Upload New Version' : '上传新版本'}
+            </h3>
 
-            <div className="space-y-5">
+            <div className="space-y-6">
               {/* Version Label */}
               <div>
-                <label className="block text-xs font-bold text-gray-600 dark:text-zinc-300 uppercase tracking-wider mb-2">
-                  {isEn ? 'Version Label' : '版本标识'}
+                <label className="mb-2.5 block text-base font-bold text-slate-500 dark:text-zinc-400">
+                  {isEn ? 'Version Name' : '版本名称'}
                 </label>
-                <input 
-                  className="w-full bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-gray-900 dark:text-zinc-100 focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all" 
+                <input
+                  autoFocus
+                  className="w-full rounded-2xl border border-[#c48c70] bg-white px-5 py-4 text-base text-slate-900 outline-none ring-2 ring-[#c48c70]/15 transition-all placeholder:text-slate-400 focus:ring-[#c48c70]/25 dark:bg-zinc-800 dark:text-zinc-100"
                   value={uploadVersionLabel} 
                   onChange={e => setUploadVersionLabel(e.target.value)} 
-                  placeholder={isEn ? "e.g. Draft 1, Final Version" : "例如：v1.0 初稿，最终定稿"}
+                  placeholder={isEn ? 'e.g. Draft 1, Final Version' : '例如：Draft 1，Final Version'}
                 />
               </div>
 
               {/* File Dropzone */}
-              <div>
-                <label className="block text-xs font-bold text-gray-600 dark:text-zinc-300 uppercase tracking-wider mb-2">
-                  {isEn ? 'File Attachment' : '信件文件'}
-                </label>
-                <div 
-                  className={`border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center cursor-pointer transition-all ${
+              <div
+                  className={`flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
                     selectedFile 
                       ? 'border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20' 
                       : 'border-gray-300 dark:border-zinc-700 hover:border-primary-500 hover:bg-primary-50/40 dark:hover:bg-primary-950/20'
                   }`}
                   onClick={() => fileInputRef.current?.click()}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleFileSelected(file);
+                  }}
                 >
                   {selectedFile ? (
                     <div className="flex items-center gap-3 text-emerald-800 dark:text-emerald-300">
-                      <FileText className="w-7 h-7 text-emerald-600" />
+                      <FileText className="h-9 w-9 text-emerald-600" />
                       <div>
-                        <div className="font-bold text-sm truncate max-w-[240px]">{selectedFile.name}</div>
-                        <div className="text-xs text-emerald-600/80">{(selectedFile.size / 1024).toFixed(1)} KB • {isEn ? 'Click to change' : '点击重新选择'}</div>
+                        <div className="max-w-[280px] truncate text-base font-bold">{selectedFile.name}</div>
+                        <div className="mt-1 text-sm text-emerald-600/80">{(selectedFile.size / 1024).toFixed(1)} KB · {isEn ? 'Click to change' : '点击重新选择'}</div>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <Upload className="w-7 h-7 text-gray-400 mb-2" />
-                      <p className="text-xs font-semibold text-gray-700 dark:text-zinc-300">{isEn ? 'Click or drag file here to upload' : '点击或将推荐信文件拖拽至此处'}</p>
-                      <p className="text-[11px] text-gray-400 mt-1">支持 .docx, .doc, .txt, .pdf</p>
+                      <Upload className="mb-3 h-10 w-10 text-slate-400" />
+                      <p className="text-lg font-bold text-slate-600 dark:text-zinc-300">{isEn ? 'Click to select a file' : '点击选择文件'}</p>
+                      <p className="mt-1 text-sm text-slate-400">.docx, .doc, .txt, .pdf</p>
                     </>
                   )}
                   <input
@@ -1144,123 +1147,24 @@ const StudentRecommendations: React.FC = () => {
                       if (file) handleFileSelected(file);
                     }}
                   />
-                </div>
-              </div>
-
-              {/* Review Option Radio Group (The core requirement) */}
-              <div>
-                <label className="block text-xs font-bold text-gray-600 dark:text-zinc-300 uppercase tracking-wider mb-2.5">
-                  {isEn ? 'AI Review Options' : 'AI 审查模式选择'}
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {/* Option 1: Save Only */}
-                  <div
-                    onClick={() => setSelectedAuditMode('save_only')}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
-                      selectedAuditMode === 'save_only'
-                        ? 'bg-zinc-50 dark:bg-zinc-800 border-zinc-500 ring-1 ring-zinc-500/20'
-                        : 'bg-white dark:bg-zinc-850 border-gray-200 dark:border-white/5 hover:bg-gray-50'
-                    }`}
-                  >
-                    <input 
-                      type="radio" 
-                      name="auditMode" 
-                      checked={selectedAuditMode === 'save_only'} 
-                      onChange={() => setSelectedAuditMode('save_only')}
-                      className="mt-0.5 text-primary-600"
-                    />
-                    <div>
-                      <div className="text-xs font-bold text-gray-900 dark:text-zinc-100">{isEn ? 'Save Only' : '仅保存文件'}</div>
-                      <div className="text-[10px] text-gray-500 dark:text-zinc-400 mt-0.5">{isEn ? 'No AI audit, save instantly' : '暂不审查，快速入库保存'}</div>
-                    </div>
-                  </div>
-
-                  {/* Option 2: Full Review */}
-                  <div
-                    onClick={() => setSelectedAuditMode('full')}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
-                      selectedAuditMode === 'full'
-                        ? 'bg-primary-50 dark:bg-primary-950/40 border-primary-500 ring-1 ring-primary-500/20'
-                        : 'bg-white dark:bg-zinc-850 border-gray-200 dark:border-white/5 hover:bg-gray-50'
-                    }`}
-                  >
-                    <input 
-                      type="radio" 
-                      name="auditMode" 
-                      checked={selectedAuditMode === 'full'} 
-                      onChange={() => setSelectedAuditMode('full')}
-                      className="mt-0.5 text-primary-600"
-                    />
-                    <div>
-                      <div className="text-xs font-bold text-primary-900 dark:text-primary-200 flex items-center gap-1">
-                        {isEn ? 'Full Review' : '完整双向审查'}
-                        <span className="text-[9px] bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-300 px-1 py-0.2 rounded font-bold">{isEn ? 'Rec' : '推荐'}</span>
-                      </div>
-                      <div className="text-[10px] text-primary-700/80 dark:text-primary-300/80 mt-0.5">{isEn ? 'Risk audit + Language polish' : '观点风险 + 语言质量双检'}</div>
-                    </div>
-                  </div>
-
-                  {/* Option 3: Risk Only */}
-                  <div
-                    onClick={() => setSelectedAuditMode('risk_only')}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
-                      selectedAuditMode === 'risk_only'
-                        ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-500 ring-1 ring-amber-500/20'
-                        : 'bg-white dark:bg-zinc-850 border-gray-200 dark:border-white/5 hover:bg-gray-50'
-                    }`}
-                  >
-                    <input 
-                      type="radio" 
-                      name="auditMode" 
-                      checked={selectedAuditMode === 'risk_only'} 
-                      onChange={() => setSelectedAuditMode('risk_only')}
-                      className="mt-0.5 text-amber-600"
-                    />
-                    <div>
-                      <div className="text-xs font-bold text-gray-900 dark:text-zinc-100">{isEn ? 'Risk Audit' : '观点风险审查'}</div>
-                      <div className="text-[10px] text-gray-500 dark:text-zinc-400 mt-0.5">{isEn ? 'Detect faint praise & red flags' : '专查明褒实贬与隐性风险'}</div>
-                    </div>
-                  </div>
-
-                  {/* Option 4: Language Only */}
-                  <div
-                    onClick={() => setSelectedAuditMode('language_only')}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
-                      selectedAuditMode === 'language_only'
-                        ? 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-500 ring-1 ring-indigo-500/20'
-                        : 'bg-white dark:bg-zinc-850 border-gray-200 dark:border-white/5 hover:bg-gray-50'
-                    }`}
-                  >
-                    <input 
-                      type="radio" 
-                      name="auditMode" 
-                      checked={selectedAuditMode === 'language_only'} 
-                      onChange={() => setSelectedAuditMode('language_only')}
-                      className="mt-0.5 text-indigo-600"
-                    />
-                    <div>
-                      <div className="text-xs font-bold text-gray-900 dark:text-zinc-100">{isEn ? 'Language Polish' : '语言优化校对'}</div>
-                      <div className="text-[10px] text-gray-500 dark:text-zinc-400 mt-0.5">{isEn ? 'Academic tone & grammar' : '提升学术措辞与语法流畅'}</div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
 
-            <div className="mt-8 flex items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-white/5">
+            <div className="mt-8 flex items-center gap-3">
               <button 
                 onClick={() => setUploadModalOpen(false)} 
-                className="px-4 py-2.5 text-xs font-bold text-gray-500 dark:text-zinc-400 hover:text-gray-800 bg-gray-100 dark:bg-zinc-800 rounded-xl transition-colors cursor-pointer"
+                className="flex-1 rounded-2xl bg-slate-50 px-4 py-4 text-base font-bold text-slate-500 transition-colors hover:bg-slate-100 dark:bg-zinc-800 dark:text-zinc-400"
               >
                 {isEn ? 'Cancel' : '取消'}
               </button>
-              <button 
-                onClick={handleConfirmUpload} 
-                className="px-6 py-2.5 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5"
-              >
-                <Check className="w-4 h-4" />
-                {selectedAuditMode === 'save_only' ? (isEn ? 'Save File' : '确认保存入库') : (isEn ? 'Save & Start Audit' : '保存并启动审查')}
-              </button>
+              {selectedFile && (
+                <button
+                  onClick={handleConfirmUpload}
+                  className="flex-1 rounded-2xl bg-primary-600 px-4 py-4 text-base font-bold text-white shadow-md transition-colors hover:bg-primary-700"
+                >
+                  {isEn ? 'Confirm Upload' : '确认上传'}
+                </button>
+              )}
             </div>
           </div>
         </div>

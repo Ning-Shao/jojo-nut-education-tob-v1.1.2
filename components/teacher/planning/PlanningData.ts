@@ -36,6 +36,9 @@ export interface SelectedSchool {
     source: string;
     sourceUrl?: string;
     gpa?: number;
+    ib?: number;
+    apScore?: 3 | 4 | 5;
+    apCount?: number;
     toefl?: number;
     toeflNew?: number;
     ielts?: number;
