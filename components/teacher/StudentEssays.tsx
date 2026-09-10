@@ -24,6 +24,7 @@ import {
   updateEssayReview,
   EssayCommentCategory,
   EssayDocumentMode,
+  SharedEssayFormatRange,
   SharedEssaySuggestion
 } from '../../services/essayReviewStore';
 
@@ -74,6 +75,16 @@ type ViewMode = 'Brainstorm' | 'Drafting' | 'History';
 type ReviewPanelTab = 'Comments' | 'Feedback' | 'AI';
 type ReviewSaveState = 'saved' | 'saving' | 'error';
 type ParagraphStyle = 'normal' | 'title' | 'subtitle' | 'heading1' | 'heading2' | 'heading3' | 'heading4' | 'heading5' | 'heading6';
+type EditorTextStyle = {
+  fontFamily: string;
+  fontSize: number;
+  lineHeight: number;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  darkText: boolean;
+  paragraphStyle?: ParagraphStyle;
+};
 type ContentHistorySnapshot = {
   content: string;
   suggestionPositions: Array<{ id: string; start: number; end: number }>;
@@ -255,6 +266,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editorOverlayRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<{ start: number; end: number; text: string } | null>(null);
+  const formattingSelectionRef = useRef<{ start: number; end: number; text: string } | null>(null);
   const [inlineCommentDraft, setInlineCommentDraft] = useState('');
   const [reviewPanelTab, setReviewPanelTab] = useState<ReviewPanelTab>('Comments');
   const [isReviewSidebarCollapsed, setIsReviewSidebarCollapsed] = useState(false);
@@ -284,7 +296,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
   const [paragraphStyle, setParagraphStyle] = useState<ParagraphStyle>('normal');
-  const [editorTextStyle, setEditorTextStyle] = useState({
+  const [editorTextStyle, setEditorTextStyle] = useState<EditorTextStyle>({
     fontFamily: 'Arial', fontSize: 11, lineHeight: 1.75, bold: false, italic: false,
     underline: false, darkText: false
   });
@@ -324,18 +336,81 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     });
   }, []);
   const editorTypographyStyle: React.CSSProperties = {
-    fontFamily: editorTextStyle.fontFamily,
-    fontSize: `${editorTextStyle.fontSize}pt`,
-    lineHeight: editorTextStyle.lineHeight,
-    fontWeight: editorTextStyle.bold ? 700 : 400,
-    fontStyle: editorTextStyle.italic ? 'italic' : 'normal',
-    textDecoration: editorTextStyle.underline ? 'underline' : 'none',
-    color: editorTextStyle.darkText ? '#111827' : '#374151'
+    fontFamily: 'Arial',
+    fontSize: '11pt',
+    lineHeight: 1.75,
+    fontWeight: 400,
+    fontStyle: 'normal',
+    textDecoration: 'none',
+    color: '#374151'
   };
   const editorTextareaStyle: React.CSSProperties = {
     ...editorTypographyStyle,
     color: 'transparent',
-    caretColor: editorTextStyle.darkText ? '#111827' : '#374151'
+    caretColor: '#374151'
+  };
+  const captureFormattingSelection = () => {
+    const editor = textareaRef.current;
+    if (!editor || editor.selectionStart === editor.selectionEnd) return;
+    const target = {
+      start: editor.selectionStart,
+      end: editor.selectionEnd,
+      text: editorVisibleContent.substring(editor.selectionStart, editor.selectionEnd)
+    };
+    formattingSelectionRef.current = target;
+    setSelection(target);
+  };
+  const requireFormattingSelection = () => {
+    if (isTeacherReadOnly) return null;
+    const target = selection || formattingSelectionRef.current;
+    if (!target || target.start === target.end) {
+      showToast(isEn ? 'Select text before formatting' : '请先选中需要设置格式的文字');
+      return null;
+    }
+    return target;
+  };
+  const applyFormatToSelection = (style: SharedEssayFormatRange['style']) => {
+    const target = requireFormattingSelection();
+    if (!target) return false;
+    const now = new Date().toLocaleString();
+    const saved = updateEssayReview(activeEssayId, review => ({
+      ...review,
+      formatting: [...(review.formatting || []), {
+        id: `format-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        start: target.start,
+        end: target.end,
+        style
+      }],
+      lastModifiedBy: 'Ms. Sarah',
+      lastModifiedAt: now,
+      revisionNumber: review.revisionNumber + 1
+    }));
+    if (!saved) {
+      showToast(isEn ? 'Formatting failed. Please try again.' : '格式修改失败，请重试');
+      return false;
+    }
+    requestAnimationFrame(() => {
+      const editor = textareaRef.current;
+      if (!editor) return;
+      editor.focus();
+      editor.setSelectionRange(target.start, target.end);
+    });
+    return true;
+  };
+  const getSelectionFormatStyle = () => {
+    const target = selection || formattingSelectionRef.current;
+    if (!target) return {} as SharedEssayFormatRange['style'];
+    return (sharedReview?.formatting || [])
+      .filter(range => range.start <= target.start && range.end > target.start)
+      .reduce<SharedEssayFormatRange['style']>((result, range) => ({ ...result, ...range.style }), {});
+  };
+  const handleInlineFormatChange = <K extends keyof SharedEssayFormatRange['style']>(key: K, value: SharedEssayFormatRange['style'][K]) => {
+    if (!applyFormatToSelection({ [key]: value })) return;
+    setEditorTextStyle(previous => ({ ...previous, [key]: value }));
+  };
+  const handleToggleInlineFormat = (key: 'bold' | 'italic' | 'underline' | 'darkText') => {
+    const nextValue = !Boolean(getSelectionFormatStyle()[key]);
+    handleInlineFormatChange(key, nextValue);
   };
   const handleParagraphStyleChange = (style: ParagraphStyle) => {
     const stylePresets: Record<ParagraphStyle, { fontSize: number; lineHeight: number; bold: boolean; italic: boolean }> = {
@@ -349,8 +424,9 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       heading5: { fontSize: 11, lineHeight: 1.5, bold: true, italic: false },
       heading6: { fontSize: 10, lineHeight: 1.5, bold: true, italic: false }
     };
+    if (!applyFormatToSelection({ ...stylePresets[style], paragraphStyle: style })) return;
     setParagraphStyle(style);
-    setEditorTextStyle(previous => ({ ...previous, ...stylePresets[style] }));
+    setEditorTextStyle(previous => ({ ...previous, ...stylePresets[style], paragraphStyle: style }));
   };
   const handleApplyTextHighlight = () => {
     if (isTeacherReadOnly) return;
@@ -666,6 +742,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     setSelectedIdeaIds(new Set());
     setIsEditingPrompt(false);
     setPromptDraft('');
+    formattingSelectionRef.current = null;
     setSelection(null);
     setSelectionCommentPosition(null);
     setIsSelectionCommentComposerOpen(false);
@@ -780,6 +857,38 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     };
   };
 
+  const transformFormattingAfterContentEdit = (
+    ranges: SharedEssayFormatRange[],
+    previousContent: string,
+    nextContent: string
+  ) => {
+    if (previousContent === nextContent) return ranges;
+    let editStart = 0;
+    while (editStart < previousContent.length && editStart < nextContent.length && previousContent[editStart] === nextContent[editStart]) editStart += 1;
+    let suffixLength = 0;
+    while (
+      suffixLength < previousContent.length - editStart &&
+      suffixLength < nextContent.length - editStart &&
+      previousContent[previousContent.length - 1 - suffixLength] === nextContent[nextContent.length - 1 - suffixLength]
+    ) suffixLength += 1;
+    const previousEditEnd = previousContent.length - suffixLength;
+    const insertedLength = nextContent.length - editStart - suffixLength;
+    const delta = insertedLength - (previousEditEnd - editStart);
+    const mapStart = (position: number) => {
+      if (position <= editStart) return position;
+      if (position >= previousEditEnd) return position + delta;
+      return editStart;
+    };
+    const mapEnd = (position: number) => {
+      if (position <= editStart) return position;
+      if (position >= previousEditEnd) return position + delta;
+      return editStart + insertedLength;
+    };
+    return ranges
+      .map(range => ({ ...range, start: mapStart(range.start), end: mapEnd(range.end) }))
+      .filter(range => range.start < range.end);
+  };
+
   const persistContentUpdate = (
     val: string,
     transformSuggestions?: (suggestions: SharedEssaySuggestion[]) => SharedEssaySuggestion[]
@@ -792,6 +901,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       currentContent: val,
       teacherModifiedContent: val,
       suggestions: transformSuggestions ? transformSuggestions(review.suggestions || []) : review.suggestions,
+      formatting: transformFormattingAfterContentEdit(review.formatting || [], review.currentContent, val),
       reviewAuthor: 'Ms. Sarah',
       reviewedAt: new Date().toLocaleString(),
       lastModifiedBy: 'Ms. Sarah',
@@ -1104,11 +1214,19 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       const text = editorVisibleContent.substring(start, end);
       if (text.trim().length > 0) {
         const isSameSelection = selection?.start === start && selection?.end === end;
-        setSelection({ start, end, text });
+        const nextSelection = { start, end, text };
+        formattingSelectionRef.current = nextSelection;
+        if (!isSameSelection) setSelection(nextSelection);
+        requestAnimationFrame(() => {
+          const editor = textareaRef.current;
+          if (!editor || document.activeElement !== editor) return;
+          if (editor.selectionStart !== start || editor.selectionEnd !== end) editor.setSelectionRange(start, end);
+        });
         positionSelectionCommentControls(textareaRef.current, clientX, clientY);
         if (!isSameSelection) setIsSelectionCommentComposerOpen(false);
         setReviewPanelTab('Comments');
       } else {
+        if (document.activeElement === textareaRef.current) formattingSelectionRef.current = null;
         setSelection(null);
         setSelectionCommentPosition(null);
         setIsSelectionCommentComposerOpen(false);
@@ -1838,26 +1956,48 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     range => range.start === selection.start && range.end === selection.end
   ));
 
-  const renderTextHighlights = (text: string, absoluteStart = 0, keyPrefix = 'highlight') => {
-    const ranges = (textHighlights[activeEssayId] || [])
-      .map(range => ({
-        start: Math.max(0, range.start - absoluteStart),
-        end: Math.min(text.length, range.end - absoluteStart)
-      }))
-      .filter(range => range.start < range.end && range.end > 0 && range.start < text.length)
-      .sort((a, b) => a.start - b.start);
-    if (!ranges.length) return text;
+  const formatStyleToCss = (style: SharedEssayFormatRange['style']): React.CSSProperties => ({
+    ...(style.fontFamily ? { fontFamily: style.fontFamily } : {}),
+    ...(style.fontSize ? { fontSize: `${style.fontSize}pt` } : {}),
+    ...(style.lineHeight ? { lineHeight: style.lineHeight } : {}),
+    ...(style.bold !== undefined ? { fontWeight: style.bold ? 700 : 400 } : {}),
+    ...(style.italic !== undefined ? { fontStyle: style.italic ? 'italic' : 'normal' } : {}),
+    ...(style.underline !== undefined ? { textDecoration: style.underline ? 'underline' : 'none' } : {}),
+    ...(style.darkText !== undefined ? { color: style.darkText ? '#111827' : '#374151' } : {})
+  });
 
-    const nodes: React.ReactNode[] = [];
-    let cursor = 0;
-    ranges.forEach((range, index) => {
-      const start = Math.max(cursor, range.start);
-      if (start > cursor) nodes.push(<React.Fragment key={`${keyPrefix}-text-${index}`}>{text.slice(cursor, start)}</React.Fragment>);
-      if (range.end > start) nodes.push(<mark key={`${keyPrefix}-mark-${index}`} className="rounded-sm bg-yellow-200 text-inherit">{text.slice(start, range.end)}</mark>);
-      cursor = Math.max(cursor, range.end);
+  const renderTextHighlights = (text: string, absoluteStart = 0, keyPrefix = 'highlight') => {
+    const segmentStart = absoluteStart;
+    const segmentEnd = absoluteStart + text.length;
+    const highlights = (textHighlights[activeEssayId] || []).filter(range => range.start < segmentEnd && range.end > segmentStart);
+    const formats = (sharedReview?.formatting || []).filter(range => range.start < segmentEnd && range.end > segmentStart);
+    if (!highlights.length && !formats.length) return text;
+
+    const boundaries = new Set<number>([0, text.length]);
+    [...highlights, ...formats].forEach(range => {
+      boundaries.add(Math.max(0, range.start - absoluteStart));
+      boundaries.add(Math.min(text.length, range.end - absoluteStart));
     });
-    if (cursor < text.length) nodes.push(<React.Fragment key={`${keyPrefix}-end`}>{text.slice(cursor)}</React.Fragment>);
-    return nodes;
+    const points = [...boundaries].filter(point => point >= 0 && point <= text.length).sort((a, b) => a - b);
+    return points.slice(0, -1).map((start, index) => {
+      const end = points[index + 1];
+      if (end <= start) return null;
+      const absolutePosition = absoluteStart + start;
+      const isHighlighted = highlights.some(range => range.start <= absolutePosition && range.end > absolutePosition);
+      const combinedStyle = formats
+        .filter(range => range.start <= absolutePosition && range.end > absolutePosition)
+        .reduce<SharedEssayFormatRange['style']>((result, range) => ({ ...result, ...range.style }), {});
+      const content = text.slice(start, end);
+      return (
+        <span
+          key={`${keyPrefix}-${start}-${end}`}
+          className={isHighlighted ? 'rounded-sm bg-yellow-200 text-inherit' : undefined}
+          style={formatStyleToCss(combinedStyle)}
+        >
+          {content}
+        </span>
+      );
+    });
   };
 
   const renderSuggestionDocument = () => suggestionDisplaySegments.map((segment, index) => {
@@ -2368,7 +2508,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 	           {activeView === 'Drafting' && (
 	              <div className="flex h-full min-h-0 flex-1 flex-row overflow-hidden">
 	                 <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[#fcfcfc]">
-	                    <fieldset disabled={isTeacherReadOnly} aria-label={isEn ? 'Essay formatting tools' : '文书格式工具'} className={`flex min-h-12 min-w-0 w-full max-w-full flex-nowrap items-center gap-0.5 overflow-x-auto overflow-y-hidden border-b border-primary-200 bg-primary-50 px-2 py-0 text-primary-950 shadow-[inset_0_-1px_0_rgba(125,86,70,0.04)] [scrollbar-color:theme(colors.primary.400)_theme(colors.primary.100)] [scrollbar-width:thin] [&>*]:shrink-0 [&>*]:translate-y-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary-400 [&::-webkit-scrollbar-track]:bg-primary-100 [&::-webkit-scrollbar]:h-1.5 ${isTeacherReadOnly ? 'cursor-not-allowed opacity-55' : ''}`}>
+	                    <fieldset disabled={isTeacherReadOnly} onPointerDownCapture={captureFormattingSelection} aria-label={isEn ? 'Essay formatting tools' : '文书格式工具'} className={`flex min-h-12 min-w-0 w-full max-w-full flex-nowrap items-center gap-0.5 overflow-x-auto overflow-y-hidden border-b border-primary-200 bg-primary-50 px-2 py-0 text-primary-950 shadow-[inset_0_-1px_0_rgba(125,86,70,0.04)] [scrollbar-color:theme(colors.primary.400)_theme(colors.primary.100)] [scrollbar-width:thin] [&>*]:shrink-0 [&>*]:translate-y-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary-400 [&::-webkit-scrollbar-track]:bg-primary-100 [&::-webkit-scrollbar]:h-1.5 ${isTeacherReadOnly ? 'cursor-not-allowed opacity-55' : ''}`}>
 	                       <div className="flex h-10 flex-shrink-0 items-center border-r border-primary-200 pr-1">
 	                          <button
 	                             type="button"
@@ -2428,20 +2568,20 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 	                       </label>
 	                       <label className="flex h-10 items-center border-r border-primary-200 pr-1">
 	                          <span className="sr-only">{isEn ? 'Font' : '字体'}</span>
-	                          <select aria-label={isEn ? 'Font' : '字体'} value={editorTextStyle.fontFamily} onChange={event => setEditorTextStyle(previous => ({ ...previous, fontFamily: event.target.value }))} className="h-9 w-[68px] appearance-none bg-transparent px-2 text-sm font-medium outline-none">
+	                          <select aria-label={isEn ? 'Font' : '字体'} value={editorTextStyle.fontFamily} onChange={event => handleInlineFormatChange('fontFamily', event.target.value)} className="h-9 w-[68px] appearance-none bg-transparent px-2 text-sm font-medium outline-none">
 	                             <option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Times New Roman">Times New Roman</option>
 	                          </select>
 	                          <ChevronDown className="-ml-7 mr-2 h-4 w-4 pointer-events-none" />
 	                       </label>
 	                       <div className="flex h-10 items-center gap-0.5 border-r border-primary-200 px-1">
-	                          <button type="button" aria-label={isEn ? 'Decrease font size' : '减小字号'} onClick={() => setEditorTextStyle(previous => ({ ...previous, fontSize: Math.max(8, previous.fontSize - 1) }))} className="flex h-9 w-7 items-center justify-center rounded hover:bg-primary-100"><Minus className="h-4 w-4" /></button>
-	                          <input aria-label={isEn ? 'Font size' : '字号'} type="number" min={8} max={72} value={editorTextStyle.fontSize} onChange={event => setEditorTextStyle(previous => ({ ...previous, fontSize: Math.min(72, Math.max(8, Number(event.target.value) || 11)) }))} className="h-9 w-10 rounded-md border border-primary-300 bg-white/60 text-center text-base outline-none focus:border-primary-600" />
-	                          <button type="button" aria-label={isEn ? 'Increase font size' : '增大字号'} onClick={() => setEditorTextStyle(previous => ({ ...previous, fontSize: Math.min(72, previous.fontSize + 1) }))} className="flex h-9 w-7 items-center justify-center rounded hover:bg-primary-100"><Plus className="h-4 w-4" /></button>
+	                          <button type="button" aria-label={isEn ? 'Decrease font size' : '减小字号'} onClick={() => handleInlineFormatChange('fontSize', Math.max(8, editorTextStyle.fontSize - 1))} className="flex h-9 w-7 items-center justify-center rounded hover:bg-primary-100"><Minus className="h-4 w-4" /></button>
+	                          <input aria-label={isEn ? 'Font size' : '字号'} type="number" min={8} max={72} value={editorTextStyle.fontSize} onChange={event => handleInlineFormatChange('fontSize', Math.min(72, Math.max(8, Number(event.target.value) || 11)))} className="h-9 w-10 rounded-md border border-primary-300 bg-white/60 text-center text-base outline-none focus:border-primary-600" />
+	                          <button type="button" aria-label={isEn ? 'Increase font size' : '增大字号'} onClick={() => handleInlineFormatChange('fontSize', Math.min(72, editorTextStyle.fontSize + 1))} className="flex h-9 w-7 items-center justify-center rounded hover:bg-primary-100"><Plus className="h-4 w-4" /></button>
 	                       </div>
 	                       {([['bold', 'B', isEn ? 'Bold' : '加粗', 'font-bold'], ['italic', 'I', isEn ? 'Italic' : '斜体', 'font-serif font-bold italic'], ['underline', 'U', isEn ? 'Underline' : '下划线', 'font-bold underline']] as const).map(([key, label, title, textClass]) => (
-	                          <button key={key} type="button" title={title} aria-label={title} aria-pressed={editorTextStyle[key]} onClick={() => setEditorTextStyle(previous => ({ ...previous, [key]: !previous[key] }))} className={`flex h-10 w-8 flex-shrink-0 items-center justify-center rounded text-lg hover:bg-primary-100 ${textClass} ${editorTextStyle[key] ? 'bg-primary-200 text-primary-900' : ''}`}>{label}</button>
+	                          <button key={key} type="button" title={title} aria-label={title} aria-pressed={Boolean(getSelectionFormatStyle()[key])} onClick={() => handleToggleInlineFormat(key)} className={`flex h-10 w-8 flex-shrink-0 items-center justify-center rounded text-lg hover:bg-primary-100 ${textClass} ${getSelectionFormatStyle()[key] ? 'bg-primary-200 text-primary-900' : ''}`}>{label}</button>
 	                       ))}
-	                       <button type="button" title={isEn ? 'Text color' : '文字颜色'} aria-label={isEn ? 'Text color' : '文字颜色'} aria-pressed={editorTextStyle.darkText} onClick={() => setEditorTextStyle(previous => ({ ...previous, darkText: !previous.darkText }))} className={`flex h-10 w-9 flex-shrink-0 flex-col items-center justify-center rounded text-lg font-bold hover:bg-primary-100 ${editorTextStyle.darkText ? 'bg-primary-200 text-primary-900' : ''}`}><span>A</span><span className="-mt-1 h-1 w-6 bg-current" /></button>
+	                       <button type="button" title={isEn ? 'Text color' : '文字颜色'} aria-label={isEn ? 'Text color' : '文字颜色'} aria-pressed={Boolean(getSelectionFormatStyle().darkText)} onClick={() => handleToggleInlineFormat('darkText')} className={`flex h-10 w-9 flex-shrink-0 flex-col items-center justify-center rounded text-lg font-bold hover:bg-primary-100 ${getSelectionFormatStyle().darkText ? 'bg-primary-200 text-primary-900' : ''}`}><span>A</span><span className="-mt-1 h-1 w-6 bg-current" /></button>
 	                       <button type="button" title={isEn ? 'Highlight selected text' : '高亮选中文字'} aria-label={isEn ? 'Highlight selected text' : '高亮选中文字'} aria-pressed={activeSelectionHighlighted} onClick={handleApplyTextHighlight} className={`flex h-10 w-8 flex-shrink-0 items-center justify-center rounded hover:bg-primary-100 ${activeSelectionHighlighted ? 'bg-amber-100 text-amber-800' : ''}`}><Highlighter className="h-4 w-4" /></button>
 	                       <div
 	                          className="ml-1 flex h-10 items-center border-l border-primary-200 pl-1"
@@ -2721,8 +2861,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 	                                   const visibleReplies = isExpanded ? replies : replies.slice(0, 1);
 	                                   return (
 	                                   <div key={`comment-${comment.id}`} onClick={() => setSelectedCommentId(comment.id)} className={`cursor-pointer rounded-xl border bg-white p-3 shadow-sm ${selectedCommentId === comment.id ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-indigo-100'}`}>
-                                      <div className="mb-2 flex items-center justify-between gap-2">
-                                         <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-700">{comment.category || 'Content'}</span>
+	                                      <div className="mb-2 flex items-center justify-end gap-2">
 	                                         <span className={`text-[10px] font-bold ${comment.isResolved ? 'text-emerald-600' : 'text-orange-600'}`}>{comment.isResolved ? (isEn ? 'Resolved' : '已解决') : (isEn ? 'Open' : '未解决')}</span>
                                       </div>
 	                                      <CollapsiblePreviewText

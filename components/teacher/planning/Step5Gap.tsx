@@ -10,6 +10,8 @@ import { SelectedSchool, GapAnalysisResult, ActionItem, CourseDiagnosisResult, T
 import { GoogleGenAI, Type } from "../../../services/aiClient";
 import { useLanguage } from '../../../contexts/LanguageContext';
 import { StudentSummary } from '../../../types';
+import CompactRangeChart, { ChartRange } from './CompactRangeChart';
+import APGapClusterChart from './APGapClusterChart';
 import { initialOfficialBatches } from '../StudentBasicInfo';
 
 interface Step5Props {
@@ -21,7 +23,7 @@ interface Step5Props {
   studentProfile?: StudentSummary;
 }
 
-type ScoreMetricId = 'alevel' | 'ap' | 'ib' | 'toefl' | 'ielts' | 'sat' | 'act' | 'atar';
+type ScoreMetricId = 'alevel' | 'ap' | 'ib' | 'toeflNew' | 'toeflOld' | 'ielts' | 'sat' | 'act' | 'atar';
 type SchoolTier = 'Safety' | 'Match' | 'Reach';
 type TierRange = { tier: SchoolTier; min: number; max: number; count: number };
 
@@ -155,7 +157,7 @@ const ScoreToggle: React.FC<{
         <span className={`text-xs font-medium ${enabled ? 'text-gray-700' : 'text-gray-400'}`}>{label}</span>
       </div>
       <span className={`text-xs font-bold ${enabled ? 'text-primary-700' : 'text-gray-400'}`}>
-        {hasScore ? value : (isEn ? 'No score' : '暂无成绩')}
+        {hasScore ? value : (isEn ? 'Student has no score' : '学生暂无成绩')}
       </span>
     </div>
   </div>
@@ -378,7 +380,8 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
     alevel: Boolean(currentStats.alevelEnabled && currentStats.alevelSubjects?.length),
     ap: Boolean(currentStats.apEnabled && currentStats.apSubjects?.length),
     ib: Boolean(currentStats.ibEnabled && currentStats.ibSubjects?.length),
-    toefl: Boolean(currentStats.toeflEnabled || currentStats.oldToeflEnabled),
+    toeflNew: Boolean(currentStats.toeflEnabled),
+    toeflOld: Boolean(currentStats.oldToeflEnabled),
     // A missing IELTS score stays collapsed by default, while the toggle below
     // remains available for the user to open it manually.
     ielts: Boolean(
@@ -462,8 +465,8 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   };
 
-  type RequirementMetric = 'gpa' | 'toefl' | 'ielts' | 'sat' | 'act' | 'atar';
-  const getTierRanges = (metric: RequirementMetric): TierRange[] => {
+  type RequirementMetric = 'ib' | 'gpa' | 'toefl' | 'toeflNew' | 'ielts' | 'sat' | 'act' | 'atar';
+  const getTierRanges = (metric: RequirementMetric): ChartRange[] => {
     const getMetricValue = (school: SelectedSchool) => {
       const localFallback = metric === 'gpa'
         ? school.uni.avgGpa
@@ -477,16 +480,17 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
     };
 
     return (['Safety', 'Match', 'Reach'] as SchoolTier[]).flatMap(tier => {
-      const valuesBySchool = new Map<string, number>();
+      const valuesBySchool = new Map<string, { name: string; score: number }>();
       selectedSchools
         .filter(school => school.tier === tier)
         .forEach(school => {
           const value = getMetricValue(school);
-          if (value !== null && !valuesBySchool.has(school.uni.id)) valuesBySchool.set(school.uni.id, value);
+          if (value !== null && !valuesBySchool.has(school.uni.id)) valuesBySchool.set(school.uni.id, { name: school.uni.name, score: value });
         });
-      const values = Array.from(valuesBySchool.values());
+      const schools = Array.from(valuesBySchool.values());
+      const values = schools.map(school => school.score);
       if (values.length === 0) return [];
-      return [{ tier, min: Math.min(...values), max: Math.max(...values), count: values.length }];
+      return [{ tier, min: Math.min(...values), max: Math.max(...values), count: values.length, schools }];
     });
   };
 
@@ -499,20 +503,26 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
     },
     {
       id: 'ap' as ScoreMetricId, group: 'academic', label: 'AP', enabled: visibleScoreMetrics.ap, hasScore: Boolean(currentStats.apEnabled && currentStats.apSubjects?.length),
-      value: `${currentStats.academicScoreText || currentStats.apSubjects?.[0]?.grade || ''}${isEn ? '' : ' 分'}`, rulerLabel: isEn ? 'AP (GPA Eq.)' : 'AP成绩 (GPA当量)',
+      value: `${currentStats.apSubjects?.length || 0}${isEn ? ' APs' : ' 门 AP'}`, rulerLabel: 'AP',
       min: 3.0, max: 4.2, current: currentStats.apEnabled ? validNumber(currentStats.gpa) : null, metric: 'gpa' as RequirementMetric,
       reachAvg: tierStats.reach.gpa, matchAvg: tierStats.match.gpa, safetyAvg: tierStats.safety.gpa,
     },
     {
-      id: 'ib' as ScoreMetricId, group: 'academic', label: 'IB', enabled: visibleScoreMetrics.ib, hasScore: Boolean(currentStats.ibEnabled && currentStats.ibSubjects?.length),
-      value: `${currentStats.academicScoreText || ''}${isEn ? '' : ' 分'}`, rulerLabel: isEn ? 'IB (GPA Eq.)' : 'IB成绩 (GPA当量)',
-      min: 3.0, max: 4.2, current: currentStats.ibEnabled ? validNumber(currentStats.gpa) : null, metric: 'gpa' as RequirementMetric,
-      reachAvg: tierStats.reach.gpa, matchAvg: tierStats.match.gpa, safetyAvg: tierStats.safety.gpa,
+      id: 'ib' as ScoreMetricId, group: 'academic', label: 'IB', enabled: visibleScoreMetrics.ib, hasScore: Boolean(currentStats.ibEnabled && validNumber(currentStats.ibScore)),
+      value: `${currentStats.ibScore || ''}${isEn ? '' : ' 分'}`, rulerLabel: 'IB',
+      min: 0, max: 45, current: currentStats.ibEnabled ? validNumber(currentStats.ibScore) : null, metric: 'ib' as RequirementMetric,
+      reachAvg: null, matchAvg: null, safetyAvg: null,
     },
     {
-      id: 'toefl' as ScoreMetricId, group: 'standardized', label: 'TOEFL', enabled: visibleScoreMetrics.toefl, hasScore: Boolean(currentStats.toeflEnabled || currentStats.oldToeflEnabled),
-      value: String(currentStats.oldToeflValue || currentStats.toefl || ''), rulerLabel: 'TOEFL',
-      min: 60, max: 120, current: (currentStats.toeflEnabled || currentStats.oldToeflEnabled) ? validNumber(currentStats.oldToeflValue || currentStats.toefl) : null, metric: 'toefl' as RequirementMetric,
+      id: 'toeflNew' as ScoreMetricId, group: 'standardized', label: 'TOEFL (From 21 January 2026)', enabled: visibleScoreMetrics.toeflNew, hasScore: Boolean(currentStats.toeflEnabled),
+      value: String(currentStats.toeflValue || ''), rulerLabel: 'TOEFL (From 21 January 2026)',
+      min: 1, max: 6, current: currentStats.toeflEnabled ? validNumber(currentStats.toeflValue) : null, metric: 'toeflNew' as RequirementMetric,
+      reachAvg: tierStats.reach.toeflNew, matchAvg: tierStats.match.toeflNew, safetyAvg: tierStats.safety.toeflNew,
+    },
+    {
+      id: 'toeflOld' as ScoreMetricId, group: 'standardized', label: 'TOEFL (Before 21 January 2026)', enabled: visibleScoreMetrics.toeflOld, hasScore: Boolean(currentStats.oldToeflEnabled),
+      value: String(currentStats.oldToeflValue || ''), rulerLabel: 'TOEFL (Before 21 January 2026)',
+      min: 0, max: 120, current: currentStats.oldToeflEnabled ? validNumber(currentStats.oldToeflValue) : null, metric: 'toefl' as RequirementMetric,
       reachAvg: tierStats.reach.toefl, matchAvg: tierStats.match.toefl, safetyAvg: tierStats.safety.toefl,
     },
     {
@@ -534,7 +544,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
       reachAvg: tierStats.reach.act, matchAvg: tierStats.match.act, safetyAvg: tierStats.safety.act,
     },
     {
-      id: 'atar' as ScoreMetricId, group: 'standardized', label: 'ATAR', enabled: visibleScoreMetrics.atar, hasScore: Boolean(currentStats.atarEnabled),
+      id: 'atar' as ScoreMetricId, group: 'academic', label: 'ATAR', enabled: visibleScoreMetrics.atar, hasScore: Boolean(currentStats.atarEnabled),
       value: String(currentStats.atarValue || ''), rulerLabel: 'ATAR',
       min: 0, max: 99.95, current: currentStats.atarEnabled ? validNumber(currentStats.atarValue) : null, metric: 'atar' as RequirementMetric,
       reachAvg: tierStats.reach.atar, matchAvg: tierStats.match.atar, safetyAvg: tierStats.safety.atar,
@@ -794,7 +804,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
             
             <div className="space-y-6">
               {([
-                { id: 'academic', title: isEn ? 'Academic scores' : '学校成绩' },
+                { id: 'academic', title: isEn ? 'Academic scores' : '学术成绩' },
                 { id: 'standardized', title: isEn ? 'Standardized tests' : '标化成绩' },
               ]).map(section => (
                 <div key={section.id} className="rounded-xl border border-gray-100 bg-gray-50/30 p-4">
@@ -812,7 +822,17 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                         />
                         {metric.enabled && (
                           <div className="mt-5 px-1">
-                            <MetricRuler
+                            {metric.id === 'ap' ? (
+                              <APGapClusterChart
+                                selectedSchools={selectedSchools}
+                                studentSubjects={currentStats.apSubjects || []}
+                                isEn={isEn}
+                              />
+                            ) : metric.id !== 'alevel' ? (
+                              <CompactRangeChart min={metric.min} max={metric.max} current={metric.current}
+                                label={metric.label} ranges={getTierRanges(metric.metric)} isEn={isEn}
+                                scoreStep={metric.id === 'atar' ? 0.05 : metric.id === 'ielts' || metric.id === 'toeflNew' ? 0.5 : 1} />
+                            ) : <MetricRuler
                               min={metric.min}
                               max={metric.max}
                               current={metric.current}
@@ -821,7 +841,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                         safetyAvg={metric.safetyAvg}
                         tierRanges={getTierRanges(metric.metric)}
                         isEn={isEn}
-                            />
+                            />}
                           </div>
                         )}
                       </div>
