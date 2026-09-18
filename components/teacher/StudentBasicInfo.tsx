@@ -76,6 +76,7 @@ export interface OfficialBatch {
   level: string;
   time: string;
   board: string;
+  atarScore?: string;
   courses: OfficialCourse[];
   isExpanded?: boolean;
 }
@@ -93,6 +94,7 @@ export interface PredictedBatch {
   predictionLevel: string;
   predictedTime: string;
   applySeason: string;
+  atarScore?: string;
   courses: PredictedCourse[];
   isExpanded?: boolean;
 }
@@ -141,6 +143,20 @@ const DIRECTION_OPTIONS = [
   "Global",
 ];
 const GRADE_OPTIONS = ["G9", "G10", "G11", "G12"];
+const TOEFL_FROM_2026 = "TOEFL (From 21 January 2026)";
+const TOEFL_BEFORE_2026 = "TOEFL (Before 21 January 2026)";
+
+const isToeflType = (type: string) =>
+  type === "TOEFL" ||
+  type === TOEFL_FROM_2026 ||
+  type === TOEFL_BEFORE_2026;
+
+const getToeflTypeForDate = (date?: string) => {
+  const examDate = Date.parse(date || "");
+  return Number.isFinite(examDate) && examDate >= Date.parse("2026-01-21")
+    ? TOEFL_FROM_2026
+    : TOEFL_BEFORE_2026;
+};
 
 // --- Initial Mock Data ---
 export const initialOfficialBatches: OfficialBatch[] = [
@@ -554,7 +570,17 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
 
   // --- Handlers: Tests ---
   const handleStartEditTests = () => {
-    setTempSubjectScores(JSON.parse(JSON.stringify(subjectScores)));
+    setTempSubjectScores(
+      JSON.parse(JSON.stringify(subjectScores)).map((score: SubjectScore) =>
+        score.type === "TOEFL"
+          ? {
+              ...score,
+              type: getToeflTypeForDate(score.date),
+              subject: getToeflTypeForDate(score.date),
+            }
+          : score,
+      ),
+    );
     setIsEditingTests(true);
   };
   const handleSaveTests = () => {
@@ -570,10 +596,16 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
     let key: CalculatedExamKey;
     let drafts: ExamSectionDrafts;
 
-    if (score.type === "TOEFL") {
-      const examDate = Date.parse(score.date || "");
-      if (!Number.isFinite(examDate)) return null;
-      key = examDate >= Date.parse("2026-01-21") ? "toefl" : "oldToefl";
+    if (isToeflType(score.type)) {
+      if (score.type === TOEFL_FROM_2026) {
+        key = "toefl";
+      } else if (score.type === TOEFL_BEFORE_2026) {
+        key = "oldToefl";
+      } else {
+        const examDate = Date.parse(score.date || "");
+        if (!Number.isFinite(examDate)) return null;
+        key = examDate >= Date.parse("2026-01-21") ? "toefl" : "oldToefl";
+      }
       drafts = {
         reading: score.subScores?.R || "",
         listening: score.subScores?.L || "",
@@ -663,9 +695,9 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
       ...tempSubjectScores,
       {
         id: `s-${Date.now()}`,
-        subject: "TOEFL",
+        subject: TOEFL_FROM_2026,
         score: "-",
-        type: "TOEFL",
+        type: TOEFL_FROM_2026,
         date: new Date().getFullYear().toString(),
         subScores: { R: "-", L: "-", S: "-", W: "-" },
         status: "Verified",
@@ -765,7 +797,13 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
   };
 
   const handleSaveALevel = () => {
-    setOfficialBatches(tempOfficial);
+    setOfficialBatches(
+      tempOfficial.map((batch) =>
+        batch.curriculum === "ATAR" && !batch.board
+          ? { ...batch, board: "Australia" }
+          : batch,
+      ),
+    );
     setPredictedBatches(tempPredicted);
     setIsEditingALevel(false);
     setUnsavedChanges(false);
@@ -838,6 +876,17 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
       setTempPredicted((prev) =>
         prev.map((t) => (t.id === id ? { ...t, [field]: value } : t)),
       ),
+    );
+  };
+
+  const isValidAtarScore = (value: string) => {
+    if (value === "") return true;
+    const numericValue = Number(value);
+    return (
+      Number.isFinite(numericValue) &&
+      numericValue >= 0 &&
+      numericValue <= 99.95 &&
+      Math.abs(numericValue * 20 - Math.round(numericValue * 20)) < 1e-8
     );
   };
 
@@ -948,7 +997,8 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
           curriculum: sys,
           level: "",
           time: "",
-          board: "",
+          board: sys === "ATAR" ? "Australia" : "",
+          atarScore: "",
           courses: [],
           isExpanded: true,
         },
@@ -966,6 +1016,7 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
           predictionLevel: "",
           predictedTime: "",
           applySeason: "",
+          atarScore: "",
           courses: [],
           isExpanded: true,
         },
@@ -1808,28 +1859,22 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
               <div className="flex items-center gap-4 flex-wrap">
                 <h3 className="font-bold text-gray-800 flex items-center gap-2">
                   <GraduationCap className="w-5 h-5 text-primary-600" />{" "}
-                  {isEn ? "Academic & Activity Background" : "学术活动背景"}
+                  {isEn ? "Academic Results Management" : "学术成绩管理"}
                 </h3>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleOpenAddActivityModal}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#A37B5C] text-white shadow-sm hover:bg-[#8E694C] transition-colors cursor-pointer"
-                  title={isEn ? "Add New Activity" : "添加新活动"}
-                >
-                  <Plus className="w-3.5 h-3.5" />{" "}
-                  {isEn ? "Add Activity" : "添加活动"}
-                </button>
                 {!isEditingALevel ? (
                   <>
                     <button
+                      type="button"
+                      onClick={onNavigateToTranscript}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-gray-700 shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
                     >
                       <FileText className="w-3.5 h-3.5" />{" "}
                       {isEn ? "Preview PDF" : "预览PDF"}
                     </button>
                     <button
+                      type="button"
                       onClick={handleStartEditALevel}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-primary-600 text-white shadow-sm hover:bg-primary-700 transition-colors"
                     >
@@ -1882,7 +1927,7 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                   </h4>
                   {isEditingALevel && (
                     <div className="flex items-center gap-1">
-                      {["A Level", "AP", "IB"].map((sys) => (
+                      {["A Level", "AP", "IB", "ATAR"].map((sys) => (
                         <button
                           key={sys}
                           onClick={() => handleAddOfficialBatch(sys)}
@@ -1921,69 +1966,78 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                                   {batch.curriculum}
                                 </span>
                                 {batch.curriculum === "A Level" && (
-                                  <select
-                                    className="border border-gray-300 rounded px-2 py-1 text-sm font-medium"
-                                    value={batch.level}
-                                    onChange={(e) =>
-                                      handleUpdateOfficialBatch(
-                                        batch.id,
-                                        "level",
-                                        e.target.value,
-                                      )
-                                    }
-                                  >
-                                    <option value="" disabled hidden>
-                                      [选择 Level ▼]
-                                    </option>
-                                    <option value="AS">AS</option>
-                                    <option value="A Level">A Level</option>
-                                  </select>
+                                  <div className="relative inline-flex">
+                                    <select
+                                      className={`h-9 min-w-[120px] appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-8 text-sm font-semibold outline-none transition-colors focus:border-primary-400 ${batch.level ? "text-gray-800" : "text-gray-400"}`}
+                                      value={batch.level}
+                                      onChange={(e) =>
+                                        handleUpdateOfficialBatch(
+                                          batch.id,
+                                          "level",
+                                          e.target.value,
+                                        )
+                                      }
+                                    >
+                                      <option value="" disabled hidden>
+                                        选择 Level
+                                      </option>
+                                      <option value="AS">AS</option>
+                                      <option value="A Level">A Level</option>
+                                    </select>
+                                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                  </div>
                                 )}
                                 {batch.curriculum === "AP" && (
-                                  <select
-                                    className="border border-gray-300 rounded px-2 py-1 text-sm font-medium"
-                                    value={batch.level}
-                                    onChange={(e) =>
-                                      handleUpdateOfficialBatch(
-                                        batch.id,
-                                        "level",
-                                        e.target.value,
-                                      )
-                                    }
-                                  >
-                                    <option value="" disabled hidden>
-                                      [选择 Level ▼]
-                                    </option>
-                                    <option value="G9">Grade 9</option>
-                                    <option value="G10">Grade 10</option>
-                                    <option value="G11">Grade 11</option>
-                                    <option value="G12">Grade 12</option>
-                                  </select>
+                                  <div className="relative inline-flex">
+                                    <select
+                                      className={`h-9 min-w-[120px] appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-8 text-sm font-semibold outline-none transition-colors focus:border-primary-400 ${batch.level ? "text-gray-800" : "text-gray-400"}`}
+                                      value={batch.level}
+                                      onChange={(e) =>
+                                        handleUpdateOfficialBatch(
+                                          batch.id,
+                                          "level",
+                                          e.target.value,
+                                        )
+                                      }
+                                    >
+                                      <option value="" disabled hidden>
+                                        选择 Level
+                                      </option>
+                                      <option value="G9">Grade 9</option>
+                                      <option value="G10">Grade 10</option>
+                                      <option value="G11">Grade 11</option>
+                                      <option value="G12">Grade 12</option>
+                                    </select>
+                                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                  </div>
                                 )}
                                 {batch.curriculum === "IB" && (
-                                  <select
-                                    className="border border-gray-300 rounded px-2 py-1 text-sm font-medium"
-                                    value={batch.level}
-                                    onChange={(e) =>
-                                      handleUpdateOfficialBatch(
-                                        batch.id,
-                                        "level",
-                                        e.target.value,
-                                      )
-                                    }
-                                  >
-                                    <option value="" disabled hidden>
-                                      [选择 Level ▼]
-                                    </option>
-                                    <option value="MYP">MYP</option>
-                                    <option value="DP1">DP1</option>
-                                    <option value="DP2">DP2</option>
-                                  </select>
+                                  <div className="relative inline-flex">
+                                    <select
+                                      className={`h-9 min-w-[120px] appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-8 text-sm font-semibold outline-none transition-colors focus:border-primary-400 ${batch.level ? "text-gray-800" : "text-gray-400"}`}
+                                      value={batch.level}
+                                      onChange={(e) =>
+                                        handleUpdateOfficialBatch(
+                                          batch.id,
+                                          "level",
+                                          e.target.value,
+                                        )
+                                      }
+                                    >
+                                      <option value="" disabled hidden>
+                                        选择 Level
+                                      </option>
+                                      <option value="MYP">MYP</option>
+                                      <option value="DP1">DP1</option>
+                                      <option value="DP2">DP2</option>
+                                    </select>
+                                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                  </div>
                                 )}
 
                                 <input
                                   type="month"
-                                  className="w-32 border border-gray-300 rounded px-2 py-1 text-sm font-medium"
+                                  className="h-9 w-32 rounded-lg border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-800 outline-none transition-colors focus:border-primary-400"
                                   placeholder="时间"
                                   value={batch.time}
                                   onChange={(e) =>
@@ -1994,6 +2048,25 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                                     )
                                   }
                                 />
+
+                                {batch.curriculum === "ATAR" && (
+                                  <div className="relative inline-flex">
+                                    <select
+                                      className="h-9 w-36 appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-8 text-sm font-semibold text-gray-800 outline-none transition-colors focus:border-primary-400"
+                                      value={batch.board || "Australia"}
+                                      onChange={(e) =>
+                                        handleUpdateOfficialBatch(
+                                          batch.id,
+                                          "board",
+                                          e.target.value,
+                                        )
+                                      }
+                                    >
+                                      <option value="Australia">Australia</option>
+                                    </select>
+                                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                  </div>
+                                )}
 
                                 {batch.curriculum === "A Level" &&
                                   (() => {
@@ -2010,29 +2083,32 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                                         !standardBoards.includes(batch.board));
                                     return (
                                       <div className="flex gap-1 inline-flex items-center">
-                                        <select
-                                          className="w-36 border border-gray-300 rounded px-2 py-1 text-sm font-medium"
-                                          value={
-                                            isOtherBoard ? "Other" : batch.board
-                                          }
-                                          onChange={(e) =>
-                                            handleUpdateOfficialBatch(
-                                              batch.id,
-                                              "board",
-                                              e.target.value,
-                                            )
-                                          }
-                                        >
-                                          <option value="" disabled hidden>
-                                            [选择考试局 ▼]
-                                          </option>
-                                          {standardBoards.map((b) => (
-                                            <option key={b} value={b}>
-                                              {b}
+                                        <div className="relative inline-flex">
+                                          <select
+                                            className={`h-9 w-36 appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-8 text-sm font-semibold outline-none transition-colors focus:border-primary-400 ${batch.board ? "text-gray-800" : "text-gray-400"}`}
+                                            value={
+                                              isOtherBoard ? "Other" : batch.board
+                                            }
+                                            onChange={(e) =>
+                                              handleUpdateOfficialBatch(
+                                                batch.id,
+                                                "board",
+                                                e.target.value,
+                                              )
+                                            }
+                                          >
+                                            <option value="" disabled hidden>
+                                              选择考试局
                                             </option>
-                                          ))}
-                                          <option value="Other">Other</option>
-                                        </select>
+                                            {standardBoards.map((b) => (
+                                              <option key={b} value={b}>
+                                                {b}
+                                              </option>
+                                            ))}
+                                            <option value="Other">Other</option>
+                                          </select>
+                                          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                        </div>
                                         {isOtherBoard && (
                                           <input
                                             className="w-24 border border-gray-300 rounded px-2 py-1 text-sm font-medium"
@@ -2061,7 +2137,12 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                                   batch.curriculum,
                                   batch.level,
                                   batch.time,
-                                  batch.board,
+                                  batch.curriculum === "ATAR"
+                                    ? batch.board || "Australia"
+                                    : batch.board,
+                                  batch.curriculum === "ATAR" && batch.atarScore
+                                    ? `ATAR ${batch.atarScore}`
+                                    : "",
                                 ]
                                   .filter(Boolean)
                                   .join(" | ")}
@@ -2082,7 +2163,42 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                           )}
                         </div>
 
-                        {batch.isExpanded && (
+                        {batch.isExpanded &&
+                          (batch.curriculum === "ATAR" ? (
+                            <div className="m-4 flex items-center gap-4 rounded-xl border border-gray-200 bg-white px-6 py-5">
+                              <label className="flex items-center gap-4 text-sm font-bold text-gray-600">
+                                <span>{isEn ? "Overall Score" : "整体分数"}</span>
+                                {isEditingALevel ? (
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max="99.95"
+                                    step="0.05"
+                                    inputMode="decimal"
+                                    className="w-28 rounded-lg border border-gray-300 bg-white px-3 py-2 text-base font-semibold text-gray-800 outline-none focus:border-primary-400"
+                                    placeholder="0.00"
+                                    value={batch.atarScore || ""}
+                                    onChange={(e) => {
+                                      if (isValidAtarScore(e.target.value)) {
+                                        handleUpdateOfficialBatch(
+                                          batch.id,
+                                          "atarScore",
+                                          e.target.value,
+                                        );
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="min-w-28 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-base font-semibold text-gray-800">
+                                    {batch.atarScore || "-"}
+                                  </span>
+                                )}
+                              </label>
+                              <span className="text-base font-semibold text-gray-500">
+                                / 99.95
+                              </span>
+                            </div>
+                          ) : (
                           <div>
                             <table className="w-full text-sm text-left">
                               <thead className="text-xs text-gray-500 bg-gray-50/50 uppercase font-medium">
@@ -2308,7 +2424,7 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                               </div>
                             )}
                           </div>
-                        )}
+                          ))}
                       </div>
                     ),
                   )}
@@ -2329,7 +2445,7 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                   </h4>
                   {isEditingALevel && (
                     <div className="flex items-center gap-1">
-                      {["A Level", "AP", "IB"].map((sys) => (
+                      {["A Level", "AP", "IB", "ATAR"].map((sys) => (
                         <button
                           key={sys}
                           onClick={() => handleAddPredictedBatch(sys)}
@@ -2350,15 +2466,20 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                         className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm"
                       >
                         <div
-                          className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors"
-                          onClick={() => handleTogglePredictedBatch(batch.id)}
+                          className={`flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100 transition-colors ${batch.curriculum === "ATAR" ? "" : "cursor-pointer hover:bg-gray-100"}`}
+                          onClick={() => {
+                            if (batch.curriculum !== "ATAR") {
+                              handleTogglePredictedBatch(batch.id);
+                            }
+                          }}
                         >
                           <div className="flex items-center gap-3">
-                            {batch.isExpanded ? (
-                              <ChevronUp className="w-4 h-4 text-gray-400" />
-                            ) : (
-                              <ChevronDown className="w-4 h-4 text-gray-400" />
-                            )}
+                            {batch.curriculum !== "ATAR" &&
+                              (batch.isExpanded ? (
+                                <ChevronUp className="w-4 h-4 text-gray-400" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-gray-400" />
+                              ))}
                             {isEditingALevel ? (
                               <div
                                 className="flex gap-2 flex-wrap items-center"
@@ -2427,6 +2548,30 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                                     <option value="DP2">DP2</option>
                                   </select>
                                 )}
+                                {batch.curriculum === "ATAR" && (
+                                  <label className="flex items-center gap-2 text-sm text-gray-600">
+                                    <span>{isEn ? "Score" : "分数"}</span>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="99.95"
+                                      step="0.05"
+                                      inputMode="decimal"
+                                      className="w-24 border border-gray-300 rounded px-2 py-1 text-sm font-medium"
+                                      placeholder="0.00–99.95"
+                                      value={batch.atarScore || ""}
+                                      onChange={(e) => {
+                                        if (isValidAtarScore(e.target.value)) {
+                                          handleUpdatePredictedBatch(
+                                            batch.id,
+                                            "atarScore",
+                                            e.target.value,
+                                          );
+                                        }
+                                      }}
+                                    />
+                                  </label>
+                                )}
                                 <input
                                   type="month"
                                   className="w-32 border border-gray-300 rounded px-2 py-1 text-sm font-medium"
@@ -2460,6 +2605,9 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                                   batch.predictionLevel,
                                   batch.applySeason,
                                   batch.predictedTime,
+                                  batch.curriculum === "ATAR" && batch.atarScore
+                                    ? `ATAR ${batch.atarScore}`
+                                    : "",
                                 ]
                                   .filter(Boolean)
                                   .join(" | ")}
@@ -2480,7 +2628,7 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                           )}
                         </div>
 
-                        {batch.isExpanded && (
+                        {batch.isExpanded && batch.curriculum !== "ATAR" && (
                           <div>
                             <table className="w-full text-sm text-left">
                               <thead className="text-xs text-gray-500 bg-gray-50/50 uppercase font-medium">
@@ -2760,7 +2908,12 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                                   )
                                 }
                               >
-                                <option value="TOEFL">TOEFL</option>
+                                <option value={TOEFL_FROM_2026}>
+                                  {TOEFL_FROM_2026}
+                                </option>
+                                <option value={TOEFL_BEFORE_2026}>
+                                  {TOEFL_BEFORE_2026}
+                                </option>
                                 <option value="IELTS">IELTS</option>
                                 <option value="SAT">SAT</option>
                                 <option value="ACT">ACT</option>
@@ -2791,7 +2944,7 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                               />
                             </div>
                             {/* Subscores */}
-                            {(score.type === "TOEFL" || score.type === "IELTS") && (
+                            {(isToeflType(score.type) || score.type === "IELTS") && (
                               <div className="grid grid-cols-4 gap-2 border-t pt-2 mt-0.5 border-gray-100">
                                 <div className="flex items-center gap-1">
                                   <span className="text-[10px] text-gray-400 w-2.5">R</span>
@@ -2896,7 +3049,7 @@ const StudentBasicInfo: React.FC<StudentBasicInfoProps> = ({
                             
                             {score.subScores && (
                               <div className="flex flex-wrap gap-1.5 text-[10px] mt-1.5 pt-1.5 border-t border-gray-100/60">
-                                 {(score.type === "TOEFL" || score.type === "IELTS") && (
+                                 {(isToeflType(score.type) || score.type === "IELTS") && (
                                    <>
                                      {score.subScores.R && <span className="bg-primary-50/50 text-gray-600 px-1.5 py-0.5 rounded">R: <strong className="text-gray-800">{score.subScores.R}</strong></span>}
                                      {score.subScores.L && <span className="bg-primary-50/50 text-gray-600 px-1.5 py-0.5 rounded">L: <strong className="text-gray-800">{score.subScores.L}</strong></span>}
