@@ -13,11 +13,11 @@ const RiskCard: React.FC<RiskCardProps> = ({ onRiskClick }) => {
   const isEn = language === 'en-US';
 
   const risks: RiskCategory[] = [
-    { type: isEn ? 'Academic' : '成绩风险', count: 3, severity: 'high', details: isEn ? 'GPA Drop/Fail' : 'GPA波动/挂科' },
-    { type: isEn ? 'Target' : '目标风险', count: 2, severity: 'high', details: isEn ? 'Target Mismatch' : '目标偏离/过高' },
-    { type: isEn ? 'Task' : '任务风险', count: 8, severity: 'medium', details: isEn ? 'Deadline/Overdue' : '节点临近/逾期' },
-    { type: isEn ? 'Material' : '材料风险', count: 5, severity: 'medium', details: isEn ? 'Missing Items' : '缺失/证据不足' },
-    { type: isEn ? 'Comm' : '沟通风险', count: 4, severity: 'low', details: isEn ? 'No Response' : '长期未确认' },
+    { type: isEn ? 'Academic' : '成绩风险', count: 8, severity: 'high', details: isEn ? 'GPA Drop/Fail' : 'GPA波动/挂科' },
+    { type: isEn ? 'Target' : '目标风险', count: 9, severity: 'high', details: isEn ? 'Target Mismatch' : '目标偏离/过高' },
+    { type: isEn ? 'Task' : '任务风险', count: 15, severity: 'medium', details: isEn ? 'Deadline/Overdue' : '节点临近/逾期' },
+    { type: isEn ? 'Material' : '材料风险', count: 11, severity: 'medium', details: isEn ? 'Missing Items' : '缺失/证据不足' },
+    { type: isEn ? 'Comm' : '沟通风险', count: 8, severity: 'low', details: isEn ? 'No Response' : '长期未确认' },
   ];
 
   const getIcon = (type: string) => {
@@ -37,7 +37,7 @@ const RiskCard: React.FC<RiskCardProps> = ({ onRiskClick }) => {
           {isEn ? 'Risk Radar' : '风险雷达'}
         </h3>
         <span className="text-[10px] bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full font-medium border border-red-100 dark:border-red-500/20">
-          {isEn ? '22 Alerts' : '需关注 22 人次'}
+          {isEn ? '32 Alerts' : '需关注 32 人次'}
         </span>
       </div>
       
@@ -58,7 +58,7 @@ const RiskCard: React.FC<RiskCardProps> = ({ onRiskClick }) => {
               }`}>
                 {getIcon(risk.type)}
               </div>
-              <span className={`text-lg font-bold ${
+              <span className={`text-xl font-bold ${
                 risk.severity === 'high' 
                   ? 'text-red-700 dark:text-red-400' 
                   : 'text-gray-800 dark:text-zinc-200'

@@ -428,7 +428,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
             <div className="flex justify-between items-end mb-8">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-tight">
-                  {isEn ? 'Good Morning, Sarah ☕️' : '早安，Sarah 老师 ☕️'}
+                  {isEn ? 'Good Morning, CC ☕️' : '早安，CC 老师 ☕️'}
                 </h1>
                 <p className="text-gray-500 dark:text-zinc-400 text-sm">
                   {isEn ? (
