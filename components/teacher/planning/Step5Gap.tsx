@@ -12,6 +12,7 @@ import { useLanguage } from '../../../contexts/LanguageContext';
 import { StudentSummary } from '../../../types';
 import CompactRangeChart, { ChartRange } from './CompactRangeChart';
 import APGapClusterChart from './APGapClusterChart';
+import ALevelGapSummary from './ALevelGapSummary';
 import { initialOfficialBatches } from '../StudentBasicInfo';
 
 interface Step5Props {
@@ -828,20 +829,13 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
                                 studentSubjects={currentStats.apSubjects || []}
                                 isEn={isEn}
                               />
-                            ) : metric.id !== 'alevel' ? (
+                            ) : metric.id === 'alevel' ? (
+                              <ALevelGapSummary studentScore={currentStats.alevelScore} />
+                            ) : (
                               <CompactRangeChart min={metric.min} max={metric.max} current={metric.current}
                                 label={metric.label} ranges={getTierRanges(metric.metric)} isEn={isEn}
                                 scoreStep={metric.id === 'atar' ? 0.05 : metric.id === 'ielts' || metric.id === 'toeflNew' ? 0.5 : 1} />
-                            ) : <MetricRuler
-                              min={metric.min}
-                              max={metric.max}
-                              current={metric.current}
-                              reachAvg={metric.reachAvg}
-                              matchAvg={metric.matchAvg}
-                        safetyAvg={metric.safetyAvg}
-                        tierRanges={getTierRanges(metric.metric)}
-                        isEn={isEn}
-                            />}
+                            )}
                           </div>
                         )}
                       </div>

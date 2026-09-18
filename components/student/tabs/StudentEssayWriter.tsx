@@ -16,7 +16,8 @@ import {
   getEssayReview,
   subscribeEssayReviews,
   updateEssayReview,
-  SharedEssayReview
+  SharedEssayReview,
+  transformEssayFormattingAfterContentEdit
 } from '../../../services/essayReviewStore';
 import { publishStudentReviewEvent } from '../../../services/studentReviewEvents';
 
@@ -442,6 +443,9 @@ const StudentEssayWriter: React.FC = () => {
       return {
         ...review,
         currentContent: nextContent,
+        formatting: decision === 'accepted'
+          ? transformEssayFormattingAfterContentEdit(review.formatting || [], review.currentContent, nextContent)
+          : review.formatting,
         suggestions: (review.suggestions || []).map(item => item.id === suggestionId ? { ...item, status: decision, decidedBy: STUDENT_FULL_PROFILE.name, decidedAt } : item),
         lastModifiedBy: STUDENT_FULL_PROFILE.name,
         lastModifiedAt: decidedAt,
