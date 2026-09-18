@@ -10,6 +10,9 @@ export interface SharedEssayTextStyle {
   italic?: boolean;
   underline?: boolean;
   darkText?: boolean;
+  color?: string;
+  highlightColor?: string | null;
+  strikethrough?: boolean;
   paragraphStyle?: string;
 }
 
@@ -45,7 +48,7 @@ export interface SharedEssayComment {
 
 export interface SharedEssaySuggestion {
   id: string;
-  type: 'replace' | 'delete';
+  type: 'insert' | 'replace' | 'delete';
   originalText: string;
   suggestedText: string;
   start: number;
@@ -54,10 +57,50 @@ export interface SharedEssaySuggestion {
   author: string;
   createdAt: string;
   status: 'pending' | 'accepted' | 'rejected';
+  suggestionColor?: string;
   decidedBy?: string;
   decidedAt?: string;
   isPublished?: boolean;
 }
+
+const ESSAY_SUGGESTION_COLORS = ['#188038', '#1a73e8', '#a142f4', '#d93025', '#e37400'];
+
+export const getEssaySuggestionColor = (author: string) => {
+  const hash = Array.from(author || 'Reviewer').reduce((total, character) => total + character.charCodeAt(0), 0);
+  return ESSAY_SUGGESTION_COLORS[hash % ESSAY_SUGGESTION_COLORS.length];
+};
+
+export const transformEssayFormattingAfterContentEdit = (
+  ranges: SharedEssayFormatRange[],
+  previousContent: string,
+  nextContent: string
+) => {
+  if (previousContent === nextContent) return ranges;
+  let editStart = 0;
+  while (editStart < previousContent.length && editStart < nextContent.length && previousContent[editStart] === nextContent[editStart]) editStart += 1;
+  let suffixLength = 0;
+  while (
+    suffixLength < previousContent.length - editStart &&
+    suffixLength < nextContent.length - editStart &&
+    previousContent[previousContent.length - 1 - suffixLength] === nextContent[nextContent.length - 1 - suffixLength]
+  ) suffixLength += 1;
+  const previousEditEnd = previousContent.length - suffixLength;
+  const insertedLength = nextContent.length - editStart - suffixLength;
+  const delta = insertedLength - (previousEditEnd - editStart);
+  const mapStart = (position: number) => {
+    if (position <= editStart) return position;
+    if (position >= previousEditEnd) return position + delta;
+    return editStart;
+  };
+  const mapEnd = (position: number) => {
+    if (position <= editStart) return position;
+    if (position >= previousEditEnd) return position + delta;
+    return editStart + insertedLength;
+  };
+  return ranges
+    .map(range => ({ ...range, start: mapStart(range.start), end: mapEnd(range.end) }))
+    .filter(range => range.start < range.end);
+};
 
 export interface SharedEssayVersion {
   id: string;
@@ -103,7 +146,8 @@ const readAll = (): Record<string, SharedEssayReview> => {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
-  } catch {
+  } catch (error) {
+    console.error('Failed to read essay reviews:', error);
     return {};
   }
 };
@@ -122,7 +166,11 @@ export const getEssayReview = (essayId: string): SharedEssayReview | null => {
       isResolved: Boolean(comment.isResolved),
       replies: comment.replies || []
     })),
-    suggestions: review.suggestions || [],
+    suggestions: (review.suggestions || []).map(suggestion => ({
+      ...suggestion,
+      type: !suggestion.originalText && suggestion.suggestedText ? 'insert' : suggestion.type,
+      suggestionColor: suggestion.suggestionColor || getEssaySuggestionColor(suggestion.author)
+    })),
     formatting: review.formatting || [],
     reviewDimensions: review.reviewDimensions || {},
     auditLog: review.auditLog || [],
@@ -138,7 +186,8 @@ export const saveEssayReview = (review: SharedEssayReview): boolean => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
     window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { essayId: review.essayId } }));
     return true;
-  } catch {
+  } catch (error) {
+    console.error('Failed to save essay review:', error);
     return false;
   }
 };
@@ -164,7 +213,11 @@ export const ensureEssayReview = (
     lastModifiedBy: 'Student',
     lastModifiedAt: now,
     revisionNumber: 1,
-    documentMode: status === 'Finalized' ? 'Viewing' : 'Suggesting',
+    documentMode: status === 'Finalized' || status === 'Returned'
+      ? 'Viewing'
+      : status === 'Reviewing'
+        ? 'Suggesting'
+        : 'Editing',
     reviewDimensions: {},
     auditLog: []
   };

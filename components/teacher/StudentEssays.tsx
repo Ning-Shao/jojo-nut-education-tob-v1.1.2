@@ -22,11 +22,13 @@ import {
   getEssayReview,
   subscribeEssayReviews,
   updateEssayReview,
-  EssayCommentCategory,
   EssayDocumentMode,
   SharedEssayFormatRange,
-  SharedEssaySuggestion
+  SharedEssaySuggestion,
+  getEssaySuggestionColor,
+  transformEssayFormattingAfterContentEdit
 } from '../../services/essayReviewStore';
+import { getEssayTasks, saveEssayTask, subscribeEssayTasks } from '../../services/essayTaskStore';
 
 interface StudentEssaysProps {
   student: StudentSummary;
@@ -34,6 +36,17 @@ interface StudentEssaysProps {
 }
 
 type PreviewPart = string;
+
+const ESSAY_TEXT_COLORS = [
+  '#000000', '#404040', '#686868', '#929292', '#b6b6b6', '#c8c8c8', '#dddddd', '#eeeeee', '#f5f5f5', '#ffffff',
+  '#b80000', '#ff0000', '#ff8a00', '#fff000', '#00e619', '#00dfe8', '#4285e3', '#1212e8', '#9100f5', '#ef00e7',
+  '#e6afa5', '#f2c5c5', '#f8dfc1', '#fff1c7', '#dcebd5', '#d3e2e5', '#c9dcf5', '#d2e6f3', '#d9d0e8', '#ead1df',
+  '#df7c68', '#ee9598', '#f4c28d', '#ffe19a', '#b8d9a7', '#9ec3c8', '#9fbeef', '#98c1e5', '#aea1d2', '#d09ab8',
+  '#d64a2a', '#e75f5c', '#f4a65f', '#ffd05c', '#91c878', '#70a7b3', '#679be5', '#65a1d5', '#8875be', '#bd729d',
+  '#bf2908', '#d90d0d', '#eb8d2d', '#f7bd29', '#66af4d', '#438695', '#3477d8', '#3486c1', '#6550aa', '#ac477f',
+  '#91250e', '#ac0000', '#c36b03', '#cf9700', '#357c24', '#175667', '#155dc9', '#165c9a', '#3b257f', '#81184f',
+  '#651700', '#760000', '#8e4d00', '#8f6900', '#234f18', '#0d3c45', '#1d4689', '#0b3d68', '#20164f', '#54102f'
+];
 
 const CollapsiblePreviewText: React.FC<{
   itemId: string;
@@ -87,7 +100,8 @@ type EditorTextStyle = {
 };
 type ContentHistorySnapshot = {
   content: string;
-  suggestionPositions: Array<{ id: string; start: number; end: number }>;
+  suggestions: SharedEssaySuggestion[];
+  formatting: SharedEssayFormatRange[];
 };
 
 type VersionSource = 'Student_Submit' | 'Teacher_Save' | 'AI_Generate' | 'System_Restore' | 'Teacher_Return' | 'Teacher_Finalize';
@@ -208,6 +222,19 @@ const INITIAL_ESSAYS: EssayTask[] = [
   }
 ];
 
+const getPersistedEssayTasks = (studentId: string): EssayTask[] => getEssayTasks(studentId).map(task => ({
+  ...task,
+  type: task.type as EssayTask['type'],
+  status: task.status as EssayStatus,
+  versions: task.versions.map(version => ({ ...version, source: version.source as VersionSource }))
+}));
+
+const mergeEssayTasks = (studentId: string): EssayTask[] => {
+  const persisted = getPersistedEssayTasks(studentId);
+  const persistedIds = new Set(persisted.map(task => task.id));
+  return [...persisted, ...INITIAL_ESSAYS.filter(task => !persistedIds.has(task.id))];
+};
+
 // --- Toast Notification Component ---
 const Toast = ({ message, onClose }: { message: string; onClose: () => void }) => (
   <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-xl flex items-center gap-3 z-50 animate-in slide-in-from-bottom-2 fade-in duration-300">
@@ -241,7 +268,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   const { language } = useLanguage();
   const isEn = language === 'en-US';
 
-  const [essays, setEssays] = useState<EssayTask[]>(INITIAL_ESSAYS);
+  const [essays, setEssays] = useState<EssayTask[]>(() => mergeEssayTasks(student.id));
   const [activeEssayId, setActiveEssayId] = useState<string>(INITIAL_ESSAYS[0].id);
   const [activeView, setActiveView] = useState<ViewMode>('Drafting');
   
@@ -276,7 +303,6 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   const [reviewHasUnsavedChanges, setReviewHasUnsavedChanges] = useState(false);
   const [documentMode, setDocumentMode] = useState<EssayDocumentMode>('Suggesting');
   const [isDocumentModeMenuOpen, setIsDocumentModeMenuOpen] = useState(false);
-  const [commentCategory, setCommentCategory] = useState<EssayCommentCategory>('Content');
   const [selectedCommentId, setSelectedCommentId] = useState<string | null>(null);
   const [commentReplyDrafts, setCommentReplyDrafts] = useState<Record<string, string>>({});
   const [expandedSuggestionIds, setExpandedSuggestionIds] = useState<Set<string>>(new Set());
@@ -285,11 +311,13 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   const [commentOverflowById, setCommentOverflowById] = useState<Record<string, Record<PreviewPart, boolean>>>({});
   const [addCommentTooltipPosition, setAddCommentTooltipPosition] = useState<{ left: number; top: number } | null>(null);
   const [reviewStatusTooltipPosition, setReviewStatusTooltipPosition] = useState<{ left: number; top: number } | null>(null);
+  const [textColorPickerPosition, setTextColorPickerPosition] = useState<{ left: number; top: number } | null>(null);
   const [selectionCommentPosition, setSelectionCommentPosition] = useState<{ left: number; top: number } | null>(null);
   const [isSelectionCommentComposerOpen, setIsSelectionCommentComposerOpen] = useState(false);
   const reviewWorkspaceRef = useRef<HTMLDivElement>(null);
   const documentModeButtonRef = useRef<HTMLButtonElement>(null);
   const documentModeMenuRef = useRef<HTMLDivElement>(null);
+  const textColorButtonRef = useRef<HTMLButtonElement>(null);
   const [contentUndoStack, setContentUndoStack] = useState<ContentHistorySnapshot[]>([]);
   const [contentRedoStack, setContentRedoStack] = useState<ContentHistorySnapshot[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -300,7 +328,6 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     fontFamily: 'Arial', fontSize: 11, lineHeight: 1.75, bold: false, italic: false,
     underline: false, darkText: false
   });
-  const [textHighlights, setTextHighlights] = useState<Record<string, Array<{ start: number; end: number }>>>({});
   const handleSuggestionOverflowChange = useCallback((suggestionId: string, part: PreviewPart, isOverflowing: boolean) => {
     setSuggestionOverflowById(previous => {
       if (previous[suggestionId]?.[part] === isOverflowing) return previous;
@@ -351,7 +378,12 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   };
   const captureFormattingSelection = () => {
     const editor = textareaRef.current;
-    if (!editor || editor.selectionStart === editor.selectionEnd) return;
+    if (!editor) return;
+    if (editor.selectionStart === editor.selectionEnd) {
+      formattingSelectionRef.current = null;
+      setSelection(null);
+      return;
+    }
     const target = {
       start: editor.selectionStart,
       end: editor.selectionEnd,
@@ -362,7 +394,16 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   };
   const requireFormattingSelection = () => {
     if (isTeacherReadOnly) return null;
-    const target = selection || formattingSelectionRef.current;
+    const editor = textareaRef.current;
+    const liveSelection = editor && editor.selectionStart !== editor.selectionEnd
+      ? {
+          start: editor.selectionStart,
+          end: editor.selectionEnd,
+          text: editorVisibleContent.substring(editor.selectionStart, editor.selectionEnd)
+        }
+      : null;
+    const target = liveSelection || formattingSelectionRef.current || selection;
+    if (liveSelection) formattingSelectionRef.current = liveSelection;
     if (!target || target.start === target.end) {
       showToast(isEn ? 'Select text before formatting' : '请先选中需要设置格式的文字');
       return null;
@@ -373,6 +414,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     const target = requireFormattingSelection();
     if (!target) return false;
     const now = new Date().toLocaleString();
+    setReviewSaveState('saving');
     const saved = updateEssayReview(activeEssayId, review => ({
       ...review,
       formatting: [...(review.formatting || []), {
@@ -386,9 +428,13 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       revisionNumber: review.revisionNumber + 1
     }));
     if (!saved) {
+      setReviewSaveState('error');
+      setReviewHasUnsavedChanges(true);
       showToast(isEn ? 'Formatting failed. Please try again.' : '格式修改失败，请重试');
       return false;
     }
+    setReviewSaveState('saved');
+    setReviewHasUnsavedChanges(false);
     requestAnimationFrame(() => {
       const editor = textareaRef.current;
       if (!editor) return;
@@ -398,7 +444,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     return true;
   };
   const getSelectionFormatStyle = () => {
-    const target = selection || formattingSelectionRef.current;
+    const target = formattingSelectionRef.current || selection;
     if (!target) return {} as SharedEssayFormatRange['style'];
     return (sharedReview?.formatting || [])
       .filter(range => range.start <= target.start && range.end > target.start)
@@ -411,6 +457,20 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   const handleToggleInlineFormat = (key: 'bold' | 'italic' | 'underline' | 'darkText') => {
     const nextValue = !Boolean(getSelectionFormatStyle()[key]);
     handleInlineFormatChange(key, nextValue);
+  };
+  const handleOpenTextColorPicker = () => {
+    if (!requireFormattingSelection()) return;
+    const bounds = textColorButtonRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    setTextColorPickerPosition(previous => previous ? null : {
+      left: Math.max(8, Math.min(bounds.left, window.innerWidth - 296)),
+      top: Math.max(8, Math.min(bounds.bottom + 8, window.innerHeight - 350))
+    });
+  };
+  const handleTextColorChange = (color: string) => {
+    if (applyFormatToSelection({ color })) {
+      setTextColorPickerPosition(null);
+    }
   };
   const handleParagraphStyleChange = (style: ParagraphStyle) => {
     const stylePresets: Record<ParagraphStyle, { fontSize: number; lineHeight: number; bold: boolean; italic: boolean }> = {
@@ -429,21 +489,8 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     setEditorTextStyle(previous => ({ ...previous, ...stylePresets[style], paragraphStyle: style }));
   };
   const handleApplyTextHighlight = () => {
-    if (isTeacherReadOnly) return;
-    if (!selection) {
-      showToast(isEn ? 'Select text before highlighting' : '请先选中需要高亮的文字');
-      return;
-    }
-    setTextHighlights(previous => {
-      const current = previous[activeEssayId] || [];
-      const alreadyHighlighted = current.some(range => range.start === selection.start && range.end === selection.end);
-      return {
-        ...previous,
-        [activeEssayId]: alreadyHighlighted
-          ? current.filter(range => range.start !== selection.start || range.end !== selection.end)
-          : [...current, { start: selection.start, end: selection.end }]
-      };
-    });
+    const isHighlighted = Boolean(getSelectionFormatStyle().highlightColor);
+    applyFormatToSelection({ highlightColor: isHighlighted ? null : '#fef08a' });
   };
 
   const handleStartEditing = () => {
@@ -626,7 +673,51 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   }, [toastMessage]);
 
   useEffect(() => {
-    INITIAL_ESSAYS.forEach(essay => {
+    const syncPersistedTasks = (changedStudentId?: string) => {
+      if (changedStudentId && changedStudentId !== student.id) return;
+      const nextTasks = mergeEssayTasks(student.id);
+      nextTasks.forEach(essay => {
+        ensureEssayReview(
+          essay.id,
+          essay.currentContent,
+          essay.status === 'Brainstorming' ? 'Drafting' : essay.status,
+          essay.versions.map(version => ({
+            id: version.id,
+            versionNumber: version.versionNumber,
+            content: version.content,
+            author: version.author,
+            source: version.source,
+            note: version.note,
+            updatedAt: version.updatedAt,
+            timestamp: version.timestamp
+          }))
+        );
+      });
+      const hydratedTasks = nextTasks.map(essay => {
+        const review = getEssayReview(essay.id);
+        if (!review) return essay;
+        return {
+          ...essay,
+          status: review.status,
+          currentContent: review.currentContent,
+          lastSavedAt: review.lastModifiedAt,
+          versions: review.versions.map(version => ({
+            ...version,
+            source: version.source as VersionSource,
+            wordCount: version.content.trim().split(/\s+/).filter(Boolean).length
+          }))
+        };
+      });
+      setEssays(hydratedTasks);
+      setActiveEssayId(previous => hydratedTasks.some(task => task.id === previous) ? previous : hydratedTasks[0]?.id || INITIAL_ESSAYS[0].id);
+    };
+
+    syncPersistedTasks();
+    return subscribeEssayTasks(syncPersistedTasks);
+  }, [student.id]);
+
+  useEffect(() => {
+    essays.forEach(essay => {
       ensureEssayReview(
         essay.id,
         essay.currentContent,
@@ -672,7 +763,9 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       const review = getEssayReview(activeEssayId);
       setSharedReview(review);
       setOverallFeedbackDraft(review?.overallFeedback || '');
-      if (resetDocumentMode) setDocumentMode(isTeacherReadOnly ? 'Viewing' : 'Suggesting');
+      if (resetDocumentMode) {
+        setDocumentMode(isTeacherReadOnly ? 'Viewing' : 'Suggesting');
+      }
     };
 
     syncReviewWorkspace(undefined, true);
@@ -731,6 +824,24 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       document.removeEventListener('keydown', handleDismissModeMenu);
     };
   }, [isDocumentModeMenuOpen]);
+
+  useEffect(() => {
+    if (!textColorPickerPosition) return;
+    const handleDismissTextColorPicker = (event: MouseEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent && event.key !== 'Escape') return;
+      if (event instanceof MouseEvent) {
+        const target = event.target as Element;
+        if (textColorButtonRef.current?.contains(target) || target.closest('[aria-label="选择文字颜色"], [aria-label="Choose text color"]')) return;
+      }
+      setTextColorPickerPosition(null);
+    };
+    document.addEventListener('mousedown', handleDismissTextColorPicker);
+    document.addEventListener('keydown', handleDismissTextColorPicker);
+    return () => {
+      document.removeEventListener('mousedown', handleDismissTextColorPicker);
+      document.removeEventListener('keydown', handleDismissTextColorPicker);
+    };
+  }, [textColorPickerPosition]);
 
   useEffect(() => {
     setSuggestions([]);
@@ -849,44 +960,9 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     const review = getEssayReview(activeEssayId);
     return {
       content: activeEssay.currentContent,
-      suggestionPositions: (review?.suggestions || []).map(suggestion => ({
-        id: suggestion.id,
-        start: suggestion.start,
-        end: suggestion.end
-      }))
+      suggestions: (review?.suggestions || []).map(suggestion => ({ ...suggestion })),
+      formatting: (review?.formatting || []).map(range => ({ ...range, style: { ...range.style } }))
     };
-  };
-
-  const transformFormattingAfterContentEdit = (
-    ranges: SharedEssayFormatRange[],
-    previousContent: string,
-    nextContent: string
-  ) => {
-    if (previousContent === nextContent) return ranges;
-    let editStart = 0;
-    while (editStart < previousContent.length && editStart < nextContent.length && previousContent[editStart] === nextContent[editStart]) editStart += 1;
-    let suffixLength = 0;
-    while (
-      suffixLength < previousContent.length - editStart &&
-      suffixLength < nextContent.length - editStart &&
-      previousContent[previousContent.length - 1 - suffixLength] === nextContent[nextContent.length - 1 - suffixLength]
-    ) suffixLength += 1;
-    const previousEditEnd = previousContent.length - suffixLength;
-    const insertedLength = nextContent.length - editStart - suffixLength;
-    const delta = insertedLength - (previousEditEnd - editStart);
-    const mapStart = (position: number) => {
-      if (position <= editStart) return position;
-      if (position >= previousEditEnd) return position + delta;
-      return editStart;
-    };
-    const mapEnd = (position: number) => {
-      if (position <= editStart) return position;
-      if (position >= previousEditEnd) return position + delta;
-      return editStart + insertedLength;
-    };
-    return ranges
-      .map(range => ({ ...range, start: mapStart(range.start), end: mapEnd(range.end) }))
-      .filter(range => range.start < range.end);
   };
 
   const persistContentUpdate = (
@@ -901,7 +977,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       currentContent: val,
       teacherModifiedContent: val,
       suggestions: transformSuggestions ? transformSuggestions(review.suggestions || []) : review.suggestions,
-      formatting: transformFormattingAfterContentEdit(review.formatting || [], review.currentContent, val),
+      formatting: transformEssayFormattingAfterContentEdit(review.formatting || [], review.currentContent, val),
       reviewAuthor: 'Ms. Sarah',
       reviewedAt: new Date().toLocaleString(),
       lastModifiedBy: 'Ms. Sarah',
@@ -1002,6 +1078,10 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   };
 
   const handleSuggestionContentUpdate = (nextContent: string) => {
+    if (!activeEssay.currentContent && !suggestionDisplaySegments.length) {
+      handleContentUpdate(nextContent);
+      return;
+    }
     const previousScrollTop = textareaRef.current?.scrollTop ?? 0;
     const original = suggestionDisplayContent;
     let prefixLength = 0;
@@ -1028,19 +1108,26 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       ? changedSegments[0]
       : null;
 
+    const previousSnapshot = createContentHistorySnapshot();
+    let didChange = false;
     setReviewSaveState('saving');
     const saved = updateEssayReview(activeEssayId, review => {
       const now = new Date().toLocaleString();
       if (editedSuggestedSegment?.suggestionId) {
         const localStart = Math.max(0, prefixLength - editedSuggestedSegment.displayStart);
         const localEnd = Math.max(localStart, displayChangeEnd - editedSuggestedSegment.displayStart);
+        didChange = true;
         return {
           ...review,
           suggestions: (review.suggestions || []).flatMap(suggestion => {
             if (suggestion.id !== editedSuggestedSegment.suggestionId) return [suggestion];
             const suggestedText = `${suggestion.suggestedText.slice(0, localStart)}${replacementText}${suggestion.suggestedText.slice(localEnd)}`;
             if (!suggestion.originalText && !suggestedText) return [];
-            return [{ ...suggestion, suggestedText, type: suggestedText ? 'replace' as const : 'delete' as const }];
+            return [{
+              ...suggestion,
+              suggestedText,
+              type: suggestedText ? (suggestion.originalText ? 'replace' as const : 'insert' as const) : 'delete' as const
+            }];
           }),
           reviewAuthor: 'Ms. Sarah',
           reviewedAt: now,
@@ -1064,17 +1151,19 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       const baseEnd = startSegment.baseStart + (displayChangeEnd - startSegment.displayStart);
       const originalText = activeEssay.currentContent.slice(baseStart, baseEnd);
       if (!originalText && !replacementText) return review;
+      didChange = true;
       return {
         ...review,
         suggestions: [...(review.suggestions || []), {
           id: `direct-suggestion-${activeEssayId}-${Date.now()}`,
-          type: replacementText ? 'replace' : 'delete',
+          type: replacementText ? (originalText ? 'replace' : 'insert') : 'delete',
           originalText,
           suggestedText: replacementText,
           start: baseStart,
           end: baseEnd,
           explanation: isEn ? 'Direct edit in suggesting mode' : '在建议模式中直接修改',
           author: 'Ms. Sarah',
+          suggestionColor: getEssaySuggestionColor('Ms. Sarah'),
           createdAt: now,
           status: 'pending',
           isPublished: false
@@ -1088,8 +1177,8 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     });
     setReviewSaveState(saved ? 'saved' : 'error');
     setReviewHasUnsavedChanges(!saved);
-    if (saved) {
-      setContentUndoStack([]);
+    if (saved && didChange) {
+      setContentUndoStack(previous => [...previous.slice(-99), previousSnapshot]);
       setContentRedoStack([]);
       setReviewPanelTab('Comments');
       const caretOffset = editedSuggestedSegment
@@ -1129,6 +1218,9 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
         ...review,
         currentContent: nextContent,
         teacherModifiedContent: decision === 'accepted' ? nextContent : review.teacherModifiedContent,
+        formatting: decision === 'accepted'
+          ? transformEssayFormattingAfterContentEdit(review.formatting || [], review.currentContent, nextContent)
+          : review.formatting,
         suggestions: (review.suggestions || []).map(item => {
           if (item.id === suggestionId) return {
             ...item,
@@ -1163,35 +1255,53 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       : (isEn ? 'Suggestion rejected' : '已拒绝修改建议'));
   };
 
+  const restoreContentHistorySnapshot = (snapshot: ContentHistorySnapshot) => {
+    setReviewSaveState('saving');
+    setReviewHasUnsavedChanges(true);
+    setEssays(previous => previous.map(essay => essay.id === activeEssayId
+      ? { ...essay, currentContent: snapshot.content, lastSavedAt: isEn ? 'Saving...' : 'Saving...' }
+      : essay));
+    const saved = updateEssayReview(activeEssayId, review => ({
+      ...review,
+      currentContent: snapshot.content,
+      teacherModifiedContent: snapshot.content,
+      suggestions: snapshot.suggestions.map(suggestion => ({ ...suggestion })),
+      formatting: snapshot.formatting.map(range => ({ ...range, style: { ...range.style } })),
+      lastModifiedBy: 'Ms. Sarah',
+      lastModifiedAt: new Date().toLocaleString(),
+      revisionNumber: review.revisionNumber + 1
+    }));
+    setReviewSaveState(saved ? 'saved' : 'error');
+    setReviewHasUnsavedChanges(!saved);
+    return saved;
+  };
+
   const handleUndoContent = () => {
     const previousSnapshot = contentUndoStack[contentUndoStack.length - 1];
     if (!previousSnapshot) return;
+    const currentSnapshot = createContentHistorySnapshot();
+    if (!restoreContentHistorySnapshot(previousSnapshot)) return;
     setContentUndoStack(previous => previous.slice(0, -1));
-    setContentRedoStack(previous => [...previous.slice(-99), createContentHistorySnapshot()]);
-    persistContentUpdate(previousSnapshot.content, suggestions => suggestions.map(suggestion => {
-      const position = previousSnapshot.suggestionPositions.find(item => item.id === suggestion.id);
-      return position ? { ...suggestion, start: position.start, end: position.end } : suggestion;
-    }));
+    setContentRedoStack(previous => [...previous.slice(-99), currentSnapshot]);
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
   const handleRedoContent = () => {
     const nextSnapshot = contentRedoStack[contentRedoStack.length - 1];
     if (!nextSnapshot) return;
+    const currentSnapshot = createContentHistorySnapshot();
+    if (!restoreContentHistorySnapshot(nextSnapshot)) return;
     setContentRedoStack(previous => previous.slice(0, -1));
-    setContentUndoStack(previous => [...previous.slice(-99), createContentHistorySnapshot()]);
-    persistContentUpdate(nextSnapshot.content, suggestions => suggestions.map(suggestion => {
-      const position = nextSnapshot.suggestionPositions.find(item => item.id === suggestion.id);
-      return position ? { ...suggestion, start: position.start, end: position.end } : suggestion;
-    }));
+    setContentUndoStack(previous => [...previous.slice(-99), currentSnapshot]);
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
   const handleEditorKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isUndoShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z';
-    if (isUndoShortcut && documentMode === 'Editing') {
+    const isRedoShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'y';
+    if ((isUndoShortcut || isRedoShortcut) && documentMode !== 'Viewing') {
       event.preventDefault();
-      if (event.shiftKey) {
+      if (isRedoShortcut || event.shiftKey) {
         handleRedoContent();
       } else {
         handleUndoContent();
@@ -1247,7 +1357,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
         end: selection.end,
         author: 'Ms. Sarah',
         createdAt: new Date().toLocaleString(),
-        category: commentCategory,
+        category: 'Content',
         isResolved: false,
         replies: [],
         isPublished: false
@@ -1498,8 +1608,28 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
         versions: []
     };
 
-    setEssays(prev => [newTaskObj, ...prev]);
+    setReviewSaveState('saving');
+    ensureEssayReview(
+      newTaskObj.id,
+      newTaskObj.currentContent,
+      newTaskObj.status === 'Brainstorming' ? 'Drafting' : newTaskObj.status,
+      []
+    );
+    updateEssayReview(newTaskObj.id, review => ({ ...review, documentMode: 'Suggesting' }));
+    if (!getEssayReview(newTaskObj.id)) {
+      setReviewSaveState('error');
+      showToast(isEn ? 'Essay task save failed. Please try again.' : '文书任务保存失败，请重试');
+      return;
+    }
+    if (!saveEssayTask(student.id, newTaskObj)) {
+      setReviewSaveState('error');
+      showToast(isEn ? 'Essay task save failed. Please try again.' : '文书任务保存失败，请重试');
+      return;
+    }
+    setEssays(prev => [newTaskObj, ...prev.filter(task => task.id !== newTaskObj.id)]);
     setActiveEssayId(newTaskObj.id);
+    setReviewSaveState('saved');
+    setReviewHasUnsavedChanges(false);
     localStorage.removeItem(ESSAY_TASK_DRAFT_KEY);
     setHasLoadedDraft(false);
     setShowUnsavedConfirm(false);
@@ -1952,38 +2082,47 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     if (Number.isNaN(leftTime) || Number.isNaN(rightTime)) return 0;
     return rightTime - leftTime;
   });
-  const activeSelectionHighlighted = Boolean(selection && (textHighlights[activeEssayId] || []).some(
-    range => range.start === selection.start && range.end === selection.end
-  ));
+  const activeSelectionHighlighted = Boolean(getSelectionFormatStyle().highlightColor);
 
-  const formatStyleToCss = (style: SharedEssayFormatRange['style']): React.CSSProperties => ({
-    ...(style.fontFamily ? { fontFamily: style.fontFamily } : {}),
-    ...(style.fontSize ? { fontSize: `${style.fontSize}pt` } : {}),
-    ...(style.lineHeight ? { lineHeight: style.lineHeight } : {}),
-    ...(style.bold !== undefined ? { fontWeight: style.bold ? 700 : 400 } : {}),
-    ...(style.italic !== undefined ? { fontStyle: style.italic ? 'italic' : 'normal' } : {}),
-    ...(style.underline !== undefined ? { textDecoration: style.underline ? 'underline' : 'none' } : {}),
-    ...(style.darkText !== undefined ? { color: style.darkText ? '#111827' : '#374151' } : {})
-  });
+  const formatStyleToCss = (style: SharedEssayFormatRange['style']): React.CSSProperties => {
+    const textDecorationLine = [
+      style.underline ? 'underline' : '',
+      style.strikethrough ? 'line-through' : ''
+    ].filter(Boolean).join(' ');
+    return {
+      ...(style.fontFamily ? { fontFamily: style.fontFamily } : {}),
+      ...(style.fontSize ? { fontSize: `${style.fontSize}pt` } : {}),
+      ...(style.lineHeight ? { lineHeight: style.lineHeight } : {}),
+      ...(style.bold !== undefined ? { fontWeight: style.bold ? 700 : 400 } : {}),
+      ...(style.italic !== undefined ? { fontStyle: style.italic ? 'italic' : 'normal' } : {}),
+      ...(style.underline !== undefined || style.strikethrough !== undefined ? { textDecorationLine: textDecorationLine || 'none' } : {}),
+      ...(style.color ? { color: style.color } : style.darkText !== undefined ? { color: style.darkText ? '#111827' : '#374151' } : {}),
+      ...(style.highlightColor !== undefined ? { backgroundColor: style.highlightColor || 'transparent' } : {})
+    };
+  };
 
   const renderTextHighlights = (text: string, absoluteStart = 0, keyPrefix = 'highlight') => {
     const segmentStart = absoluteStart;
     const segmentEnd = absoluteStart + text.length;
-    const highlights = (textHighlights[activeEssayId] || []).filter(range => range.start < segmentEnd && range.end > segmentStart);
     const formats = (sharedReview?.formatting || []).filter(range => range.start < segmentEnd && range.end > segmentStart);
-    if (!highlights.length && !formats.length) return text;
+    const activeSelection = selection && selection.start < segmentEnd && selection.end > segmentStart ? selection : null;
+    if (!formats.length && !activeSelection) return text;
 
     const boundaries = new Set<number>([0, text.length]);
-    [...highlights, ...formats].forEach(range => {
+    formats.forEach(range => {
       boundaries.add(Math.max(0, range.start - absoluteStart));
       boundaries.add(Math.min(text.length, range.end - absoluteStart));
     });
+    if (activeSelection) {
+      boundaries.add(Math.max(0, activeSelection.start - absoluteStart));
+      boundaries.add(Math.min(text.length, activeSelection.end - absoluteStart));
+    }
     const points = [...boundaries].filter(point => point >= 0 && point <= text.length).sort((a, b) => a - b);
     return points.slice(0, -1).map((start, index) => {
       const end = points[index + 1];
       if (end <= start) return null;
       const absolutePosition = absoluteStart + start;
-      const isHighlighted = highlights.some(range => range.start <= absolutePosition && range.end > absolutePosition);
+      const isSelected = Boolean(activeSelection && activeSelection.start <= absolutePosition && activeSelection.end > absolutePosition);
       const combinedStyle = formats
         .filter(range => range.start <= absolutePosition && range.end > absolutePosition)
         .reduce<SharedEssayFormatRange['style']>((result, range) => ({ ...result, ...range.style }), {});
@@ -1991,8 +2130,11 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
       return (
         <span
           key={`${keyPrefix}-${start}-${end}`}
-          className={isHighlighted ? 'rounded-sm bg-yellow-200 text-inherit' : undefined}
-          style={formatStyleToCss(combinedStyle)}
+          className={isSelected ? 'rounded-sm' : undefined}
+          style={{
+            ...formatStyleToCss(combinedStyle),
+            ...(isSelected ? { backgroundColor: 'rgba(191, 219, 254, 0.72)' } : {})
+          }}
         >
           {content}
         </span>
@@ -2001,21 +2143,35 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   };
 
   const renderSuggestionDocument = () => suggestionDisplaySegments.map((segment, index) => {
+    const suggestion = segment.suggestionId
+      ? pendingDocumentSuggestions.find(item => item.id === segment.suggestionId)
+      : undefined;
+    const suggestionColor = suggestion?.suggestionColor || getEssaySuggestionColor(suggestion?.author || 'Reviewer');
     if (segment.kind === 'original') {
       return (
-        <span key={`${segment.suggestionId}-original`} className="text-emerald-800 line-through decoration-2 decoration-emerald-600">
-          {renderTextHighlights(segment.text, segment.baseStart, `suggestion-original-${index}`)}
+        <span
+          key={`${segment.suggestionId}-original`}
+          className="line-through decoration-2"
+          style={{ color: suggestionColor, textDecorationColor: suggestionColor }}
+          data-review-layer="delete"
+        >
+          {renderTextHighlights(segment.text, segment.displayStart, `suggestion-original-${index}`)}
         </span>
       );
     }
     if (segment.kind === 'suggested') {
       return (
-        <span key={`${segment.suggestionId}-suggested`} className="text-emerald-800 underline decoration-2 decoration-emerald-600">
-          {segment.text}
+        <span
+          key={`${segment.suggestionId}-suggested`}
+          className="underline decoration-2"
+          style={{ color: suggestionColor, textDecorationColor: suggestionColor }}
+          data-review-layer="insert"
+        >
+          {renderTextHighlights(segment.text, segment.displayStart, `suggestion-suggested-${index}`)}
         </span>
       );
     }
-    return <React.Fragment key={`suggestion-text-${index}`}>{renderTextHighlights(segment.text, segment.baseStart, `suggestion-text-${index}`)}</React.Fragment>;
+    return <React.Fragment key={`suggestion-text-${index}`}>{renderTextHighlights(segment.text, segment.displayStart, `suggestion-text-${index}`)}</React.Fragment>;
   });
 
   const renderTrackedSuggestions = (content: string) =>
@@ -2117,11 +2273,9 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
     }
     if (documentMode === 'Viewing') handleDocumentModeChange('Suggesting');
     setReviewPanelTab('Comments');
+    setIsReviewSidebarCollapsed(false);
     setIsDirectEditing(true);
-    if (selection && textareaRef.current) {
-      positionSelectionCommentControls(textareaRef.current);
-      setIsSelectionCommentComposerOpen(true);
-    }
+    if (selection) setIsSelectionCommentComposerOpen(true);
     requestAnimationFrame(() => {
       if (selection) {
         document.getElementById('teacher-inline-comment-input')?.focus();
@@ -2136,6 +2290,61 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
      <div ref={reviewWorkspaceRef} className="flex h-full gap-0 animate-in fade-in slide-in-from-bottom-2 relative bg-[#f9f8f6]">
         
 	        {toastMessage && <Toast message={toastMessage} onClose={() => setToastMessage(null)} />}
+	        {textColorPickerPosition && createPortal(
+	          <div
+	            role="dialog"
+	            aria-label={isEn ? 'Choose text color' : '选择文字颜色'}
+	            className="fixed z-[120] w-72 max-w-[calc(100vw-16px)] rounded-lg border border-gray-200 bg-white p-3 shadow-2xl"
+	            style={{ left: textColorPickerPosition.left, top: textColorPickerPosition.top }}
+	          >
+	            <div className="mb-2 flex items-center justify-between">
+	              <span className="sr-only">{isEn ? 'Text color' : '文字颜色'}</span>
+	              <button type="button" aria-label={isEn ? 'Close color picker' : '关闭选色器'} onClick={() => setTextColorPickerPosition(null)} className="flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+	                <X className="h-4 w-4" />
+	              </button>
+	            </div>
+	            <div className="grid grid-cols-10 gap-[3px]">
+	              {ESSAY_TEXT_COLORS.map(color => (
+	                <button
+	                  key={color}
+	                  type="button"
+	                  aria-label={`${isEn ? 'Text color' : '文字颜色'} ${color}`}
+	                  title={color}
+	                  onClick={() => handleTextColorChange(color)}
+	                  className="h-[22px] w-[22px] rounded-full border border-gray-300 shadow-sm transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+	                  style={{ backgroundColor: color }}
+	                />
+	              ))}
+	            </div>
+	            <div className="mt-3 border-t border-gray-100 pt-2">
+	              <p className="mb-2 text-sm font-bold text-gray-800">{isEn ? 'Custom' : '自定义'}</p>
+	              <div className="flex items-center gap-3 text-gray-600">
+	                <label className="relative flex h-8 w-8 cursor-pointer items-center justify-center rounded-full hover:bg-gray-100" title={isEn ? 'Custom color' : '自定义颜色'}>
+	                  <Plus className="h-5 w-5" />
+	                  <span className="pointer-events-none absolute inset-1 rounded-full border-2 border-current" />
+	                  <input
+	                    type="color"
+	                    aria-label={isEn ? 'Custom text color' : '自定义文字颜色'}
+	                    defaultValue={getSelectionFormatStyle().color || '#374151'}
+	                    onChange={event => handleTextColorChange(event.target.value)}
+	                    className="absolute inset-0 cursor-pointer opacity-0"
+	                  />
+	                </label>
+	                <label className="relative flex h-8 w-8 cursor-pointer items-center justify-center rounded hover:bg-gray-100" title={isEn ? 'Pick a color' : '吸取颜色'}>
+	                  <svg viewBox="0 0 24 24" className="h-6 w-6 fill-none stroke-current stroke-2" aria-hidden="true"><path d="m19 3 2 2-9.5 9.5-3-3L18 2a1.4 1.4 0 0 1 2 0Z"/><path d="m7.5 12.5-4 4V20h3.5l4-4"/></svg>
+	                  <input
+	                    type="color"
+	                    aria-label={isEn ? 'Pick text color' : '吸取文字颜色'}
+	                    defaultValue={getSelectionFormatStyle().color || '#374151'}
+	                    onChange={event => handleTextColorChange(event.target.value)}
+	                    className="absolute inset-0 cursor-pointer opacity-0"
+	                  />
+	                </label>
+	              </div>
+	            </div>
+	          </div>,
+	          document.body
+	        )}
 	        {addCommentTooltipPosition && createPortal(
 	          <div
 	            id="add-comment-tooltip"
@@ -2161,60 +2370,6 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 	          </div>,
 	          document.body
 	        )}
-	        {selection && selectionCommentPosition && !isTeacherReadOnly && documentMode !== 'Viewing' && createPortal(
-	          <div
-	            className="fixed z-[110] -translate-x-1/2"
-	            style={{ left: selectionCommentPosition.left, top: selectionCommentPosition.top }}
-	          >
-	            {isSelectionCommentComposerOpen ? (
-	              <div role="dialog" aria-label={isEn ? 'Add comment' : '添加评论'} className="flex w-[min(420px,calc(100vw-24px))] items-center gap-2 rounded-2xl border border-gray-200 bg-white p-2 shadow-2xl">
-	                <select
-	                  value={commentCategory}
-	                  onChange={event => setCommentCategory(event.target.value as EssayCommentCategory)}
-	                  className="h-9 w-20 rounded-lg border border-gray-200 bg-gray-50 px-2 text-xs font-bold text-gray-600 outline-none focus:border-indigo-400"
-	                  aria-label={isEn ? 'Comment category' : '批注类型'}
-	                >
-	                  {(['Content', 'Structure', 'Language', 'Fact Check', 'Grammar'] as EssayCommentCategory[]).map(category => (
-	                    <option key={category} value={category}>{category === 'Content' ? (isEn ? 'Content' : '内容') : category === 'Structure' ? (isEn ? 'Structure' : '结构') : category === 'Language' ? (isEn ? 'Language' : '语言') : category === 'Fact Check' ? (isEn ? 'Fact check' : '事实') : (isEn ? 'Grammar' : '语法')}</option>
-	                  ))}
-	                </select>
-	                <input
-	                  id="teacher-inline-comment-input"
-	                  autoFocus
-	                  value={inlineCommentDraft}
-	                  onChange={event => setInlineCommentDraft(event.target.value)}
-	                  onKeyDown={event => {
-	                    if (event.key === 'Enter' && !event.nativeEvent.isComposing) handleAddInlineComment();
-	                    if (event.key === 'Escape') setIsSelectionCommentComposerOpen(false);
-	                  }}
-	                  placeholder={isEn ? 'Add a comment…' : '添加评论…'}
-	                  className="h-9 min-w-0 flex-1 rounded-lg border border-gray-200 px-3 text-sm outline-none focus:border-indigo-400"
-	                />
-	                <button type="button" onClick={handleAddInlineComment} disabled={!inlineCommentDraft.trim()} className="flex h-9 items-center rounded-lg bg-indigo-600 px-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-35">
-	                  {isEn ? 'Save' : '保存'}
-	                </button>
-	                <button type="button" aria-label={isEn ? 'Close comment composer' : '关闭评论输入'} onClick={() => setIsSelectionCommentComposerOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700">
-	                  <X className="h-4 w-4" />
-	                </button>
-	              </div>
-	            ) : (
-	              <button
-	                type="button"
-	                onMouseDown={event => event.preventDefault()}
-	                onClick={() => {
-	                  setSelectionCommentPosition(previous => previous ? { ...previous, top: Math.min(previous.top, window.innerHeight - 76) } : previous);
-	                  setIsSelectionCommentComposerOpen(true);
-	                }}
-	                className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 shadow-xl transition-colors hover:bg-gray-50"
-	              >
-	                <MessageSquare className="h-4 w-4" />
-	                {isEn ? 'Add comment' : '添加评论'}
-	              </button>
-	            )}
-	          </div>,
-	          document.body
-	        )}
-
         {/* 1. Left Nav (Tasks) */}
         <div className="w-60 flex-shrink-0 bg-white border-r border-[#e5e0dc] flex flex-col z-10">
            <div className="p-4 border-b border-gray-100 flex justify-between items-center">
@@ -2508,7 +2663,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 	           {activeView === 'Drafting' && (
 	              <div className="flex h-full min-h-0 flex-1 flex-row overflow-hidden">
 	                 <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[#fcfcfc]">
-	                    <fieldset disabled={isTeacherReadOnly} onPointerDownCapture={captureFormattingSelection} aria-label={isEn ? 'Essay formatting tools' : '文书格式工具'} className={`flex min-h-12 min-w-0 w-full max-w-full flex-nowrap items-center gap-0.5 overflow-x-auto overflow-y-hidden border-b border-primary-200 bg-primary-50 px-2 py-0 text-primary-950 shadow-[inset_0_-1px_0_rgba(125,86,70,0.04)] [scrollbar-color:theme(colors.primary.400)_theme(colors.primary.100)] [scrollbar-width:thin] [&>*]:shrink-0 [&>*]:translate-y-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary-400 [&::-webkit-scrollbar-track]:bg-primary-100 [&::-webkit-scrollbar]:h-1.5 ${isTeacherReadOnly ? 'cursor-not-allowed opacity-55' : ''}`}>
+	                    <fieldset disabled={isTeacherReadOnly} onPointerDownCapture={captureFormattingSelection} aria-label={isEn ? 'Essay formatting tools' : '文书格式工具'} className={`flex min-h-14 min-w-0 w-full max-w-full flex-nowrap items-center gap-0.5 overflow-x-auto overflow-y-hidden border-b border-primary-200 bg-primary-50 px-2 py-1 text-primary-950 shadow-[inset_0_-1px_0_rgba(125,86,70,0.04)] [scrollbar-color:theme(colors.primary.400)_theme(colors.primary.100)] [scrollbar-width:thin] [&>*]:shrink-0 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary-400 [&::-webkit-scrollbar-track]:bg-primary-100 [&::-webkit-scrollbar]:h-1.5 ${isTeacherReadOnly ? 'cursor-not-allowed opacity-55' : ''}`}>
 	                       <div className="flex h-10 flex-shrink-0 items-center border-r border-primary-200 pr-1">
 	                          <button
 	                             type="button"
@@ -2581,8 +2736,8 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 	                       {([['bold', 'B', isEn ? 'Bold' : '加粗', 'font-bold'], ['italic', 'I', isEn ? 'Italic' : '斜体', 'font-serif font-bold italic'], ['underline', 'U', isEn ? 'Underline' : '下划线', 'font-bold underline']] as const).map(([key, label, title, textClass]) => (
 	                          <button key={key} type="button" title={title} aria-label={title} aria-pressed={Boolean(getSelectionFormatStyle()[key])} onClick={() => handleToggleInlineFormat(key)} className={`flex h-10 w-8 flex-shrink-0 items-center justify-center rounded text-lg hover:bg-primary-100 ${textClass} ${getSelectionFormatStyle()[key] ? 'bg-primary-200 text-primary-900' : ''}`}>{label}</button>
 	                       ))}
-	                       <button type="button" title={isEn ? 'Text color' : '文字颜色'} aria-label={isEn ? 'Text color' : '文字颜色'} aria-pressed={Boolean(getSelectionFormatStyle().darkText)} onClick={() => handleToggleInlineFormat('darkText')} className={`flex h-10 w-9 flex-shrink-0 flex-col items-center justify-center rounded text-lg font-bold hover:bg-primary-100 ${getSelectionFormatStyle().darkText ? 'bg-primary-200 text-primary-900' : ''}`}><span>A</span><span className="-mt-1 h-1 w-6 bg-current" /></button>
-	                       <button type="button" title={isEn ? 'Highlight selected text' : '高亮选中文字'} aria-label={isEn ? 'Highlight selected text' : '高亮选中文字'} aria-pressed={activeSelectionHighlighted} onClick={handleApplyTextHighlight} className={`flex h-10 w-8 flex-shrink-0 items-center justify-center rounded hover:bg-primary-100 ${activeSelectionHighlighted ? 'bg-amber-100 text-amber-800' : ''}`}><Highlighter className="h-4 w-4" /></button>
+	                       <button ref={textColorButtonRef} type="button" title={isEn ? 'Text color' : '文字颜色'} aria-label={isEn ? 'Text color' : '文字颜色'} aria-haspopup="dialog" aria-expanded={Boolean(textColorPickerPosition)} onClick={handleOpenTextColorPicker} className={`flex h-10 w-9 flex-shrink-0 flex-col items-center justify-center rounded text-lg font-bold hover:bg-primary-100 ${textColorPickerPosition ? 'bg-primary-200' : ''}`}><span>A</span><span className="-mt-1 h-1 w-6" style={{ backgroundColor: getSelectionFormatStyle().color || '#111827' }} /></button>
+	                       <button type="button" title={isEn ? 'Document highlight color' : '正文高亮颜色'} aria-label={isEn ? 'Document highlight color' : '正文高亮颜色'} aria-pressed={activeSelectionHighlighted} onClick={handleApplyTextHighlight} className={`flex h-10 w-8 flex-shrink-0 items-center justify-center rounded hover:bg-primary-100 ${activeSelectionHighlighted ? 'bg-amber-100 text-amber-800' : ''}`}><Highlighter className="h-4 w-4" /></button>
 	                       <div
 	                          className="ml-1 flex h-10 items-center border-l border-primary-200 pl-1"
 	                          onMouseEnter={event => showAddCommentTooltip(event.currentTarget)}
@@ -2662,7 +2817,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 	                                         ref={textareaRef}
 	                                         autoFocus
 	                                         rows={20}
-	                                         className="relative z-10 block w-full resize-none overflow-x-hidden overflow-y-scroll whitespace-pre-wrap break-words border-0 bg-transparent p-6 leading-loose text-transparent caret-gray-900 outline-none selection:bg-blue-200/70 selection:text-transparent [scrollbar-gutter:stable]"
+	                                         className="relative z-10 block w-full resize-none overflow-x-hidden overflow-y-scroll whitespace-pre-wrap break-words border-0 bg-transparent p-6 leading-loose text-transparent caret-gray-900 outline-none selection:bg-transparent selection:text-transparent [scrollbar-gutter:stable]"
 	                                         style={editorTextareaStyle}
 	                                         value={editorVisibleContent}
 	                                         onChange={(e) => documentMode === 'Suggesting' ? handleSuggestionContentUpdate(e.target.value) : handleDirectContentUpdate(e.target.value)}
@@ -2737,10 +2892,9 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
                  {/* Review Sidebar */}
 	                 <div className={`z-20 flex h-full flex-shrink-0 flex-col border-l border-gray-200 bg-white shadow-[-4px_0_15px_rgba(0,0,0,0.02)] transition-[width,height] duration-200 ${isReviewSidebarCollapsed ? 'w-12' : 'w-[30%]'}`}>
 	                    <div className="flex h-12 flex-shrink-0 items-center border-b border-gray-100 bg-gray-50 p-1">
-	                       <div className={`grid min-w-0 flex-1 grid-cols-[1.35fr_1fr_0.9fr] gap-0.5 ${isReviewSidebarCollapsed ? 'hidden' : ''}`}>
+	                       <div className={`grid min-w-0 flex-1 grid-cols-[1.35fr_0.9fr] gap-0.5 ${isReviewSidebarCollapsed ? 'hidden' : ''}`}>
 	                       {([
 	                          ['Comments', isEn ? 'Suggestions & comments' : '建议与批注', MessageCircle],
-                          ['Feedback', isEn ? 'Overall feedback' : '整体反馈', FileText],
                           ['AI', isEn ? 'AI suggestions' : 'AI建议', Bot]
                        ] as const).map(([tab, label, Icon]) => (
                           <button
@@ -2774,7 +2928,28 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
                     </div>
 
 	                    {!isReviewSidebarCollapsed && reviewPanelTab === 'Comments' && (
-	                       <div className="flex-1 overflow-y-auto bg-gray-50/50 p-4">
+	                       <div className="flex-1 overflow-y-auto bg-gray-50/50 p-4" onClick={() => setSelectedCommentId(null)}>
+	                          {isSelectionCommentComposerOpen && selection && !isTeacherReadOnly && documentMode !== 'Viewing' && (
+	                             <div role="dialog" aria-label={isEn ? 'Add comment' : '添加评论'} className="mb-4 rounded-xl border border-indigo-200 bg-white p-3 shadow-sm ring-2 ring-indigo-50">
+	                                <textarea
+	                                   id="teacher-inline-comment-input"
+	                                   autoFocus
+	                                   rows={3}
+	                                   value={inlineCommentDraft}
+	                                   onChange={event => setInlineCommentDraft(event.target.value)}
+	                                   onKeyDown={event => {
+	                                      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && !event.nativeEvent.isComposing) handleAddInlineComment();
+	                                      if (event.key === 'Escape') setIsSelectionCommentComposerOpen(false);
+	                                   }}
+	                                   placeholder={isEn ? 'Add a comment…' : '添加评论…'}
+	                                   className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+	                                />
+	                                <div className="mt-2 flex justify-end gap-2">
+	                                   <button type="button" onClick={() => setIsSelectionCommentComposerOpen(false)} className="rounded-lg px-3 py-2 text-xs font-bold text-gray-500 hover:bg-gray-100">{isEn ? 'Cancel' : '取消'}</button>
+	                                   <button type="button" onClick={handleAddInlineComment} disabled={!inlineCommentDraft.trim()} className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-35">{isEn ? 'Comment' : '评论'}</button>
+	                                </div>
+	                             </div>
+	                          )}
 	                          {reviewTimelineItems.length ? (
 	                             <div className="space-y-3">
 	                                {reviewTimelineItems.map(item => {
@@ -2855,14 +3030,45 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 	                                   }
 
 	                                   const comment = item.comment;
+	                                   const isSelected = selectedCommentId === comment.id;
 	                                   const isExpanded = expandedCommentIds.has(comment.id);
 	                                   const replies = comment.replies || [];
 	                                   const hasOverflow = replies.length > 1 || Object.values(commentOverflowById[comment.id] || {}).some(Boolean);
 	                                   const visibleReplies = isExpanded ? replies : replies.slice(0, 1);
 	                                   return (
-	                                   <div key={`comment-${comment.id}`} onClick={() => setSelectedCommentId(comment.id)} className={`cursor-pointer rounded-xl border bg-white p-3 shadow-sm ${selectedCommentId === comment.id ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-indigo-100'}`}>
-	                                      <div className="mb-2 flex items-center justify-end gap-2">
-	                                         <span className={`text-[10px] font-bold ${comment.isResolved ? 'text-emerald-600' : 'text-orange-600'}`}>{comment.isResolved ? (isEn ? 'Resolved' : '已解决') : (isEn ? 'Open' : '未解决')}</span>
+	                                   <div
+	                                      key={`comment-${comment.id}`}
+	                                      role="group"
+	                                      aria-label={`${comment.author}: ${comment.comment}`}
+	                                      aria-expanded={isSelected}
+	                                      onClick={event => {
+	                                         event.stopPropagation();
+	                                         setSelectedCommentId(previous => previous === comment.id ? null : comment.id);
+	                                      }}
+	                                      className={`cursor-pointer rounded-xl border bg-white p-3 shadow-sm transition-all ${isSelected ? 'border-indigo-400 shadow-md ring-2 ring-indigo-100' : 'border-indigo-100 hover:border-indigo-200 hover:shadow-md'}`}
+	                                   >
+	                                      <div className="mb-3 flex items-start justify-between gap-2">
+	                                         <div className="flex min-w-0 items-center gap-2.5">
+	                                            <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">{comment.author.trim().charAt(0).toUpperCase()}</span>
+	                                            <div className="min-w-0">
+	                                               <p className="truncate text-sm font-bold text-gray-900">{comment.author}</p>
+	                                               <p className="text-[11px] text-gray-500">{comment.createdAt}</p>
+	                                            </div>
+	                                         </div>
+	                                         <div className="flex flex-shrink-0 items-center gap-1">
+	                                            {comment.isResolved && <span className="text-[10px] font-bold text-emerald-600">{isEn ? 'Resolved' : '已解决'}</span>}
+	                                            {isSelected && (
+	                                               <button
+	                                                  type="button"
+	                                                  title={comment.isResolved ? (isEn ? 'Reopen' : '重新打开') : (isEn ? 'Resolve' : '解决')}
+	                                                  aria-label={comment.isResolved ? (isEn ? 'Reopen comment' : '重新打开评论') : (isEn ? 'Resolve comment' : '解决评论')}
+	                                                  onClick={event => { event.stopPropagation(); toggleCommentResolved(comment.id); }}
+	                                                  className={`flex h-8 w-8 items-center justify-center rounded-full ${comment.isResolved ? 'text-gray-500 hover:bg-gray-100' : 'text-blue-600 hover:bg-blue-50'}`}
+	                                               >
+	                                                  <Check className="h-5 w-5" />
+	                                               </button>
+	                                            )}
+	                                         </div>
                                       </div>
 	                                      <CollapsiblePreviewText
 	                                         itemId={comment.id}
@@ -2882,10 +3088,6 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 	                                         className="text-sm leading-relaxed text-gray-800"
 	                                         onOverflowChange={handleCommentOverflowChange}
 	                                      />
-                                      <div className="mt-2 flex items-center justify-between text-[10px] text-gray-400">
-                                         <span>{comment.author}</span>
-                                         <span>{comment.createdAt}</span>
-                                      </div>
 	                                      {visibleReplies.map(reply => (
 	                                         <div key={reply.id} className="mt-2 rounded-lg bg-gray-50 p-2 text-xs">
 	                                            <CollapsiblePreviewText
@@ -2918,11 +3120,12 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 	                                            {isExpanded ? (isEn ? 'Show less' : '收起') : (isEn ? 'Show all' : '展示全部')}
 	                                         </button>
 	                                      )}
-	                                      <div className="mt-3 flex gap-2" onClick={event => event.stopPropagation()}>
-                                         <input value={commentReplyDrafts[comment.id] || ''} onChange={event => setCommentReplyDrafts(previous => ({...previous,[comment.id]:event.target.value}))} placeholder={isEn ? 'Reply…' : '回复批注…'} className="min-w-0 flex-1 rounded-lg border px-2 py-1.5 text-xs outline-none focus:border-indigo-400" />
-                                         <button type="button" onClick={() => addCommentReply(comment.id)} disabled={!commentReplyDrafts[comment.id]?.trim()} className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-bold text-white disabled:opacity-35">{isEn ? 'Reply' : '回复'}</button>
-                                         <button type="button" onClick={() => toggleCommentResolved(comment.id)} className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[10px] font-bold text-gray-600">{comment.isResolved ? (isEn ? 'Reopen' : '重新打开') : (isEn ? 'Resolve' : '解决')}</button>
-	                                      </div>
+	                                      {isSelected && (
+	                                         <div className="mt-3 flex gap-2" onClick={event => event.stopPropagation()}>
+	                                            <input autoFocus value={commentReplyDrafts[comment.id] || ''} onChange={event => setCommentReplyDrafts(previous => ({...previous,[comment.id]:event.target.value}))} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) addCommentReply(comment.id); }} placeholder={isEn ? 'Reply or use “@” to add others' : '回复或用“@”添加他人'} className="min-w-0 flex-1 rounded-full border border-gray-300 px-3 py-2 text-xs outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
+	                                            <button type="button" onClick={() => addCommentReply(comment.id)} disabled={!commentReplyDrafts[comment.id]?.trim()} className="rounded-full bg-indigo-600 px-3 py-2 text-[10px] font-bold text-white disabled:opacity-35">{isEn ? 'Reply' : '回复'}</button>
+	                                         </div>
+	                                      )}
 	                                   </div>
 	                                   );
 	                                })}
