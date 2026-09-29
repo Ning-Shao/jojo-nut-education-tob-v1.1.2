@@ -1,3 +1,4 @@
+import { PLANNING_TASK_CHANGE_EVENT } from '../components/teacher/planning/planningPublication';
 
 import React, { useEffect, useState } from 'react';
 import { 
@@ -79,7 +80,16 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onLogout }) => {
 
   useEffect(() => {
     localStorage.setItem(TEACHER_TASK_STORAGE_KEY, JSON.stringify(teacherTasks));
+    window.dispatchEvent(new Event('nut-teacher-tasks-updated'));
   }, [teacherTasks]);
+
+  useEffect(() => {
+    const reload = () => setTeacherTasks(reconcileReviewTasks(getStoredTeacherTasks(), getStoredStudentReviewEvents()));
+    window.addEventListener(PLANNING_TASK_CHANGE_EVENT, reload);
+    return () => {
+      window.removeEventListener(PLANNING_TASK_CHANGE_EVENT, reload);
+    };
+  }, []);
 
   useEffect(() => subscribeStudentReviewEvents(() => {
     setTeacherTasks(current => reconcileReviewTasks(current, getStoredStudentReviewEvents()));
