@@ -21,6 +21,7 @@ export interface TeacherTask {
   source?: TaskSource;
   auditHistory?: TaskAuditEntry[];
   sourceEventId?: string;
+  planningSnapshot?: string;
   createdBy?: string;
   createdAt?: string;
   reviewDeadlineAt?: string | null;
