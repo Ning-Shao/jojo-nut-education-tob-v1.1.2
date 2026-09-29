@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { GoogleGenAI, Type } from "../../services/aiClient";
-import { Check, CheckCircle, X, AlertTriangle } from '../common/Icons';
+import { Check, CheckCircle, X, AlertTriangle, Info } from '../common/Icons';
 import { 
   UniversitySchema, SelectedSchool, TargetPreference, CareerResult,
   SCHOOL_DATABASE, ActionItem, TimelineEvent, initialTimelineData, UniversityDisplay
@@ -16,6 +16,8 @@ import Step3Selection from './planning/Step3Selection';
 import Step4FinalList from './planning/Step4FinalList';
 import Step5Gap from './planning/Step5Gap';
 import Step6Timeline from './planning/Step6Timeline';
+import { TEACHER_TASK_STORAGE_KEY, getStoredTeacherTasks, TeacherTask } from './teacherTasks';
+import { PLANNING_TASK_CHANGE_EVENT, planningDraftKey, planningTaskPrefix, preparePlanningPublication } from './planning/planningPublication';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface StudentScoreData {
@@ -201,14 +203,18 @@ interface StudentPlanningProps {
   subjectScores: SubjectScore[];
 }
 
-// Toast Component
-const Toast = ({ message, onClose }: { message: string; onClose: () => void }) => (
-  <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-xl shadow-xl flex items-center gap-3 z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
-    <CheckCircle className="w-5 h-5 text-green-400" />
-    <span className="font-bold text-sm whitespace-pre-wrap">{message}</span>
-    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors ml-2">
-      <X className="w-4 h-4" />
-    </button>
+type NoticeTone = 'info' | 'error' | 'warning' | 'success';
+const noticeColors: Record<NoticeTone, string> = {
+  info: 'bg-blue-50 border-blue-200 text-blue-800',
+  error: 'bg-red-50 border-red-200 text-red-800',
+  warning: 'bg-amber-50 border-amber-200 text-amber-800',
+  success: 'bg-green-50 border-green-200 text-green-800',
+};
+const Toast = ({ message, tone, onClose }: { message: string; tone: NoticeTone; onClose: () => void }) => (
+  <div role={tone === 'error' || tone === 'warning' ? 'alert' : 'status'} className={`fixed bottom-10 left-1/2 -translate-x-1/2 w-max max-w-[calc(100vw-2rem)] border px-5 py-3 rounded-xl shadow-xl flex items-start gap-3 z-[100] ${noticeColors[tone]}`}>
+    {tone === 'success' ? <CheckCircle className="w-5 h-5 shrink-0" /> : tone === 'info' ? <Info className="w-5 h-5 shrink-0" /> : <AlertTriangle className="w-5 h-5 shrink-0" />}
+    <span className="text-sm whitespace-pre-wrap">{message}</span>
+    <button aria-label="关闭提示 / Close notification" onClick={onClose} className="shrink-0 p-1"><X className="w-4 h-4" /></button>
   </div>
 );
 
@@ -225,8 +231,8 @@ const PublishConfirmModal = ({ isOpen, onClose, onConfirm, taskCount, isEn }: { 
           <h3 className="text-lg font-bold text-gray-900 mb-2">{isEn ? 'Ready to Publish?' : '确认发布规划方案？'}</h3>
           <p className="text-sm text-gray-500 mb-6 leading-relaxed">
             {isEn 
-              ? `This will sync the roadmap to the Student Portal and add ${taskCount} timeline items to the Task Center.` 
-              : `此操作将把规划方案同步至学生端，并将 ${taskCount} 项时间轴事项自动添加到双端任务中心。`
+              ? `Publish changes to ${taskCount} timeline tasks, including deletions. Unpublished overdue tasks remain in the plan; update their deadlines before publishing.`
+              : `本次有 ${taskCount} 项待发布变更（含新增、修改和删除）。尚未发布的过期任务将保留在规划中，调整截止日期后可重新发布。`
             }
           </p>
           <div className="flex gap-3 w-full">
@@ -249,15 +255,16 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student, officialBatc
   const isEn = language === 'en-US';
   
   // Toast State
+  const [toastTone, setToastTone] = useState<NoticeTone>('info');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
 
   useEffect(() => {
-    if (toastMessage) {
+    if (toastMessage && toastTone !== 'error' && toastTone !== 'warning') {
       const timer = setTimeout(() => setToastMessage(null), 3000);
       return () => clearTimeout(timer);
     }
-  }, [toastMessage]);
+  }, [toastMessage, toastTone]);
   
   // --- Step 1: Career Planning State ---
   const [familyInputs, setFamilyInputs] = useState({
@@ -333,7 +340,50 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student, officialBatc
   const [isBatchEnriching, setIsBatchEnriching] = useState(false);
 
   // --- Step 6: Timeline State (Lifted Up) ---
-  const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>(initialTimelineData);
+  const draftStudentId = student?.id || 'demo';
+  const readDraft = (id: string): TimelineEvent[] => {
+    try {
+      const raw = localStorage.getItem(planningDraftKey(id));
+      const value = raw ? JSON.parse(raw) : initialTimelineData;
+      return Array.isArray(value) ? value : initialTimelineData;
+    } catch { return initialTimelineData; }
+  };
+  const [timelineEvents, updateTimelineEvents] = useState<TimelineEvent[]>(() => readDraft(draftStudentId));
+  const timelineRef = useRef(timelineEvents);
+  const [publishedTasks, setPublishedTasks] = useState<TeacherTask[]>(getStoredTeacherTasks);
+  const publication = preparePlanningPublication(timelineEvents, publishedTasks, {
+    id: draftStudentId, name: student?.name || '演示学生', avatarUrl: student?.avatarUrl || '',
+  });
+  useEffect(() => {
+    const reload = () => setPublishedTasks(getStoredTeacherTasks());
+    const onStorage = (event: StorageEvent) => { if (event.key === TEACHER_TASK_STORAGE_KEY) reload(); };
+    window.addEventListener('nut-teacher-tasks-updated', reload);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('nut-teacher-tasks-updated', reload);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
+  useEffect(() => {
+    const events = readDraft(draftStudentId);
+    timelineRef.current = events;
+    updateTimelineEvents(events);
+    setPublishedTasks(getStoredTeacherTasks());
+    setToastMessage(null);
+  }, [draftStudentId]);
+  const setTimelineEvents: React.Dispatch<React.SetStateAction<TimelineEvent[]>> = update => {
+    const next = typeof update === 'function' ? update(timelineRef.current) : update;
+    try {
+      localStorage.setItem(planningDraftKey(draftStudentId), JSON.stringify(next));
+      timelineRef.current = next;
+      updateTimelineEvents(next);
+      setToastTone('info');
+      setToastMessage(isEn ? 'Task changes saved. Click “Publish Plan” to sync to the Task Center.' : '任务变更已保存，点击「确认发布规划方案」后同步到任务中心。');
+    } catch {
+      setToastTone('error');
+      setToastMessage(isEn ? 'Unable to save. Please try again.' : '任务变更未保存，请重试。');
+    }
+  };
 
   // --- Helper: Date Parsing Logic ---
   const parseVagueDate = (dateStr: string): { start: string, end?: string, type: 'Point' | 'Range' } => {
@@ -773,15 +823,46 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student, officialBatc
     }
   };
 
+  const [pendingCount, setPendingCount] = useState(0);
+  const getPublication = () => preparePlanningPublication(timelineEvents, getStoredTeacherTasks(), {
+    id: draftStudentId, name: student?.name || '演示学生', avatarUrl: student?.avatarUrl || '',
+  });
+
   // Open the modal instead of window.confirm
   const handleCompletePlanning = () => {
-      setIsPublishModalOpen(true);
+    const result = getPublication();
+    if (!result.pendingCount) {
+      setToastTone('info');
+      setToastMessage(isEn ? 'No unpublished task changes.' : '暂无待发布的任务变更。');
+      return;
+    }
+    setPendingCount(result.pendingCount);
+    setIsPublishModalOpen(true);
   };
 
   const confirmPublish = () => {
-      setIsPublishModalOpen(false);
-      setToastMessage(isEn ? 'Plan Published & Tasks Synced!' : '发布成功！规划与任务已双向同步。');
-      // Here you would typically also trigger the actual API call to sync tasks/plan
+    setIsPublishModalOpen(false);
+    try {
+      const result = preparePlanningPublication(timelineEvents, getStoredTeacherTasks(), {
+        id: draftStudentId, name: student?.name || '演示学生', avatarUrl: student?.avatarUrl || '',
+      });
+      if (result.blocked.length && !result.changedCount && !result.removedCount) {
+        setToastTone('error');
+        setToastMessage(isEn ? 'The deadline has passed. Tasks are saved; update the deadline before publishing.' : '任务截止日期已过，暂未发布。任务已保存，请调整截止日期后重新发布。');
+        return;
+      }
+      localStorage.setItem(TEACHER_TASK_STORAGE_KEY, JSON.stringify(result.tasks));
+      window.dispatchEvent(new Event(PLANNING_TASK_CHANGE_EVENT));
+      setPublishedTasks(result.tasks);
+      setToastTone(result.blocked.length ? 'warning' : 'success');
+      setToastMessage(result.blocked.length
+        ? (isEn ? `Published ${result.changedCount} tasks. ${result.blocked.length} overdue tasks were not published. Update their deadlines and publish again.`
+          : `已同步 ${result.changedCount + result.removedCount} 项变更${result.removedCount ? `（含删除 ${result.removedCount} 个任务）` : ''}，${result.blocked.length} 个任务因已过期未发布，请调整截止日期后重新发布。`)
+        : (isEn ? 'Plan published. Task changes synced to the Task Center.' : '规划方案已发布，任务变更已同步到任务中心。'));
+    } catch {
+      setToastTone('error');
+      setToastMessage(isEn ? 'Publishing failed. Please try again.' : '发布失败，请重试。');
+    }
   };
 
   const steps = [
@@ -795,13 +876,13 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student, officialBatc
 
   return (
      <div className="flex flex-col h-full gap-4 animate-in fade-in slide-in-from-bottom-2 relative">
-        {toastMessage && <Toast message={toastMessage} onClose={() => setToastMessage(null)} />}
+        {toastMessage && <Toast tone={toastTone} message={toastMessage} onClose={() => setToastMessage(null)} />}
         
         <PublishConfirmModal 
           isOpen={isPublishModalOpen} 
           onClose={() => setIsPublishModalOpen(false)} 
           onConfirm={confirmPublish} 
-          taskCount={timelineEvents.length}
+          taskCount={pendingCount}
           isEn={isEn}
         />
 
@@ -904,6 +985,9 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student, officialBatc
 
             {planningStep === 6 && (
               <Step6Timeline 
+                publishedIds={publication.publishedIds}
+                pendingIds={publication.pendingIds}
+                completedIds={publication.completedIds}
                 timelineEvents={timelineEvents}
                 setTimelineEvents={setTimelineEvents}
                 selectedSchools={selectedSchools}

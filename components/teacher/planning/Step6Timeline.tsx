@@ -1,3 +1,4 @@
+import { isPlanningOverdue } from './planningPublication';
 import React, { useState, useMemo } from 'react';
 import { TimelineEvent, OFFICIAL_TEMPLATES, TimelineTemplate, SelectedSchool } from './PlanningData';
 import { 
@@ -13,11 +14,34 @@ interface Step6Props {
   setTimelineEvents: React.Dispatch<React.SetStateAction<TimelineEvent[]>>;
   selectedSchools: SelectedSchool[];
   onComplete?: () => void;
+  publishedIds?: Set<string>;
+  pendingIds?: Set<string>;
+  completedIds?: Set<string>;
 }
 
-const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents, selectedSchools, onComplete }) => {
+const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents, selectedSchools, onComplete, publishedIds = new Set<string>(), pendingIds = new Set<string>(), completedIds = new Set<string>() }) => {
   const { language } = useLanguage();
   const isEn = language === 'en-US';
+
+  const isCompleted = (event: TimelineEvent) => publishedIds.has(event.id) ? completedIds.has(event.id) : event.status === 'Done';
+  const renderOverdueNotice = (event: TimelineEvent) => {
+    const completed = isCompleted(event);
+    const overdue = !completed && isPlanningOverdue(event);
+    const pending = pendingIds.has(event.id);
+    const unpublished = !publishedIds.has(event.id);
+    if (!completed && !overdue && !pending) return null;
+    const label = completed ? (isEn ? 'Completed' : '已完成')
+      : overdue ? (unpublished ? (isEn ? 'Overdue · Unpublished' : '已过期 · 未发布')
+        : pending ? (isEn ? 'Overdue · Pending publication' : '已过期 · 待发布') : (isEn ? 'Overdue' : '已过期'))
+      : (isEn ? 'Pending publication' : '待发布');
+    return <div className="mt-2 min-w-0" data-task-state={event.id}>
+      <span className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs font-bold ${completed ? 'border-gray-200 bg-gray-50 text-gray-600' : overdue ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-blue-200 bg-blue-50 text-blue-800'}`}>
+        {completed ? <CheckCircle className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}{label}
+      </span>
+      {completed && pending && <span className="ml-2 text-xs text-blue-800">{isEn ? 'Pending publication' : '待发布'}</span>}
+      {overdue && unpublished && <p className="mt-1 text-xs leading-relaxed text-amber-800">{isEn ? 'Update the deadline and publish again.' : '请调整截止日期后重新发布。'}</p>}
+    </div>;
+  };
 
   // --- State ---
   const [viewFilter, setViewFilter] = useState<'All' | 'Official' | 'Custom'>('All');
@@ -265,6 +289,7 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
   const handleDelete = (id: string) => {
     if (confirm(isEn ? 'Delete this event?' : '确认删除此事件？')) {
         setTimelineEvents(prev => prev.filter(e => e.id !== id));
+        setIsModalOpen(false);
     }
   };
 
@@ -373,10 +398,6 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                 {onComplete && (
                     <button 
                         onClick={() => {
-                            if (timelineEvents.length === 0) {
-                                alert(isEn ? 'Planning list is empty. Please add at least one task or import official timeline events before publishing.' : '规划清单为空，请至少添加一项任务或导入官方申请节点后再发布规划方案。');
-                                return;
-                            }
                             onComplete();
                         }} 
                         className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"
@@ -583,7 +604,7 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                                                             )}
                                                             
                                                             {cellEvents.map(evt => {
-                                                                const isDone = evt.status === 'Done';
+                                                                const isDone = isCompleted(evt);
                                                                 return (
                                                                     <div 
                                                                         key={evt.id}
@@ -594,11 +615,12 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                                                                         onDragEnd={handleDragEnd}
                                                                     >
                                                                         <div className="flex justify-between items-start gap-1">
-                                                                            <span className="text-xs font-bold text-gray-800 leading-snug line-clamp-2" title={evt.title}>
+                                                                            <span className={`text-xs font-bold leading-snug line-clamp-2 ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`} title={evt.title}>
                                                                                 {evt.isOfficial && <Globe className="w-3.5 h-3.5 inline mr-1 text-indigo-500" />}
                                                                                 {evt.title}
                                                                             </span>
                                                                         </div>
+                                                                        {renderOverdueNotice(evt)}
                                                                         <div className="flex flex-wrap items-center gap-1.5 mt-auto pt-1">
                                                                             {/* Priority */}
                                                                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${evt.priority === 'High' ? 'bg-red-50 text-red-600 border-red-100' : evt.priority === 'Medium' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
@@ -653,7 +675,7 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                                         
                                         <div className="grid gap-3">
                                             {catEvents.map((evt, index) => {
-                                                const isDone = evt.status === 'Done';
+                                                const isDone = isCompleted(evt);
                                                 return (
                                                     <div 
                                                         key={evt.id}
@@ -665,11 +687,14 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                                                         </div>
                                                         
                                                         <div className="flex-1 flex items-center justify-between min-w-0">
-                                                            <div className="flex items-center gap-3 min-w-0">
+                                                            <div className="min-w-0">
+                                                              <div className="flex items-center gap-3 min-w-0">
                                                                 {evt.isOfficial && <Globe className="w-4 h-4 text-indigo-500 flex-shrink-0" />}
                                                                 <span className={`text-sm font-bold truncate ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
                                                                     {evt.title}
                                                                 </span>
+                                                              </div>
+                                                              {renderOverdueNotice(evt)}
                                                             </div>
                                                             
                                                             <div className="flex items-center gap-4 flex-shrink-0 ml-4">
@@ -756,7 +781,7 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                                                     ${isCritical ? 'border-red-300' : isAging ? 'border-orange-300' : 'border-gray-200 hover:border-indigo-300'}`}
                                             >
                                                 <div className="flex justify-between items-start gap-2">
-                                                    <span className="text-sm font-bold text-gray-800 leading-snug flex-1" title={evt.title}>{evt.title}</span>
+                                                    <span className={`text-sm font-bold leading-snug flex-1 ${isCompleted(evt) ? 'text-gray-400 line-through' : 'text-gray-800'}`} title={evt.title}>{evt.title}</span>
                                                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${evt.priority === 'High' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
                                                         {evt.priority === 'High' ? 'P0' : 'P1'}
                                                     </span>
@@ -770,6 +795,7 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                                                     </span>
                                                 </div>
 
+                                                {renderOverdueNotice(evt)}
                                                 {/* Blocker / Next Step */}
                                                 <div className="bg-gray-50 rounded-lg p-2 mt-1 border border-gray-100">
                                                     <div className="flex items-start gap-1.5">
@@ -866,6 +892,11 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                                 />
                             </div>
                             
+                            {formData.type === 'Range' && <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1.5">{isEn ? 'Deadline' : '截止日期'}
+                                <input type="date" value={formData.endDate || ''} onChange={e => setFormData({...formData, endDate: e.target.value})} className="w-full border border-gray-200 p-2.5 rounded-xl text-sm" />
+                              </label>
+                            </div>}
                             {/* Category */}
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wider">{isEn ? 'Category' : '分类'}</label>
