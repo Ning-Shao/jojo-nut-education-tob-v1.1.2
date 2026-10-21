@@ -58,8 +58,10 @@ export interface SharedEssaySuggestion {
   createdAt: string;
   status: 'pending' | 'accepted' | 'rejected';
   suggestionColor?: string;
+  suggestedTextStyle?: SharedEssayTextStyle;
   decidedBy?: string;
   decidedAt?: string;
+  replies?: SharedEssayCommentReply[];
   isPublished?: boolean;
 }
 
@@ -123,6 +125,8 @@ export interface SharedEssayReview {
   overallFeedback?: string;
   publishedOverallFeedback?: string;
   publishedTeacherModifiedContent?: string;
+  publishedReviewAuthor?: string;
+  publishedReviewedAt?: string;
   comments: SharedEssayComment[];
   suggestions: SharedEssaySuggestion[];
   formatting: SharedEssayFormatRange[];
@@ -169,7 +173,8 @@ export const getEssayReview = (essayId: string): SharedEssayReview | null => {
     suggestions: (review.suggestions || []).map(suggestion => ({
       ...suggestion,
       type: !suggestion.originalText && suggestion.suggestedText ? 'insert' : suggestion.type,
-      suggestionColor: suggestion.suggestionColor || getEssaySuggestionColor(suggestion.author)
+      suggestionColor: suggestion.suggestionColor || getEssaySuggestionColor(suggestion.author),
+      replies: suggestion.replies || []
     })),
     formatting: review.formatting || [],
     reviewDimensions: review.reviewDimensions || {},

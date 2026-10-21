@@ -395,16 +395,6 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                 <button onClick={() => handleOpenAdd()} className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm hover:bg-black transition-colors">
                     <Plus className="w-4 h-4" /> {isEn ? 'Add Task' : '添加任务'}
                 </button>
-                {onComplete && (
-                    <button 
-                        onClick={() => {
-                            onComplete();
-                        }} 
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"
-                    >
-                        <Check className="w-4 h-4" /> {isEn ? 'Publish Plan' : '确认发布规划方案'}
-                    </button>
-                )}
             </div>
         </div>
 
@@ -608,19 +598,18 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                                                                 return (
                                                                     <div 
                                                                         key={evt.id}
-                                                                        className={`relative z-10 p-3 rounded-lg border shadow-sm cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all bg-white flex flex-col gap-2 ${isDone ? 'opacity-60 bg-gray-50' : ''} ${evt.isOfficial ? 'border-indigo-200' : 'border-gray-200'}`}
+                                                                        className={`relative z-10 p-3 rounded-lg border shadow-sm cursor-pointer hover:shadow-md transition-shadow bg-white flex flex-col gap-2 ${isDone ? 'opacity-60 bg-gray-50' : ''} ${evt.isOfficial ? 'border-indigo-200' : 'border-gray-200'}`}
                                                                         onClick={() => handleOpenEdit(evt)}
                                                                         draggable
                                                                         onDragStart={(e) => handleDragStart(e, evt.id)}
                                                                         onDragEnd={handleDragEnd}
                                                                     >
-                                                                        <div className="flex justify-between items-start gap-1">
-                                                                            <span className={`text-xs font-bold leading-snug line-clamp-2 ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`} title={evt.title}>
-                                                                                {evt.isOfficial && <Globe className="w-3.5 h-3.5 inline mr-1 text-indigo-500" />}
+                                                                        <div className="flex items-center gap-1 min-w-0">
+                                                                            {evt.isOfficial && <Globe className="w-3.5 h-3.5 shrink-0 text-indigo-500" />}
+                                                                            <span className={`min-w-0 truncate text-xs font-bold leading-snug ${isDone ? 'text-gray-400 line-through' : 'text-gray-800'}`} title={evt.title}>
                                                                                 {evt.title}
                                                                             </span>
                                                                         </div>
-                                                                        {renderOverdueNotice(evt)}
                                                                         <div className="flex flex-wrap items-center gap-1.5 mt-auto pt-1">
                                                                             {/* Priority */}
                                                                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${evt.priority === 'High' ? 'bg-red-50 text-red-600 border-red-100' : evt.priority === 'Medium' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
@@ -631,8 +620,6 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                                                                                 {evt.assignee === 'Student' ? <User className="w-2.5 h-2.5" /> : <Briefcase className="w-2.5 h-2.5" />}
                                                                                 {evt.assignee === 'Student' ? (isEn ? 'Stu' : '学生') : (isEn ? 'Coun' : '顾问')}
                                                                             </span>
-                                                                            {/* Status */}
-                                                                            {isDone && <CheckCircle className="w-3.5 h-3.5 text-green-500 ml-auto" />}
                                                                         </div>
                                                                     </div>
                                                                 );
@@ -842,6 +829,23 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                 )}
             </div>
         </div>
+
+        {/* --- Publish Footer (aligned with the online test environment) --- */}
+        {onComplete && (
+            <div className="flex-shrink-0 flex justify-end pt-6 pb-0 px-2 sm:pr-4">
+                <div className="animate-in fade-in slide-in-from-bottom-6">
+                    <button
+                        onClick={() => {
+                            onComplete();
+                        }}
+                        className="flex items-center gap-3 px-8 py-4 bg-gray-900 dark:bg-zinc-950 text-white rounded-2xl font-black shadow-[0_20px_50px_rgba(0,0,0,0.3)] hover:bg-black dark:hover:bg-zinc-900 hover:scale-105 active:scale-95 transition-all group border border-white/20 dark:border-white/10 whitespace-nowrap"
+                    >
+                        <Check className="w-6 h-6 text-green-400 group-hover:scale-110 transition-transform" />
+                        <span className="text-base tracking-wide">{isEn ? 'Publish & Sync Roadmap' : '确认发布规划方案'}</span>
+                    </button>
+                </div>
+            </div>
+        )}
 
         {/* --- Edit Modal --- */}
         {isModalOpen && (
