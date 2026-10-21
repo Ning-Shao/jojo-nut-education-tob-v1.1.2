@@ -535,7 +535,7 @@ const Step5Gap: React.FC<Step5Props> = ({ selectedSchools, currentStats, student
     {
       id: 'sat' as ScoreMetricId, group: 'standardized', label: 'SAT', enabled: visibleScoreMetrics.sat, hasScore: Boolean(currentStats.satEnabled),
       value: String(currentStats.satValue || ''), rulerLabel: 'SAT',
-      min: 1000, max: 1600, current: currentStats.satEnabled ? validNumber(currentStats.satValue) : null, metric: 'sat' as RequirementMetric,
+      min: 400, max: 1600, current: currentStats.satEnabled ? validNumber(currentStats.satValue) : null, metric: 'sat' as RequirementMetric,
       reachAvg: tierStats.reach.sat, matchAvg: tierStats.match.sat, safetyAvg: tierStats.safety.sat,
     },
     {
