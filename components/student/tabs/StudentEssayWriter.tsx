@@ -4,7 +4,7 @@ import {
   Edit, Save, Clock, CheckCircle, Sparkles, 
   Maximize2, Minimize2, ChevronLeft, ChevronRight,
   MessageSquare, Wand2, RefreshCw, Scissors, Type,
-  AlertCircle, ArrowRight, Check, X, History,
+  AlertCircle, ArrowRight, X,
   Languages, Lightbulb, BookOpen, ChevronDown, ChevronUp,
   FileText, FileDown, Download, User, Send,
   AlertTriangle, Lock, Unlock, RotateCcw, Loader2
@@ -16,8 +16,7 @@ import {
   getEssayReview,
   subscribeEssayReviews,
   updateEssayReview,
-  SharedEssayReview,
-  transformEssayFormattingAfterContentEdit
+  SharedEssayReview
 } from '../../../services/essayReviewStore';
 import { publishStudentReviewEvent } from '../../../services/studentReviewEvents';
 
@@ -148,7 +147,6 @@ const StudentEssayWriter: React.FC = () => {
   // Submit Modal State
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [studentRevisionNote, setStudentRevisionNote] = useState('');
-  const [commentReplyDrafts, setCommentReplyDrafts] = useState<Record<string, string>>({});
   
   // Layout State
   const [isZenMode, setIsZenMode] = useState(false);
@@ -186,13 +184,10 @@ const StudentEssayWriter: React.FC = () => {
   // History State (Local for demo)
   const [versions, setVersions] = useState<EssayVersion[]>([]);
   const [sharedReview, setSharedReview] = useState<SharedEssayReview | null>(null);
-  const [isReviewDetailsOpen, setIsReviewDetailsOpen] = useState(false);
-  const [reviewMode, setReviewMode] = useState<'Original' | 'Teacher' | 'Diff' | 'History'>('Diff');
 
   const activeEssay = essays.find(e => e.id === activeEssayId) || essays[0];
   const wordCount = activeEssay.content.split(/\s+/).filter(Boolean).length;
-  const publishedFeedback = sharedReview?.reviewPublishedAt ? sharedReview.publishedOverallFeedback : sharedReview?.overallFeedback;
-  const publishedTeacherContent = sharedReview?.reviewPublishedAt ? sharedReview.publishedTeacherModifiedContent : sharedReview?.teacherModifiedContent;
+  const publishedFeedback = sharedReview?.reviewPublishedAt ? sharedReview.publishedOverallFeedback : undefined;
   
   const isReadOnly = activeEssay.status === 'Reviewing' || activeEssay.status === 'Finalized';
 
@@ -216,12 +211,16 @@ const StudentEssayWriter: React.FC = () => {
         source: version.source as VersionSource,
         wordCount: version.content.trim().split(/\s+/).filter(Boolean).length
       })));
+      const latestStudentSubmission = review.versions.find(version => version.author === 'Student' && version.source === 'Student_Submit');
+      const studentVisibleContent = review.status === 'Reviewing'
+        ? latestStudentSubmission?.content ?? review.studentOriginalContent
+        : review.currentContent;
       setEssays(previous => previous.map(essay => essay.id === activeEssayId ? {
         ...essay,
         status: review.status,
-        content: review.currentContent,
-        latestReturnNote: review.reviewPublishedAt ? review.publishedOverallFeedback : review.overallFeedback,
-        feedback: review.comments.filter(comment => comment.isPublished !== false).map(comment => ({
+        content: studentVisibleContent,
+        latestReturnNote: review.reviewPublishedAt ? review.publishedOverallFeedback : undefined,
+        feedback: review.comments.filter(comment => comment.isPublished === true && !comment.isResolved).map(comment => ({
           id: comment.id,
           originalText: comment.quote,
           comment: comment.comment,
@@ -346,6 +345,9 @@ const StudentEssayWriter: React.FC = () => {
       ...review,
       status: 'Reviewing',
       currentContent: activeEssay.content,
+      studentOriginalContent: activeEssay.content,
+      teacherModifiedContent: activeEssay.content,
+      overallFeedback: '',
       studentRevisionNote: studentRevisionNote.trim(),
       documentMode: 'Suggesting',
       lastModifiedBy: 'Student',
@@ -385,94 +387,6 @@ const StudentEssayWriter: React.FC = () => {
     showToast(isEn ? "Submitted successfully! Teacher notified." : "提交成功！已通知老师进行批改。");
   };
 
-  const addStudentCommentReply = (commentId: string) => {
-    const message = commentReplyDrafts[commentId]?.trim();
-    if (!message) return;
-    const saved = updateEssayReview(activeEssayId, review => ({
-      ...review,
-      comments: review.comments.map(comment => comment.id === commentId ? {
-        ...comment,
-        replies: [...(comment.replies || []), {
-          id: `reply-${Date.now()}`,
-          message,
-          author: STUDENT_FULL_PROFILE.name,
-          createdAt: new Date().toLocaleString()
-        }]
-      } : comment),
-      lastModifiedBy: STUDENT_FULL_PROFILE.name,
-      lastModifiedAt: new Date().toLocaleString()
-    }));
-    if (!saved) return showToast(isEn ? 'Reply failed' : '回复保存失败');
-    setCommentReplyDrafts(previous => ({ ...previous, [commentId]: '' }));
-    showToast(isEn ? 'Reply posted' : '回复已发布');
-  };
-
-  const toggleStudentCommentResolved = (commentId: string) => {
-    const saved = updateEssayReview(activeEssayId, review => ({
-      ...review,
-      comments: review.comments.map(comment => comment.id === commentId ? {
-        ...comment,
-        isResolved: !comment.isResolved,
-        resolvedBy: !comment.isResolved ? STUDENT_FULL_PROFILE.name : undefined,
-        resolvedAt: !comment.isResolved ? new Date().toLocaleString() : undefined
-      } : comment),
-      lastModifiedBy: STUDENT_FULL_PROFILE.name,
-      lastModifiedAt: new Date().toLocaleString(),
-      auditLog: [...(review.auditLog || []), {
-        id: `audit-${Date.now()}`,
-        action: review.comments.find(comment => comment.id === commentId)?.isResolved ? 'Comment_Reopened' : 'Comment_Resolved',
-        actor: STUDENT_FULL_PROFILE.name,
-        createdAt: new Date().toLocaleString(),
-        detail: commentId
-      }]
-    }));
-    if (!saved) showToast(isEn ? 'Comment update failed' : '批注状态更新失败');
-  };
-
-  const applySuggestionDecision = (suggestionId: string, decision: 'accepted' | 'rejected') => {
-    const saved = updateEssayReview(activeEssayId, review => {
-      const suggestion = (review.suggestions || []).find(item => item.id === suggestionId);
-      if (!suggestion || suggestion.status !== 'pending') return review;
-      let nextContent = review.currentContent;
-      if (decision === 'accepted') {
-        const anchoredText = nextContent.slice(suggestion.start, suggestion.end);
-        const start = anchoredText === suggestion.originalText ? suggestion.start : nextContent.indexOf(suggestion.originalText);
-        if (start >= 0) nextContent = `${nextContent.slice(0,start)}${suggestion.suggestedText}${nextContent.slice(start + suggestion.originalText.length)}`;
-      }
-      const decidedAt = new Date().toLocaleString();
-      return {
-        ...review,
-        currentContent: nextContent,
-        formatting: decision === 'accepted'
-          ? transformEssayFormattingAfterContentEdit(review.formatting || [], review.currentContent, nextContent)
-          : review.formatting,
-        suggestions: (review.suggestions || []).map(item => item.id === suggestionId ? { ...item, status: decision, decidedBy: STUDENT_FULL_PROFILE.name, decidedAt } : item),
-        lastModifiedBy: STUDENT_FULL_PROFILE.name,
-        lastModifiedAt: decidedAt,
-        revisionNumber: review.revisionNumber + 1,
-        auditLog: [...(review.auditLog || []), {
-          id: `audit-${Date.now()}`,
-          action: decision === 'accepted' ? 'Suggestion_Accepted' : 'Suggestion_Rejected',
-          actor: STUDENT_FULL_PROFILE.name,
-          createdAt: decidedAt,
-          detail: suggestionId
-        }]
-      };
-    });
-    if (!saved) showToast(isEn ? 'Suggestion update failed' : '建议处理失败');
-  };
-
-  const decideAllSuggestions = (decision: 'accepted' | 'rejected') => {
-    const review = getEssayReview(activeEssayId);
-    const pending = (review?.suggestions || []).filter(suggestion => suggestion.isPublished !== false && suggestion.status === 'pending');
-    if (!pending.length) return;
-    if (decision === 'rejected') {
-      pending.forEach(suggestion => applySuggestionDecision(suggestion.id, 'rejected'));
-      return;
-    }
-    [...pending].sort((a,b) => b.start - a.start).forEach(suggestion => applySuggestionDecision(suggestion.id, 'accepted'));
-  };
-
   // Replaced handleSelect with handleMouseUp for better positioning
   const handleMouseUp = (e: React.MouseEvent) => {
     if (isReadOnly) return;
@@ -507,47 +421,6 @@ const StudentEssayWriter: React.FC = () => {
             setFloatingMenu(prev => ({ ...prev, visible: false }));
         }
     }, 10);
-  };
-
-  const handleResolveFeedback = (feedbackId: string) => {
-    setEssays(prev => prev.map(e => {
-        if (e.id !== activeEssayId) return e;
-        return {
-            ...e,
-            feedback: e.feedback.map(f => f.id === feedbackId ? { ...f, isResolved: true } : f)
-        };
-    }));
-  };
-
-  const focusTeacherComment = (start: number, end: number) => {
-    setIsReviewDetailsOpen(false);
-    setTimeout(() => {
-      textareaRef.current?.focus();
-      textareaRef.current?.setSelectionRange(start, end);
-    }, 50);
-  };
-
-  const renderContentDiff = (original: string, modified: string) => {
-    const originalWords = original.split(/(\s+)/);
-    const modifiedWords = modified.split(/(\s+)/);
-    let prefix = 0;
-    while (prefix < originalWords.length && prefix < modifiedWords.length && originalWords[prefix] === modifiedWords[prefix]) prefix += 1;
-    let suffix = 0;
-    while (
-      suffix < originalWords.length - prefix &&
-      suffix < modifiedWords.length - prefix &&
-      originalWords[originalWords.length - 1 - suffix] === modifiedWords[modifiedWords.length - 1 - suffix]
-    ) suffix += 1;
-    const originalMiddle = originalWords.slice(prefix, originalWords.length - suffix).join('');
-    const modifiedMiddle = modifiedWords.slice(prefix, modifiedWords.length - suffix).join('');
-    return (
-      <div className="whitespace-pre-wrap font-serif text-sm leading-loose text-gray-800">
-        {originalWords.slice(0, prefix).join('')}
-        {originalMiddle && <del className="rounded bg-red-100 px-1 text-red-700">{originalMiddle}</del>}
-        {modifiedMiddle && <ins className="ml-1 rounded bg-green-100 px-1 text-green-700 no-underline">{modifiedMiddle}</ins>}
-        {originalWords.slice(originalWords.length - suffix).join('')}
-      </div>
-    );
   };
 
   const handleDownload = () => {
@@ -910,7 +783,19 @@ const StudentEssayWriter: React.FC = () => {
                             essay.status === 'Returned' ? 'bg-purple-50 text-purple-700' : 
                             essay.status === 'Finalized' ? 'bg-green-50 text-green-700' :
                             'bg-gray-100 text-gray-500'
-                        }`}>{essay.status}</span>
+                        }`}>{isEn ? ({
+                          'Not Started': 'Not Started',
+                          Drafting: 'Drafting',
+                          Reviewing: 'Under Review',
+                          Returned: 'Revision Needed',
+                          Finalized: 'Finalized'
+                        }[essay.status]) : ({
+                          'Not Started': '未开始',
+                          Drafting: '撰写中',
+                          Reviewing: '审阅中',
+                          Returned: '需要修改',
+                          Finalized: '已定稿'
+                        }[essay.status])}</span>
                         <span className={`text-[10px] flex items-center gap-1 ${new Date(essay.deadline) < new Date() ? 'text-red-500 font-bold' : 'text-gray-400'}`}><Clock className="w-2.5 h-2.5" /> {essay.deadline}</span>
                      </div>
                   </div>
@@ -1015,150 +900,13 @@ const StudentEssayWriter: React.FC = () => {
             {activeEssay.status === 'Returned' && (
                 <div className="bg-purple-50 dark:bg-purple-900/20 border-b border-purple-100 dark:border-purple-500/30 px-8 py-4 flex items-start gap-3 animate-in slide-in-from-top-2">
                     <AlertTriangle className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
-                    <div>
+                    <div className="min-w-0">
                         <p className="text-sm font-bold text-purple-900 dark:text-purple-200">{isEn ? 'Teacher Request Revision' : '老师发回修改'}</p>
                         <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">
                           {activeEssay.latestReturnNote || (isEn ? 'The teacher did not provide an overall comment for this round.' : '老师本轮未提供整体修改意见。')}
                         </p>
-                        <button
-                          type="button"
-                          onClick={() => setIsReviewDetailsOpen(open => !open)}
-                          className="mt-2 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-purple-700"
-                        >
-                          {isReviewDetailsOpen ? (isEn ? 'Hide review details' : '收起审阅详情') : (isEn ? 'View review details' : '查看审阅详情')}
-                        </button>
                     </div>
                 </div>
-            )}
-
-            {activeEssay.status !== 'Returned' && sharedReview && Boolean(publishedFeedback || sharedReview.comments.some(comment => comment.isPublished !== false) || (sharedReview.suggestions || []).some(suggestion => suggestion.isPublished !== false) || publishedTeacherContent) && (
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100 bg-indigo-50 px-5 py-3 dark:border-indigo-500/20 dark:bg-indigo-900/20 sm:px-8">
-                <div>
-                  <p className="text-sm font-bold text-indigo-900 dark:text-indigo-200">{isEn ? 'Previous teacher review is available' : '可查看上一轮老师审阅记录'}</p>
-                  <p className="mt-0.5 text-xs text-indigo-600 dark:text-indigo-300">{isEn ? 'Comments and version history remain available after resubmission.' : '重新提交后，老师意见、文本批注和版本记录仍会保留。'}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsReviewDetailsOpen(open => !open)}
-                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700"
-                >
-                  {isReviewDetailsOpen ? (isEn ? 'Hide review details' : '收起审阅详情') : (isEn ? 'View review details' : '查看审阅详情')}
-                </button>
-              </div>
-            )}
-
-            {isReviewDetailsOpen && sharedReview && (
-              <section className="border-b border-violet-100 bg-white px-5 py-5 dark:border-white/10 dark:bg-zinc-900 sm:px-8">
-                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-bold text-gray-900 dark:text-white">{isEn ? 'Teacher review details' : '老师审阅详情'}</h3>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {isEn ? 'Reviewer' : '修改老师'}：{sharedReview.reviewAuthor || 'Ms. Sarah'} · {isEn ? 'Reviewed' : '审阅时间'}：{sharedReview.reviewedAt || sharedReview.lastModifiedAt} · {sharedReview.versions[0]?.versionNumber || `V${sharedReview.revisionNumber}`}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-1 rounded-lg bg-gray-100 p-1 dark:bg-white/5">
-                    {(['Original', 'Teacher', 'Diff', 'History'] as const).map(mode => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => setReviewMode(mode)}
-                        className={`rounded-md px-3 py-1.5 text-xs font-bold ${reviewMode === mode ? 'bg-white text-violet-700 shadow-sm dark:bg-zinc-800' : 'text-gray-500'}`}
-                      >
-                        {mode === 'Original' ? (isEn ? 'Original' : '学生原稿') : mode === 'Teacher' ? (isEn ? 'Teacher edit' : '老师修改稿') : mode === 'Diff' ? (isEn ? 'Compare' : '修改对比') : (isEn ? 'History' : '版本历史')}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {reviewMode !== 'History' && (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
-                    {reviewMode === 'Original' && <p className="whitespace-pre-wrap font-serif text-sm leading-loose">{sharedReview.studentOriginalContent}</p>}
-                    {reviewMode === 'Teacher' && (
-                      <p className="whitespace-pre-wrap font-serif text-sm leading-loose">
-                        {publishedTeacherContent || (isEn ? 'The teacher did not directly edit the essay this round.' : '老师本轮未直接修改正文。')}
-                      </p>
-                    )}
-                    {reviewMode === 'Diff' && renderContentDiff(sharedReview.studentOriginalContent, publishedTeacherContent || sharedReview.studentOriginalContent)}
-                  </div>
-                )}
-
-                {reviewMode === 'History' && (
-                  <div className="space-y-2">
-                    {sharedReview.versions.length > 0 ? sharedReview.versions.map(version => (
-                      <article key={version.id} className="rounded-xl border border-gray-200 bg-white p-3 dark:border-white/10 dark:bg-zinc-800">
-                        <div className="flex flex-wrap justify-between gap-2 text-xs">
-                          <span className="font-bold text-gray-800 dark:text-white">{version.versionNumber} · {version.author}</span>
-                          <span className="text-gray-400">{version.updatedAt}</span>
-                        </div>
-                        <p className="mt-1 text-xs text-gray-500">{version.note || (isEn ? 'No version note' : '本版本未填写备注')}</p>
-                      </article>
-                    )) : <p className="text-sm text-gray-500">{isEn ? 'No version history yet.' : '暂无版本历史。'}</p>}
-                  </div>
-                )}
-
-                {(sharedReview.suggestions || []).filter(suggestion => suggestion.isPublished !== false).length > 0 && (
-                  <div className="mt-4">
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                      <h4 className="text-sm font-bold text-gray-900 dark:text-white">{isEn ? 'Suggested edits' : '老师修改建议'}</h4>
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => decideAllSuggestions('rejected')} className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50">{isEn ? 'Reject all' : '全部拒绝'}</button>
-                        <button type="button" onClick={() => decideAllSuggestions('accepted')} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700">{isEn ? 'Accept all' : '全部接受'}</button>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      {(sharedReview.suggestions || []).filter(suggestion => suggestion.isPublished !== false).map(suggestion => (
-                        <article key={suggestion.id} className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${suggestion.status === 'pending' ? 'bg-amber-100 text-amber-800' : suggestion.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>{suggestion.status === 'pending' ? (isEn ? 'Pending' : '待处理') : suggestion.status === 'accepted' ? (isEn ? 'Accepted' : '已接受') : (isEn ? 'Rejected' : '已拒绝')}</span>
-                            <span className="text-[10px] text-gray-400">{suggestion.author} · {suggestion.createdAt}</span>
-                          </div>
-                          <p className="mt-2 text-sm text-red-600 line-through">{suggestion.originalText}</p>
-                          {suggestion.suggestedText && <p className="mt-1 text-sm font-semibold text-emerald-700">{suggestion.suggestedText}</p>}
-                          {suggestion.explanation && <p className="mt-2 text-xs text-gray-500">{suggestion.explanation}</p>}
-                          {suggestion.status === 'pending' && (
-                            <div className="mt-3 flex justify-end gap-2">
-                              <button type="button" onClick={() => applySuggestionDecision(suggestion.id,'rejected')} className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-600">{isEn ? 'Reject' : '拒绝'}</button>
-                              <button type="button" onClick={() => applySuggestionDecision(suggestion.id,'accepted')} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white">{isEn ? 'Accept' : '接受'}</button>
-                            </div>
-                          )}
-                        </article>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-4">
-                  <h4 className="mb-2 text-sm font-bold text-gray-900 dark:text-white">{isEn ? 'Inline comments' : '具体文本批注'}</h4>
-                  {sharedReview.comments.filter(comment => comment.isPublished !== false).length > 0 ? (
-                    <div className="space-y-2">
-                      {sharedReview.comments.filter(comment => comment.isPublished !== false).map(comment => (
-                        <article key={comment.id} className={`block w-full rounded-xl border p-3 text-left ${comment.isResolved ? 'border-emerald-100 bg-emerald-50/60' : 'border-indigo-100 bg-indigo-50'}`}>
-                          <button type="button" onClick={() => focusTeacherComment(comment.start, comment.end)} className="block w-full text-left">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-bold text-indigo-700">{comment.category || (isEn ? 'Content' : '内容')}</span>
-                              <span className={`text-[10px] font-bold ${comment.isResolved ? 'text-emerald-700' : 'text-orange-600'}`}>{comment.isResolved ? (isEn ? 'Resolved' : '已解决') : (isEn ? 'Open' : '未解决')}</span>
-                            </div>
-                            <p className="mt-2 text-xs font-bold text-indigo-800">“{comment.quote}”</p>
-                            <p className="mt-1 text-sm text-gray-700">{comment.comment}</p>
-                            <p className="mt-2 text-[11px] text-gray-400">{comment.author} · {comment.createdAt} · {isEn ? 'Click to locate text' : '点击定位原文'}</p>
-                          </button>
-                          {(comment.replies || []).map(reply => (
-                            <div key={reply.id} className="mt-2 rounded-lg bg-white/80 p-2 text-xs">
-                              <p className="text-gray-700">{reply.message}</p>
-                              <p className="mt-1 text-[10px] text-gray-400">{reply.author} · {reply.createdAt}</p>
-                            </div>
-                          ))}
-                          <div className="mt-3 flex gap-2">
-                            <input value={commentReplyDrafts[comment.id] || ''} onChange={event => setCommentReplyDrafts(previous => ({...previous,[comment.id]:event.target.value}))} placeholder={isEn ? 'Reply to counselor…' : '回复老师…'} className="min-w-0 flex-1 rounded-lg border border-indigo-200 bg-white px-2 py-1.5 text-xs outline-none focus:border-indigo-400" />
-                            <button type="button" onClick={() => addStudentCommentReply(comment.id)} disabled={!commentReplyDrafts[comment.id]?.trim()} className="rounded-lg bg-indigo-600 px-2.5 py-1.5 text-[10px] font-bold text-white disabled:opacity-35">{isEn ? 'Reply' : '回复'}</button>
-                            <button type="button" onClick={() => toggleStudentCommentResolved(comment.id)} className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[10px] font-bold text-gray-600">{comment.isResolved ? (isEn ? 'Reopen' : '重新打开') : (isEn ? 'Resolve' : '标记解决')}</button>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  ) : <p className="text-sm text-gray-500">{isEn ? 'The teacher did not provide inline comments this round.' : '老师本轮未提供具体文本批注。'}</p>}
-                </div>
-              </section>
             )}
             
             {activeEssay.status === 'Finalized' && (
@@ -1218,25 +966,14 @@ const StudentEssayWriter: React.FC = () => {
             
             {/* --- TAB 1: TEACHER BRIEF --- */}
             {rightPanelTab === 'Brief' && (
-               <div className="space-y-4">
-                  {sharedReview?.overallFeedback ? (
-                     <div className="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-500/20 rounded-xl p-4 shadow-sm relative group">
-                        <div className="flex items-center gap-3 mb-3 border-b border-indigo-200 dark:border-indigo-500/20 pb-2">
-                           <img src="https://api.dicebear.com/7.x/micah/svg?seed=Sarah&backgroundColor=ffdfbf" className="w-8 h-8 rounded-full border border-indigo-200" alt="avatar" />
-                           <div>
-                              <p className="text-xs font-bold text-indigo-900 dark:text-indigo-200">{sharedReview.reviewAuthor || 'Ms. Sarah'}</p>
-                              <p className="text-[10px] text-indigo-500 dark:text-indigo-400">{sharedReview.reviewedAt || sharedReview.lastModifiedAt}</p>
-                           </div>
-                        </div>
-                        
-                        <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-2">{isEn ? 'Revision guidance' : '本轮修改指引'}</h4>
-                        <div className="text-xs text-gray-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap font-medium">
-                           {sharedReview.overallFeedback}
-                        </div>
-                     </div>
+               <div>
+                  {publishedFeedback ? (
+                     <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-600 dark:text-zinc-300">
+                        {publishedFeedback}
+                     </p>
                   ) : (
                      <div className="text-center py-10 text-gray-400 text-xs">
-                        {isEn ? 'The teacher did not provide overall guidance this round.' : '老师本轮未提供整体修改指引。'}
+                        {isEn ? 'No counselor guidance yet.' : '暂无顾问指引。'}
                      </div>
                   )}
                </div>

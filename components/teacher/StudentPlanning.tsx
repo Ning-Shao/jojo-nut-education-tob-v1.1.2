@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { GoogleGenAI, Type } from "../../services/aiClient";
-import { Check, CheckCircle, X, AlertTriangle, Info } from '../common/Icons';
+import { Check, CheckCircle, X, XCircle, AlertTriangle, Info } from '../common/Icons';
 import { 
   UniversitySchema, SelectedSchool, TargetPreference, CareerResult,
   SCHOOL_DATABASE, ActionItem, TimelineEvent, initialTimelineData, UniversityDisplay
@@ -204,22 +204,37 @@ interface StudentPlanningProps {
 }
 
 type NoticeTone = 'info' | 'error' | 'warning' | 'success';
+// Tone classes mirror the toast surface used by the online build (border-*-100 + text-*-800).
 const noticeColors: Record<NoticeTone, string> = {
-  info: 'bg-blue-50 border-blue-200 text-blue-800',
-  error: 'bg-red-50 border-red-200 text-red-800',
-  warning: 'bg-amber-50 border-amber-200 text-amber-800',
-  success: 'bg-green-50 border-green-200 text-green-800',
+  info: 'bg-blue-50 border-blue-100 text-blue-800',
+  error: 'bg-red-50 border-red-100 text-red-800',
+  warning: 'bg-amber-50 border-amber-100 text-amber-800',
+  success: 'bg-green-50 border-green-100 text-green-800',
 };
 const Toast = ({ message, tone, onClose }: { message: string; tone: NoticeTone; onClose: () => void }) => (
-  <div role={tone === 'error' || tone === 'warning' ? 'alert' : 'status'} className={`fixed bottom-10 left-1/2 -translate-x-1/2 w-max max-w-[calc(100vw-2rem)] border px-5 py-3 rounded-xl shadow-xl flex items-start gap-3 z-[100] ${noticeColors[tone]}`}>
-    {tone === 'success' ? <CheckCircle className="w-5 h-5 shrink-0" /> : tone === 'info' ? <Info className="w-5 h-5 shrink-0" /> : <AlertTriangle className="w-5 h-5 shrink-0" />}
-    <span className="text-sm whitespace-pre-wrap">{message}</span>
-    <button aria-label="关闭提示 / Close notification" onClick={onClose} className="shrink-0 p-1"><X className="w-4 h-4" /></button>
+  <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center pointer-events-none">
+    <div className="pointer-events-auto">
+      <div
+        role={tone === 'error' || tone === 'warning' ? 'alert' : 'status'}
+        className={`flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg animate-in fade-in slide-in-from-top-2 duration-300 mb-2 min-w-[300px] max-w-md ${noticeColors[tone]}`}
+      >
+        <div className="flex-shrink-0">
+          {tone === 'success' ? <CheckCircle className="w-5 h-5 text-green-500" />
+            : tone === 'error' ? <XCircle className="w-5 h-5 text-red-500" />
+              : tone === 'warning' ? <AlertTriangle className="w-5 h-5 text-amber-500" />
+                : <Info className="w-5 h-5 text-blue-500" />}
+        </div>
+        <div className="flex-1 text-sm font-medium">{message}</div>
+        <button aria-label="关闭提示 / Close notification" onClick={onClose} className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
   </div>
 );
 
 // Publish Confirm Modal
-const PublishConfirmModal = ({ isOpen, onClose, onConfirm, taskCount, isEn }: { isOpen: boolean; onClose: () => void; onConfirm: () => void; taskCount: number; isEn: boolean }) => {
+const PublishConfirmModal = ({ isOpen, onClose, onConfirm, taskCount, removedCount, isEn }: { isOpen: boolean; onClose: () => void; onConfirm: () => void; taskCount: number; removedCount: number; isEn: boolean }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
@@ -231,8 +246,8 @@ const PublishConfirmModal = ({ isOpen, onClose, onConfirm, taskCount, isEn }: { 
           <h3 className="text-lg font-bold text-gray-900 mb-2">{isEn ? 'Ready to Publish?' : '确认发布规划方案？'}</h3>
           <p className="text-sm text-gray-500 mb-6 leading-relaxed">
             {isEn 
-              ? `Publish changes to ${taskCount} timeline tasks, including deletions. Unpublished overdue tasks remain in the plan; update their deadlines before publishing.`
-              : `本次有 ${taskCount} 项待发布变更（含新增、修改和删除）。尚未发布的过期任务将保留在规划中，调整截止日期后可重新发布。`
+              ? `This will sync the roadmap to the Student Portal and add ${taskCount} timeline items to the Task Center.${removedCount ? ` ${removedCount} cancelled timeline items will be removed as well.` : ''}`
+              : `此操作将把规划方案同步至学生端，并将 ${taskCount} 项时间轴事项自动添加到双端任务中心。${removedCount ? `同时移除 ${removedCount} 项已取消的时间轴事项。` : ''}`
             }
           </p>
           <div className="flex gap-3 w-full">
@@ -259,8 +274,9 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student, officialBatc
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
 
+  // The online build auto-dismisses every tone (including errors) after 3s.
   useEffect(() => {
-    if (toastMessage && toastTone !== 'error' && toastTone !== 'warning') {
+    if (toastMessage) {
       const timer = setTimeout(() => setToastMessage(null), 3000);
       return () => clearTimeout(timer);
     }
@@ -377,11 +393,8 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student, officialBatc
       localStorage.setItem(planningDraftKey(draftStudentId), JSON.stringify(next));
       timelineRef.current = next;
       updateTimelineEvents(next);
-      setToastTone('info');
-      setToastMessage(isEn ? 'Task changes saved. Click “Publish Plan” to sync to the Task Center.' : '任务变更已保存，点击「确认发布规划方案」后同步到任务中心。');
     } catch {
-      setToastTone('error');
-      setToastMessage(isEn ? 'Unable to save. Please try again.' : '任务变更未保存，请重试。');
+      // Draft persistence is best-effort; the online build shows no notice here either.
     }
   };
 
@@ -823,20 +836,27 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student, officialBatc
     }
   };
 
-  const [pendingCount, setPendingCount] = useState(0);
+  // The confirm copy counts the timeline items that will actually be pushed to the
+  // task center, so blocked (overdue) items are excluded from this number.
+  const [publishableCount, setPublishableCount] = useState(0);
+  const [publishRemovalCount, setPublishRemovalCount] = useState(0);
   const getPublication = () => preparePlanningPublication(timelineEvents, getStoredTeacherTasks(), {
     id: draftStudentId, name: student?.name || '演示学生', avatarUrl: student?.avatarUrl || '',
   });
 
-  // Open the modal instead of window.confirm
+  // Open the modal instead of window.confirm.
+  // Matching the online build: blocked (overdue) items are excluded silently, so the
+  // gate only looks at what actually changed (new/edited items + removals) and shows
+  // the online "nothing to sync" notice when there is nothing to push.
   const handleCompletePlanning = () => {
     const result = getPublication();
-    if (!result.pendingCount) {
+    if (!result.changedCount && !result.removedCount) {
       setToastTone('info');
-      setToastMessage(isEn ? 'No unpublished task changes.' : '暂无待发布的任务变更。');
+      setToastMessage(isEn ? 'No timeline items to sync (all are already published, completed, or overdue).' : '无可同步的时间线（均已发布、已完成或已过期）。');
       return;
     }
-    setPendingCount(result.pendingCount);
+    setPublishableCount(result.changedCount);
+    setPublishRemovalCount(result.removedCount);
     setIsPublishModalOpen(true);
   };
 
@@ -846,22 +866,14 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student, officialBatc
       const result = preparePlanningPublication(timelineEvents, getStoredTeacherTasks(), {
         id: draftStudentId, name: student?.name || '演示学生', avatarUrl: student?.avatarUrl || '',
       });
-      if (result.blocked.length && !result.changedCount && !result.removedCount) {
-        setToastTone('error');
-        setToastMessage(isEn ? 'The deadline has passed. Tasks are saved; update the deadline before publishing.' : '任务截止日期已过，暂未发布。任务已保存，请调整截止日期后重新发布。');
-        return;
-      }
       localStorage.setItem(TEACHER_TASK_STORAGE_KEY, JSON.stringify(result.tasks));
       window.dispatchEvent(new Event(PLANNING_TASK_CHANGE_EVENT));
       setPublishedTasks(result.tasks);
-      setToastTone(result.blocked.length ? 'warning' : 'success');
-      setToastMessage(result.blocked.length
-        ? (isEn ? `Published ${result.changedCount} tasks. ${result.blocked.length} overdue tasks were not published. Update their deadlines and publish again.`
-          : `已同步 ${result.changedCount + result.removedCount} 项变更${result.removedCount ? `（含删除 ${result.removedCount} 个任务）` : ''}，${result.blocked.length} 个任务因已过期未发布，请调整截止日期后重新发布。`)
-        : (isEn ? 'Plan published. Task changes synced to the Task Center.' : '规划方案已发布，任务变更已同步到任务中心。'));
+      setToastTone('success');
+      setToastMessage(isEn ? 'Plan Published & Tasks Synced!' : '发布成功！规划与任务已双向同步。');
     } catch {
       setToastTone('error');
-      setToastMessage(isEn ? 'Publishing failed. Please try again.' : '发布失败，请重试。');
+      setToastMessage(isEn ? 'Failed to publish plan.' : '发布失败，请重试。');
     }
   };
 
@@ -882,7 +894,8 @@ const StudentPlanning: React.FC<StudentPlanningProps> = ({ student, officialBatc
           isOpen={isPublishModalOpen} 
           onClose={() => setIsPublishModalOpen(false)} 
           onConfirm={confirmPublish} 
-          taskCount={pendingCount}
+          taskCount={publishableCount}
+          removedCount={publishRemovalCount}
           isEn={isEn}
         />
 

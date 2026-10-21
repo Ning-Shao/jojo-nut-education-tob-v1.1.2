@@ -1,9 +1,9 @@
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   Target, Calendar, CheckCircle, Clock, 
   TrendingUp, ArrowRight, Zap, BookOpen, 
-  AlertCircle, Trophy, Sparkles 
+  AlertCircle, Trophy, Sparkles, Pencil
 } from '../common/Icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { getStudentFinalSchools } from './studentSchoolList';
@@ -26,24 +26,25 @@ const StudentHome: React.FC<StudentHomeProps> = ({
 }) => {
   const { language } = useLanguage();
   const isEn = language === 'en-US';
-  const schoolList = useMemo(() => getStudentFinalSchools(isEn), [isEn]);
-  const [dreamSchoolId, setDreamSchoolId] = useState(() => localStorage.getItem('student_dream_school_id') || '');
+  const [dreamSchoolName, setDreamSchoolName] = useState(() => {
+    const savedName = localStorage.getItem('student_dream_school_name');
+    if (savedName !== null) return savedName;
+    const savedId = localStorage.getItem('student_dream_school_id');
+    return getStudentFinalSchools(false).find(school => school.id === savedId)?.uni.name || '';
+  });
+  const [dreamSchoolDraft, setDreamSchoolDraft] = useState('');
+  const [isEditingDreamSchool, setIsEditingDreamSchool] = useState(false);
   const [taskReminderTab, setTaskReminderTab] = useState<'today' | 'overdue' | 'review'>('today');
-  const dreamSchool = schoolList.find(school => school.id === dreamSchoolId) || schoolList.find(school => school.tier === 'Reach') || schoolList[0];
   const taskStatusLabel = (status: StudentTask['status']) => isEn
     ? status
     : ({ Pending: '待处理', Returned: '已退回', Completed: '已完成', Cancelled: '已取消', Review: '待审核', Overdue: '已逾期' } as Record<StudentTask['status'], string>)[status];
 
-  useEffect(() => {
-    if (!dreamSchoolId && dreamSchool) {
-      setDreamSchoolId(dreamSchool.id);
-      localStorage.setItem('student_dream_school_id', dreamSchool.id);
-    }
-  }, [dreamSchool, dreamSchoolId]);
-
-  const handleDreamSchoolChange = (schoolId: string) => {
-    setDreamSchoolId(schoolId);
-    localStorage.setItem('student_dream_school_id', schoolId);
+  const handleDreamSchoolSave = () => {
+    const name = dreamSchoolDraft.trim();
+    if (!name) return;
+    setDreamSchoolName(name);
+    localStorage.setItem('student_dream_school_name', name);
+    setIsEditingDreamSchool(false);
   };
 
   // Mock Data
@@ -76,8 +77,8 @@ const StudentHome: React.FC<StudentHomeProps> = ({
     },
     { 
       label: isEn ? 'Target School' : '梦校目标', 
-      value: dreamSchool?.uni.name || (isEn ? 'Not selected' : '未选择'),
-      unit: dreamSchool?.tier || '',
+      value: dreamSchoolName || (isEn ? 'Not set' : '未设置'),
+      unit: '',
       isDreamSchool: true,
       icon: <Target className="w-5 h-5 text-rose-600 dark:text-rose-400" />,
       bg: 'bg-rose-50 dark:bg-rose-500/10',
@@ -127,21 +128,44 @@ const StudentHome: React.FC<StudentHomeProps> = ({
             </div>
             {stat.isDreamSchool ? (
               <div>
-                <select
-                  aria-label={isEn ? 'Choose dream school from my school list' : '从我的选校清单中选择梦校'}
-                  value={dreamSchool?.id || ''}
-                  onChange={(event) => handleDreamSchoolChange(event.target.value)}
-                  className="w-full min-w-0 rounded-lg border border-rose-200 bg-white/80 px-3 py-2 text-sm font-bold text-gray-900 outline-none transition-colors hover:border-rose-300 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:border-rose-500/20 dark:bg-zinc-900 dark:text-white"
-                >
-                  {schoolList.map(school => (
-                    <option key={school.id} value={school.id}>
-                      {school.uni.name} · {school.major} · {school.tier}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-2 text-[11px] text-rose-600 dark:text-rose-400">
-                  {isEn ? 'Selected from My Plan school list' : '选自“我的规划”选校清单'}
-                </p>
+                <div className="flex items-start gap-2">
+                  <span className="min-w-0 flex-1 break-words text-lg font-black text-gray-900 dark:text-white">{stat.value}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDreamSchoolDraft(dreamSchoolName);
+                      setIsEditingDreamSchool(true);
+                    }}
+                    aria-label={isEn ? 'Edit target school' : '编辑梦校目标'}
+                    title={isEn ? 'Edit target school' : '编辑梦校目标'}
+                    className="shrink-0 rounded-lg p-1.5 text-rose-600 hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-400 dark:text-rose-400 dark:hover:bg-rose-500/20"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </div>
+                {isEditingDreamSchool && (
+                  <form
+                    className="mt-3 space-y-2"
+                    onSubmit={event => {
+                      event.preventDefault();
+                      handleDreamSchoolSave();
+                    }}
+                  >
+                    <input
+                      autoFocus
+                      aria-label={isEn ? 'Target school name' : '梦校名称'}
+                      type="text"
+                      value={dreamSchoolDraft}
+                      onChange={event => setDreamSchoolDraft(event.target.value)}
+                      placeholder={isEn ? 'Enter any school name' : '输入任意学校名称'}
+                      className="w-full min-w-0 rounded-lg border border-rose-200 bg-white/80 px-3 py-2 text-sm text-gray-900 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:border-rose-500/20 dark:bg-zinc-900 dark:text-white"
+                    />
+                    <div className="flex gap-2 text-xs font-bold">
+                      <button type="submit" disabled={!dreamSchoolDraft.trim()} className="rounded-lg bg-rose-600 px-3 py-1.5 text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50">{isEn ? 'Save' : '保存'}</button>
+                      <button type="button" onClick={() => setIsEditingDreamSchool(false)} className="rounded-lg px-3 py-1.5 text-gray-600 hover:bg-white/70 dark:text-zinc-300 dark:hover:bg-zinc-800">{isEn ? 'Cancel' : '取消'}</button>
+                    </div>
+                  </form>
+                )}
               </div>
             ) : (
               <div className="flex items-baseline gap-1">

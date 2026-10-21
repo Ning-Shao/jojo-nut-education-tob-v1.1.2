@@ -5,6 +5,8 @@ import {
 import { AlertTriangle, Trophy, School, BookOpen, Calendar, ChevronDown, ChevronUp, Check, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
+import { Application, DecisionHistory, currentDecision, sortedDecisions, saveDecision, deleteDecision, demoSteps } from '../../lib/offerApplications';
+
 export interface OfferRecord {
   id: string;
   school: string;
@@ -26,8 +28,23 @@ interface TopAlert {
   message: string;
 }
 
-const StudentOfferTracking: React.FC = () => {
-  const [offers, setOffers] = useState<OfferRecord[]>(initialOffers);
+const StudentOfferTracking: React.FC<{ studentId: string }> = ({ studentId }) => {
+  const storageKey = `nut-offer-prototype-v1:${studentId}`;
+  const [applications, setApplications] = useState<Application[]>(() => {
+    try { const saved = localStorage.getItem(storageKey); if (saved) return JSON.parse(saved); } catch { /* use local demo defaults */ }
+    return initialOffers.map(({ id, school, major, round, ...decision }) => ({ id, school, major, round, decisions: [{ ...decision, date: decision.date === '-' ? '' : decision.date, id: `${id}-decision` }] }));
+  });
+  const offers = applications.map(a => ({ ...a, ...currentDecision(a), id: a.id }));
+  const [historyId, setHistoryId] = useState<string | null>(null);
+  const [editingDecisionId, setEditingDecisionId] = useState<string | null>(null);
+  const [historyDeleteId, setHistoryDeleteId] = useState<string | null>(null);
+  const historyApplication = applications.find(a => a.id === historyId);
+  const commit = (next: Application[]) => {
+    try { localStorage.setItem(storageKey, JSON.stringify(next)); }
+    catch { triggerAlert(isEn ? 'Local saving failed. Please free browser storage and retry.' : '本地保存失败，请检查浏览器存储后重试。', 'error'); return false; }
+    setApplications(next);
+    return true;
+  };
   
   // Inline Form State (无需弹窗)
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
@@ -92,6 +109,7 @@ const StudentOfferTracking: React.FC = () => {
     setFormCondition('');
     setFormDate(new Date().toISOString().split('T')[0]);
     setEditingId(null);
+    setEditingDecisionId(null);
   };
 
   const openCreateForm = () => {
@@ -107,7 +125,9 @@ const StudentOfferTracking: React.FC = () => {
     }, 100);
   };
 
-  const openEditForm = (offer: OfferRecord) => {
+  const openEditForm = (offer: OfferRecord, decisionId?: string) => {
+    setHistoryId(offer.id);
+    setEditingDecisionId(decisionId || currentDecision(applications.find(a => a.id === offer.id)!).id);
     setEditingId(offer.id);
     setFormSchool(offer.school);
     setFormMajor(offer.major);
@@ -148,55 +168,20 @@ const StudentOfferTracking: React.FC = () => {
       return;
     }
 
-    // 多字段组合查重校验：在保存新建或编辑的 Offer 记录时，
-    // 自动检查「学校、专业、申请轮次」（忽略前后空格及英文大小写）是否与当前已有记录完全一致
-    const isDuplicate = offers.some(o => {
-      if (editingId && o.id === editingId) return false;
-      return (
-        o.school.trim().toLowerCase() === schoolTrimmed.toLowerCase() &&
-        o.major.trim().toLowerCase() === majorTrimmed.toLowerCase() &&
-        o.round.trim().toLowerCase() === roundTrimmed.toLowerCase()
-      );
-    });
-
-    if (isDuplicate) {
-      // 弹出明确提示并在4秒后自动淡出
-      triggerAlert(
-        isEn ? 'This offer record has already been added.' : '已添加此条offer记录',
-        'warning'
-      );
+    if (!majorTrimmed || !roundTrimmed || !formDate) {
+      triggerAlert(isEn ? 'Please enter major, round and decision date.' : '请填写申请专业、申请轮次和通知日期。');
       setIsSubmitting(false);
       return;
     }
-
-    if (editingId) {
-      setOffers(prev => prev.map(o => {
-        if (o.id === editingId) {
-          return {
-            ...o,
-            school: schoolTrimmed,
-            major: majorTrimmed,
-            round: roundTrimmed || 'RD',
-            result: formResult,
-            condition: formCondition.trim(),
-            date: formDate || '-'
-          };
-        }
-        return o;
-      }));
-      triggerAlert(isEn ? 'Offer record updated successfully.' : '录取记录已更新！', 'success');
-    } else {
-      const newOffer: OfferRecord = {
-        id: `offer_${Date.now()}`,
-        school: schoolTrimmed,
-        major: majorTrimmed,
-        round: roundTrimmed || 'RD',
-        result: formResult,
-        condition: formCondition.trim(),
-        date: formDate || '-'
-      };
-      setOffers(prev => [newOffer, ...prev]);
-      triggerAlert(isEn ? 'Offer record added successfully.' : '录取记录添加成功！', 'success');
+    try {
+      const next = saveDecision(applications, { school: schoolTrimmed, major: majorTrimmed, round: roundTrimmed },
+        { id: editingDecisionId || crypto.randomUUID(), result: formResult, date: formDate, condition: formCondition.trim() }, editingId, editingDecisionId);
+      if (!commit(next)) { setIsSubmitting(false); return; }
+      triggerAlert(isEn ? 'Decision saved.' : '录取状态已保存！', 'success');
+    } catch (error) {
+      triggerAlert((error as Error).message);
+      setIsSubmitting(false);
+      return;
     }
 
     resetForm();
@@ -208,7 +193,9 @@ const StudentOfferTracking: React.FC = () => {
   };
 
   const handleDelete = (id: string) => {
-    setOffers(prev => prev.filter(o => o.id !== id));
+    if (!commit(applications.filter(o => o.id !== id))) return;
+    if (editingId === id) cancelForm();
+    if (historyId === id) setHistoryId(null);
     setDeleteConfirmId(null);
     triggerAlert(isEn ? 'Offer record deleted.' : '已删除录取记录。', 'success');
   };
@@ -222,7 +209,7 @@ const StudentOfferTracking: React.FC = () => {
     <div className="animate-in fade-in slide-in-from-bottom-2 h-full flex flex-col space-y-5">
       {/* 顶部全局提示横幅（4秒自动淡出 / 可手动关闭） */}
       {topAlert && (
-        <div 
+        <div role="alert"
           className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 text-xs font-semibold shadow-xs animate-in fade-in slide-in-from-top-2 duration-200 ${
             topAlert.type === 'warning' 
               ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300' 
@@ -257,7 +244,7 @@ const StudentOfferTracking: React.FC = () => {
           <p className="text-xs text-gray-500 dark:text-zinc-400 mt-1">
             {isEn 
               ? `Total ${totalOffers} applications, ${admittedCount} admitted, ${pendingCount} pending decision.`
-              : `共追踪 ${totalOffers} 所申请，已获 ${admittedCount} 份录取，${pendingCount} 所审核中。`}
+              : `共追踪 ${totalOffers} 份申请，已获 ${admittedCount} 份录取，${pendingCount} 份审核中。`}
           </p>
         </div>
         <button 
@@ -283,6 +270,43 @@ const StudentOfferTracking: React.FC = () => {
         </button>
       </div>
 
+      {import.meta.env.DEV && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+          <span>本地演示填入（点击后仍需确认添加）：</span>
+          {demoSteps.map((step, index) => <button key={index} className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-700 hover:bg-gray-100 dark:hover:bg-zinc-800" onClick={() => {
+            resetForm(); setFormSchool(step.school); setFormMajor(step.major); setFormRound(step.round); setFormResult(step.result); setFormDate(step.date); setIsFormOpen(true);
+          }}>场景 {index + 1}{index === 2 ? '（重复）' : ''}</button>)}
+        </div>
+      )}
+      {historyApplication && (
+        <section className="p-5 bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-800 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h4 className="text-sm font-bold">{isEn ? 'Decision History' : '录取状态历史'} · {historyApplication.school} / {historyApplication.major} / {historyApplication.round}</h4>
+            <button type="button" onClick={() => { setHistoryId(null); cancelForm(); }} className="text-xs text-gray-500">{isEn ? 'Close' : '关闭详情'}</button>
+          </div>
+          <p className="text-xs text-gray-500">{isEn ? 'Latest date first; for the same date, the later added decision is current.' : '按通知日期倒序；同日存在不同状态时，以后添加的状态为当前结果。'}</p>
+          {sortedDecisions(historyApplication).map((d, index) => <div key={d.id} className="flex flex-wrap items-center gap-3 py-2 border-b border-gray-100 dark:border-zinc-800 text-xs">
+            <span className="font-mono">{d.date || '-'}</span><span className="font-bold">{d.result}</span>
+            {index === 0 && <span className="text-primary-600">{isEn ? 'Current' : '当前状态'}</span>}
+            <span className="flex-1 text-gray-500">{d.condition}</span>
+            <button type="button" className="text-primary-600" onClick={() => openEditForm({ ...historyApplication, ...d, id: historyApplication.id }, d.id)}>{isEn ? 'Edit decision' : '编辑此状态'}</button>
+            {historyDeleteId === d.id ? <>
+              <span>{historyApplication.decisions.length === 1 ? '删除后该申请也将删除，确认？' : '确认删除此状态？'}</span>
+              <button type="button" className="text-rose-600" onClick={() => {
+                if (!commit(deleteDecision(applications, historyApplication.id, d.id))) return;
+                if (editingId === historyApplication.id) cancelForm();
+                setHistoryDeleteId(null);
+                triggerAlert(isEn ? 'Decision deleted; current status recalculated.' : '状态已删除，当前结果已自动更新。', 'success');
+              }}>确认删除状态</button>
+              <button type="button" onClick={() => setHistoryDeleteId(null)}>取消</button>
+            </> : <button type="button" className="text-rose-600" onClick={() => setHistoryDeleteId(d.id)}>{isEn ? 'Delete decision' : '删除此状态'}</button>}
+          </div>)}
+          <button type="button" className="text-xs font-bold text-primary-600" onClick={() => {
+            resetForm(); setEditingId(historyApplication.id); setFormSchool(historyApplication.school); setFormMajor(historyApplication.major); setFormRound(historyApplication.round); setIsFormOpen(true);
+          }}>{isEn ? 'Add decision' : '添加新的状态'}</button>
+        </section>
+      )}
+
       {/* 行内录入 / 编辑表单（无需弹窗） */}
       {isFormOpen && (
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-primary-200 dark:border-primary-800/60 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-3 duration-200">
@@ -291,7 +315,7 @@ const StudentOfferTracking: React.FC = () => {
               <School className="w-4 h-4 text-primary-600 dark:text-primary-400" />
               <h4 className="text-xs font-bold text-gray-900 dark:text-white">
                 {editingId 
-                  ? (isEn ? 'Edit Offer Record' : '编辑录取记录')
+                  ? (isEn ? 'Edit Offer Record' : (editingDecisionId ? '编辑历史状态 / 申请信息' : '为该申请添加状态'))
                   : (isEn ? 'New Offer Record (Inline Input)' : '新建录取记录（行内直接录入）')}
               </h4>
             </div>
@@ -346,9 +370,7 @@ const StudentOfferTracking: React.FC = () => {
                   <select
                     value={commonRounds.includes(formRound) ? formRound : 'Other'}
                     onChange={e => {
-                      if (e.target.value !== 'Other') {
-                        setFormRound(e.target.value);
-                      }
+                      setFormRound(e.target.value === 'Other' ? '' : e.target.value);
                     }}
                     className="px-2.5 py-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 font-semibold"
                   >
@@ -419,6 +441,7 @@ const StudentOfferTracking: React.FC = () => {
                 </label>
                 <input 
                   type="date"
+                  required
                   value={formDate}
                   onChange={e => setFormDate(e.target.value)}
                   className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -535,12 +558,12 @@ const StudentOfferTracking: React.FC = () => {
                         {offer.condition || '-'}
                       </td>
                       <td className="px-6 py-4 text-gray-500 dark:text-zinc-500 font-mono text-xs">
-                        {offer.date}
+                        {offer.date || '-'}
                       </td>
                       <td className="px-6 py-4 text-right">
                         {isDeleting ? (
                           <div className="flex items-center justify-end gap-2 animate-in fade-in">
-                            <span className="text-xs text-rose-600 font-medium">{isEn ? 'Delete?' : '确认删除？'}</span>
+                            <span className="text-xs text-rose-600 font-medium">{isEn ? 'Delete?' : '删除申请及全部历史？'}</span>
                             <button
                               onClick={() => handleDelete(offer.id)}
                               className="px-2 py-1 bg-rose-600 text-white rounded text-xs font-bold hover:bg-rose-700 cursor-pointer"
@@ -566,7 +589,7 @@ const StudentOfferTracking: React.FC = () => {
                             <button 
                               onClick={() => setDeleteConfirmId(offer.id)} 
                               className="text-gray-400 hover:text-rose-600 p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-                              title={isEn ? "Delete" : "删除"}
+                              title={isEn ? "Delete application and history" : "删除申请及全部历史"}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
