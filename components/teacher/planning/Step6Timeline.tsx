@@ -19,6 +19,40 @@ interface Step6Props {
   completedIds?: Set<string>;
 }
 
+const swapUcasUndergraduateTemplatePositions = <T extends { name: string }>(templates: T[]): T[] => {
+  const normalizeName = (name: string) => name.replace(/\s+/g, '');
+  const regularIndex = templates.findIndex(template => normalizeName(template.name) === '英国UCAS本科2026官方时间线');
+  const conservatoireIndex = templates.findIndex(template => normalizeName(template.name) === '英国UCAS音乐学院本科2026官方时间线');
+  if (regularIndex < 0 || conservatoireIndex < 0) return templates;
+  const ordered = [...templates];
+  [ordered[regularIndex], ordered[conservatoireIndex]] = [ordered[conservatoireIndex], ordered[regularIndex]];
+  return ordered;
+};
+
+// Display-only cards copied from the 2026 test-site order for local layout review.
+// They are intentionally separate from OFFICIAL_TEMPLATES and cannot be imported.
+const timelineOrderDemoCards = swapUcasUndergraduateTemplatePositions([
+  { name: '英国 UCAS 音乐学院 本科 2026官方时间线', region: 'UK', channel: 'UCAS', previews: ['[UCAS Cons] Conservatoire 2026年入学申请开放', '[UCAS Cons] 音乐专业申请截止日期', '[UCAS Cons] 申请者默认拒绝 (DBD)'], more: 2 },
+  { name: '加拿大本科 2026参考时间线 (除安省及BC省)', region: 'CA', channel: 'Direct', previews: ['[Can. Uni] 申请开放', '[Can. Uni] Early Admission 及奖学金截止日期', '[Can. Uni] 顶尖名校高峰截止日期'], more: 4 },
+  { name: '加拿大 BC省 本科 2026参考时间线', region: 'CA', channel: 'Direct', previews: ['[Can. BC] EPBC 系统开放', '[Can. BC] UBC Early Deadline', '[Can. BC] UBC Regular Deadline'], more: 4 },
+  { name: '加拿大 OUAC 本科 2026参考时间线 (Group B)', region: 'CA', channel: 'OUAC', previews: ['[OUAC] 创建账户并选择目标项目', '[OUAC] 在 equal deadline 前提交申请', '[OUAC] 激活大学 portals 以追踪状态'], more: 4 },
+  { name: '美国加州大学 UC 本科 2026官方时间线', region: 'US', channel: 'UC App', previews: ['[UC App] 2026年春季 Merced 申请提交期', '[UC App] 2026年秋季入学申请开放', '[UC App] 助学金申请开放'], more: 6 },
+  { name: '澳洲 本科 2026参考时间线', region: 'AU', channel: 'Direct', previews: ['[Aus. Uni] 申请开放', '[Aus. Uni] 申请高峰期', '[Aus. Uni] Standard Deadlines'], more: 4 },
+  { name: '香港 本科 2026参考时间线 (公立大学)', region: 'HK', channel: 'Direct', previews: ['[HK Uni] 申请开放', '[HK Uni] Advance / Early Round Deadline', '[HK Uni] Main / Regular Round Deadline'], more: 2 },
+  { name: '新加坡 本科 2026参考时间线 (公立大学)', region: 'SG', channel: 'Direct', previews: ['[SG Uni] 申请开放', '[SG Uni] 申请截止日期', '[SG Uni] 面试及 Admissions Tests'], more: 3 },
+  { name: '英国 UCAS 本科 2026官方时间线', region: 'UK', channel: 'UCAS', previews: ['[UCAS] UCAS 搜索工具显示2026年课程', '[UCAS] 2026年本科入学申请开放', '[UCAS] 已完成的本科申请可以提交至 UCAS'], more: 8 },
+  { name: '美国 Common App 本科 2026参考时间线', region: 'US', channel: 'Common App', previews: ['[Com app] Common App 系统开放', '[Com app] 部分公立大学的 Early 截止日期', '[Com app] Early Admissions 高峰截止日期'], more: 6 }
+]);
+type ApplicationYear = 2026 | 2027;
+const timelineDemoCardsByYear: Record<ApplicationYear, typeof timelineOrderDemoCards> = {
+  2026: timelineOrderDemoCards,
+  2027: timelineOrderDemoCards.map(card => ({
+    ...card,
+    name: card.name.replace('2026', '2027'),
+    previews: card.previews.map(preview => preview.replaceAll('2026', '2027')),
+  })),
+};
+
 const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents, selectedSchools, onComplete, publishedIds = new Set<string>(), pendingIds = new Set<string>(), completedIds = new Set<string>() }) => {
   const { language } = useLanguage();
   const isEn = language === 'en-US';
@@ -52,6 +86,9 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
   const [isUnscheduledOpen, setIsUnscheduledOpen] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [applicationYear, setApplicationYear] = useState<ApplicationYear>(2026);
+  const isTimelineOrderDemo = !OFFICIAL_TEMPLATES.some(template => template.name.includes(String(applicationYear)));
+  const [selectedDemoCards, setSelectedDemoCards] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   
@@ -141,10 +178,17 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
   }, [schoolsByRegion]);
 
   const orderedTemplates = useMemo(() => {
-      return [...OFFICIAL_TEMPLATES].sort((a, b) => {
+      const recommendedFirst = [...OFFICIAL_TEMPLATES].sort((a, b) => {
           return Number(recommendedTemplateIds.has(b.id)) - Number(recommendedTemplateIds.has(a.id));
       });
+      return swapUcasUndergraduateTemplatePositions(recommendedFirst);
   }, [recommendedTemplateIds]);
+  const visibleTemplates = useMemo(() => orderedTemplates.filter(template => template.name.includes(String(applicationYear))), [orderedTemplates, applicationYear]);
+  const changeApplicationYear = (year: ApplicationYear) => {
+      setApplicationYear(year);
+      setSelectedTemplateIds(new Set());
+      setSelectedDemoCards(new Set());
+  };
 
   const importedTemplateIds = useMemo(() => {
       return new Set(timelineEvents.map(event => event.templateId).filter(Boolean) as string[]);
@@ -1005,13 +1049,40 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                             <h3 className="font-bold text-gray-900 text-2xl mb-1">{isEn ? 'Import Official Timeline' : '导入官方时间线'}</h3>
                             <p className="text-gray-500 text-sm">{isEn ? 'Select official application timeline templates to import.' : '选择需要导入的官方申请时间轴模版。'}</p>
                         </div>
-                        <button onClick={() => setIsTemplateModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                            <X className="w-6 h-6 text-gray-400"/>
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <label htmlFor="timeline-application-year" className="text-sm font-medium text-gray-600">{isEn ? 'Application year' : '申请年份'}</label>
+                            <select id="timeline-application-year" aria-label={isEn ? 'Application year' : '申请年份'} value={applicationYear} onChange={event => changeApplicationYear(Number(event.target.value) as ApplicationYear)} className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                                <option value={2026}>2026</option>
+                                <option value={2027}>2027</option>
+                            </select>
+                            <button onClick={() => setIsTemplateModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors" aria-label={isEn ? 'Close' : '关闭'}>
+                                <X className="w-6 h-6 text-gray-400"/>
+                            </button>
+                        </div>
                     </div>
                     
                     {/* Body */}
                     <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
+                        {isTimelineOrderDemo ? (
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-label={isEn ? `${applicationYear} timeline demo` : `${applicationYear} 时间线演示`}>
+                                {timelineDemoCardsByYear[applicationYear].map(card => (
+                                    <button type="button" key={card.name} aria-pressed={selectedDemoCards.has(card.name)} onClick={() => setSelectedDemoCards(current => { const next = new Set(current); if (next.has(card.name)) next.delete(card.name); else next.add(card.name); return next; })} className={`rounded-xl border-2 bg-white p-5 text-left shadow-sm transition-colors ${selectedDemoCards.has(card.name) ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-gray-200 hover:border-indigo-300'}`}>
+                                        <div className="mb-3 flex items-start gap-3">
+                                            <span className="text-3xl" aria-hidden="true">{getRegionFlag(card.region)}</span>
+                                            <div className="min-w-0">
+                                                <h4 className="text-sm font-bold text-gray-900">{card.name}</h4>
+                                                <span className="mt-1 inline-block rounded border border-gray-200 bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">{card.channel}</span>
+                                            </div>
+                                            <span className="ml-auto shrink-0 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">{selectedDemoCards.has(card.name) ? '✓' : (isEn ? 'Demo' : '模拟')}</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {card.previews.map(preview => <div key={preview} className="flex items-center gap-2 text-xs text-gray-600"><span className="h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" /><span className="truncate">{preview}</span></div>)}
+                                            <div className="pl-3.5 text-xs text-gray-400">+{card.more} {isEn ? 'more events' : '更多节点'}</div>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (<>
                         <div className={`mb-5 rounded-xl border px-4 py-3 ${selectedSchools.length > 0 ? 'border-indigo-200 bg-indigo-50' : 'border-amber-200 bg-amber-50'}`}>
                             <p className={`text-sm font-bold ${selectedSchools.length > 0 ? 'text-indigo-900' : 'text-amber-900'}`}>
                                 {selectedSchools.length > 0
@@ -1029,7 +1100,7 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                             </p>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {orderedTemplates.map(tpl => {
+                            {visibleTemplates.map(tpl => {
                                 const isSelected = selectedTemplateIds.has(tpl.id);
                                 const matchedSchools = schoolsByRegion[tpl.region] || [];
                                 const isRecommended = matchedSchools.length > 0;
@@ -1102,6 +1173,8 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                                 );
                             })}
                         </div>
+                        {visibleTemplates.length === 0 && <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">{isEn ? `No importable ${applicationYear} templates are available yet.` : `暂无 ${applicationYear} 年可导入的官方时间线模板`}</div>}
+                        </>)}
                     </div>
 
                     {/* Footer */}
@@ -1115,10 +1188,10 @@ const Step6Timeline: React.FC<Step6Props> = ({ timelineEvents, setTimelineEvents
                         <button 
                             onClick={handleImportTemplates} 
                             className="px-8 py-2.5 bg-indigo-500 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-600 transition-all flex items-center gap-2"
-                            disabled={selectedTemplateIds.size === 0}
+                            disabled={isTimelineOrderDemo || selectedTemplateIds.size === 0}
                         >
                             <Download className="w-4 h-4" />
-                            {isEn ? `Import ${selectedTemplateIds.size} Templates` : `导入 ${selectedTemplateIds.size} 个模版`}
+                            {isEn ? `Import ${isTimelineOrderDemo ? selectedDemoCards.size : selectedTemplateIds.size} Templates` : `导入 ${isTimelineOrderDemo ? selectedDemoCards.size : selectedTemplateIds.size} 个模版`}
                         </button>
                     </div>
                 </div>
