@@ -19,6 +19,7 @@ import {
   SharedEssayReview
 } from '../../../services/essayReviewStore';
 import { publishStudentReviewEvent } from '../../../services/studentReviewEvents';
+import { getEssayTasks, PORTAL_STUDENT_ID, subscribeEssayTasks, StoredEssayTask } from '../../../services/essayTaskStore';
 
 // --- Types ---
 interface EssayTask {
@@ -100,6 +101,27 @@ When I was 10, I tried to build a replica of the Empire State Building. It colla
   }
 ];
 
+const mergeAssignedEssayTasks = (previous: EssayTask[], assigned: StoredEssayTask[]): EssayTask[] => {
+  const next = previous.map(essay => {
+    const task = assigned.find(item => item.id === essay.id);
+    return task ? { ...essay, title: task.title, school: task.school, type: task.type, prompt: task.prompt, wordLimit: task.wordLimit, deadline: task.deadline } : essay;
+  });
+  assigned.forEach(task => {
+    if (next.some(essay => essay.id === task.id)) return;
+    next.unshift({ id: task.id, title: task.title, school: task.school, type: task.type, prompt: task.prompt, wordLimit: task.wordLimit, deadline: task.deadline, status: task.status === 'Not Started' ? 'Not Started' : 'Drafting', content: task.currentContent || '', feedback: [] });
+  });
+  return next;
+};
+
+const describeEssayTaskChange = (change: NonNullable<StoredEssayTask['lastChange']>, isEn: boolean) => {
+  const parts = change.fields.map(field => {
+    if (field === 'prompt') return isEn ? 'prompt' : '题目要求';
+    if (field === 'wordLimit') return isEn ? `word limit ${change.previous.wordLimit} → ${change.current.wordLimit}` : `字数限制 ${change.previous.wordLimit} → ${change.current.wordLimit} 字`;
+    return isEn ? `deadline ${change.previous.deadline} → ${change.current.deadline}` : `截止日期 ${change.previous.deadline} → ${change.current.deadline}`;
+  });
+  return `${isEn ? 'Essay task updated: ' : '文书任务已更新：'}${parts.join(isEn ? ', ' : '、')}`;
+};
+
 // --- Simulation of Data from "Basic Info" & "Materials" ---
 const STUDENT_FULL_PROFILE = {
   name: "Alex Chen",
@@ -139,7 +161,7 @@ const StudentEssayWriter: React.FC = () => {
   const isEn = language === 'en-US';
   
   // --- State ---
-  const [essays, setEssays] = useState<EssayTask[]>(MOCK_ESSAYS);
+  const [essays, setEssays] = useState<EssayTask[]>(() => mergeAssignedEssayTasks(MOCK_ESSAYS, getEssayTasks(PORTAL_STUDENT_ID)));
   const [activeEssayId, setActiveEssayId] = useState<string>(MOCK_ESSAYS[0].id);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState('Just now');
@@ -197,6 +219,23 @@ const StudentEssayWriter: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [toastMessage]);
+
+  useEffect(() => {
+    const syncAssignedTasks = (changedStudentId?: string) => {
+      if (changedStudentId && changedStudentId !== PORTAL_STUDENT_ID) return;
+      const assigned = getEssayTasks(PORTAL_STUDENT_ID);
+      assigned.forEach(task => ensureEssayReview(task.id, task.currentContent || '', task.status === 'Not Started' || task.status === 'Reviewing' || task.status === 'Returned' || task.status === 'Finalized' ? task.status : 'Drafting'));
+      setEssays(previous => mergeAssignedEssayTasks(previous, assigned));
+      const unseenChange = assigned.find(task => task.lastChange && localStorage.getItem(`nut_essay_task_seen_${task.id}`) !== task.lastChange.id)?.lastChange;
+      if (unseenChange) {
+        setToastMessage(describeEssayTaskChange(unseenChange, isEn));
+        const changedTask = assigned.find(task => task.lastChange?.id === unseenChange.id);
+        if (changedTask) localStorage.setItem(`nut_essay_task_seen_${changedTask.id}`, unseenChange.id);
+      }
+    };
+    syncAssignedTasks();
+    return subscribeEssayTasks(syncAssignedTasks);
+  }, [isEn]);
 
   useEffect(() => {
     MOCK_ESSAYS.forEach(essay => ensureEssayReview(essay.id, essay.content, essay.status));
@@ -835,6 +874,7 @@ const StudentEssayWriter: React.FC = () => {
                      <span className="text-gray-300">/</span>
                      <span>{activeEssay.wordLimit} words</span>
                   </div>
+                  {wordCount > activeEssay.wordLimit && <span role="alert" className="text-[11px] font-bold text-red-600 dark:text-red-400">{isEn ? `Over the new limit by ${wordCount - activeEssay.wordLimit} words; your draft is kept.` : `已超出当前上限 ${wordCount - activeEssay.wordLimit} 字；原稿已保留`}</span>}
                   
                   {/* Submit Button (Dynamic based on state) */}
                   {activeEssay.status !== 'Finalized' && (

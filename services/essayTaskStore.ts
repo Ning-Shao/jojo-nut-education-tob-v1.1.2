@@ -32,7 +32,16 @@ export interface StoredEssayTask {
   currentContent: string;
   lastSavedAt: string;
   versions: StoredEssayTaskVersion[];
+  lastChange?: {
+    id: string;
+    fields: Array<'prompt' | 'wordLimit' | 'deadline'>;
+    previous: { prompt: string; wordLimit: number; deadline: string };
+    current: { prompt: string; wordLimit: number; deadline: string };
+  };
 }
+
+// The student portal currently represents the Alex Chen sample record in the teacher list.
+export const PORTAL_STUDENT_ID = '1';
 
 const STORAGE_KEY = 'nut_education_essay_tasks_v1';
 const CHANGE_EVENT = 'nut-essay-task-change';

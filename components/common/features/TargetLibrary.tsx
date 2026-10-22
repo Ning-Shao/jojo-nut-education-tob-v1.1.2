@@ -416,6 +416,13 @@ const mockPrograms: TargetProgram[] = [
   }
 ];
 
+// Development-only list cards for checking pagination without changing saved favorites/history.
+const paginationDemoPrograms: TargetProgram[] = Array.from({ length: 24 }, (_, index) => ({
+  ...mockPrograms[index % mockPrograms.length],
+  id: `pagination-demo-${index + 1}`,
+  programName: `${mockPrograms[index % mockPrograms.length].programName} · ${String(index + 1).padStart(2, '0')}`,
+}));
+
 // --- Sub-Components ---
 
 // AssignModal removed as per request to simplify the "Add to Favorites" flow.
@@ -456,6 +463,13 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
     return [];
   });
   const [showRecentOnly, setShowRecentOnly] = useState(false);
+  const [paginationDemoEnabled, setPaginationDemoEnabled] = useState(false);
+  const demoFavoriteIds = useMemo(() => new Set(paginationDemoPrograms.map(program => program.id)), []);
+  const demoRecentIds = useMemo(() => paginationDemoPrograms.map(program => program.id).reverse(), []);
+  const visibleFavoriteIds = paginationDemoEnabled ? demoFavoriteIds : bookmarkedIds;
+  const visibleRecentIds = paginationDemoEnabled ? demoRecentIds : recentViewedIds;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
 
   const [mounted, setMounted] = useState(false);
   const { language } = useLanguage();
@@ -650,6 +664,7 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
 
   const toggleBookmark = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    if (paginationDemoEnabled) return;
     const next = new Set(bookmarkedIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
@@ -694,6 +709,7 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
   };
 
   const handleToggleBookmarks = () => {
+    setCurrentPage(1);
     if (showBookmarksOnly) {
       setShowBookmarksOnly(false);
     } else {
@@ -703,6 +719,7 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
   };
 
   const handleToggleRecent = () => {
+    setCurrentPage(1);
     if (showRecentOnly) {
       setShowRecentOnly(false);
     } else {
@@ -713,12 +730,12 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
 
   // Filter & Ordering Logic
   const filteredPrograms = useMemo(() => {
-    let list = mockPrograms;
+    let list = paginationDemoEnabled ? paginationDemoPrograms : mockPrograms;
 
     if (showBookmarksOnly) {
-      list = list.filter(program => bookmarkedIds.has(program.id));
+      list = list.filter(program => visibleFavoriteIds.has(program.id));
     } else if (showRecentOnly) {
-      const recentIndexMap = new Map<string, number>(recentViewedIds.map((id, index) => [id, index]));
+      const recentIndexMap = new Map<string, number>(visibleRecentIds.map((id, index) => [id, index]));
       list = [...list]
         .filter(program => recentIndexMap.has(program.id))
         .sort((a, b) => {
@@ -771,9 +788,18 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
     return [...matchingPrograms].sort((a, b) => {
       return getRankingNumber(a) - getRankingNumber(b);
     });
-  }, [showBookmarksOnly, showRecentOnly, bookmarkedIds, recentViewedIds, searchQuery, filters, scoreFilters, scoreDrafts, alevelScore, languageSectionScores]);
+  }, [showBookmarksOnly, showRecentOnly, paginationDemoEnabled, visibleFavoriteIds, visibleRecentIds, searchQuery, filters, scoreFilters, scoreDrafts, alevelScore, languageSectionScores]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filters, scoreFilters, scoreDrafts, alevelScore, languageSectionScores]);
+
+  const totalPages = Math.ceil(filteredPrograms.length / pageSize);
+  const visiblePage = Math.min(currentPage, Math.max(totalPages, 1));
+  const paginatedPrograms = filteredPrograms.slice((visiblePage - 1) * pageSize, visiblePage * pageSize);
 
   const handleCardClick = (id: string) => {
+    if (paginationDemoEnabled) return;
     recordView(id);
     setSelectedId(id);
     setView('detail');
@@ -1248,9 +1274,9 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                        <Bookmark className={`w-4 h-4 ${showBookmarksOnly ? 'fill-current' : ''}`} /> 
                        <span>{isEn ? 'My Favorites' : '我的收藏库'}</span>
                     </div>
-                    {bookmarkedIds.size > 0 && (
+                    {visibleFavoriteIds.size > 0 && (
                        <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${showBookmarksOnly ? `bg-${theme}-200/60 dark:bg-white/20 text-${theme}-800 dark:text-${theme}-200` : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-zinc-400'}`}>
-                          {bookmarkedIds.size}
+                          {visibleFavoriteIds.size}
                        </span>
                     )}
                  </button>
@@ -1267,9 +1293,9 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                        <Clock className="w-4 h-4 text-gray-400 dark:text-zinc-500" /> 
                        <span>{isEn ? 'Recently Viewed' : '最近浏览'}</span>
                     </div>
-                    {recentViewedIds.length > 0 && (
+                    {visibleRecentIds.length > 0 && (
                        <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${showRecentOnly ? `bg-${theme}-200/60 dark:bg-white/20 text-${theme}-800 dark:text-${theme}-200` : 'bg-gray-100 dark:bg-zinc-800 text-gray-500 dark:text-zinc-400'}`}>
-                          {recentViewedIds.length}
+                          {visibleRecentIds.length}
                        </span>
                     )}
                  </button>
@@ -1295,6 +1321,19 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
               </div>
 
               {/* Result Meta & Sort */}
+                <div className="mb-3 flex justify-end px-1">
+                  <button type="button" aria-pressed={paginationDemoEnabled} onClick={() => {
+                    setPaginationDemoEnabled(enabled => !enabled);
+                    setCurrentPage(1);
+                    setShowBookmarksOnly(true);
+                    setShowRecentOnly(false);
+                    setSearchQuery('');
+                    setFilters({ region: '全部', major: '全部', diff: '全部' });
+                    resetScoreFilters();
+                  }} className="rounded-lg border border-dashed border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                    {paginationDemoEnabled ? (isEn ? 'Exit pagination demo' : '退出分页演示') : (isEn ? 'Show 24 demo cards' : '显示 24 条分页模拟卡片')}
+                  </button>
+                </div>
               <div className="flex justify-between items-center mb-6 px-1 flex-shrink-0">
                  <div className="flex items-center gap-2.5 flex-wrap">
                     {showRecentOnly && (
@@ -1302,7 +1341,7 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                           <Clock className="w-3.5 h-3.5" />
                           {isEn ? 'Recently Viewed' : '当前筛选：最近浏览'}
                           <button 
-                             onClick={() => setShowRecentOnly(false)} 
+                             onClick={() => { setShowRecentOnly(false); setCurrentPage(1); }}
                              className="ml-1 text-gray-400 hover:text-gray-700 dark:hover:text-white"
                              title={isEn ? 'Clear' : '清除'}
                           >
@@ -1315,7 +1354,7 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                           <Bookmark className="w-3.5 h-3.5 fill-current" />
                           {isEn ? 'My Favorites' : '当前筛选：我的收藏'}
                           <button 
-                             onClick={() => setShowBookmarksOnly(false)} 
+                             onClick={() => { setShowBookmarksOnly(false); setCurrentPage(1); }}
                              className="ml-1 text-gray-400 hover:text-gray-700 dark:hover:text-white"
                              title={isEn ? 'Clear' : '清除'}
                           >
@@ -1358,21 +1397,22 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
               {/* Cards Grid */}
               <div className="grid grid-cols-1 gap-4 overflow-y-auto pr-2 pb-10 min-h-0 custom-scrollbar">
                  {filteredPrograms.length > 0 ? (
-                   filteredPrograms.map((program) => {
+                   paginatedPrograms.map((program) => {
                       return (
                       <div 
                          key={program.id} 
                          onClick={() => handleCardClick(program.id)}
-                         className={`bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-gray-100 dark:border-white/5 hover:border-${theme}-200 dark:hover:border-${theme}-500/30 hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group flex flex-col h-full`}
+                         className={`bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-gray-100 dark:border-white/5 transition-all group flex flex-col h-full ${paginationDemoEnabled ? '' : `hover:border-${theme}-200 dark:hover:border-${theme}-500/30 hover:shadow-xl hover:-translate-y-1 cursor-pointer`}`}
                       >
                          <div className="flex justify-between items-start mb-3">
                             <div className="flex items-center gap-3">
                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center p-1 border border-gray-100 dark:border-white/5 shadow-sm bg-white dark:bg-zinc-800`}>
                                   <img src={program.schoolLogo} alt="logo" className="w-full h-full object-contain rounded-lg" />
                                </div>
-                               <div className="min-w-0">
+                              <div className="min-w-0">
                                   <div className="flex items-center gap-2">
                                      <h3 className={`font-bold text-gray-900 dark:text-zinc-100 text-base line-clamp-1 group-hover:text-${theme}-800 dark:group-hover:text-${theme}-300 transition-colors`}>{program.schoolName}</h3>
+                                     {paginationDemoEnabled && <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">{isEn ? 'Demo' : '模拟数据'}</span>}
                                   </div>
                                   <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-zinc-500 mt-0.5">
                                      <span className="truncate">{program.location}</span>
@@ -1384,9 +1424,10 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                             </div>
                             <button 
                                onClick={(e) => toggleBookmark(e, program.id)}
-                               className={`p-1 transition-colors ${bookmarkedIds.has(program.id) ? `text-${theme}-600 dark:text-${theme}-400 fill-current` : `text-gray-300 dark:text-zinc-600 hover:text-${theme}-600 dark:hover:text-${theme}-400`}`}
+                               disabled={paginationDemoEnabled}
+                               className={`p-1 transition-colors ${visibleFavoriteIds.has(program.id) ? `text-${theme}-600 dark:text-${theme}-400 fill-current` : `text-gray-300 dark:text-zinc-600 hover:text-${theme}-600 dark:hover:text-${theme}-400`}`}
                             >
-                               <Bookmark className={`w-4 h-4 ${bookmarkedIds.has(program.id) ? 'fill-current' : ''}`} />
+                               <Bookmark className={`w-4 h-4 ${visibleFavoriteIds.has(program.id) ? 'fill-current' : ''}`} />
                             </button>
                          </div>
 
@@ -1418,7 +1459,7 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                                )}
                             </div>
                             <span className={`flex items-center gap-1 text-xs font-bold text-${theme}-700 dark:text-${theme}-400`}>
-                               {isEn ? 'View Details' : '查看详情'} <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                               {paginationDemoEnabled ? (isEn ? 'Demo card' : '分页演示卡片') : (isEn ? 'View Details' : '查看详情')}{!paginationDemoEnabled && <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />}
                             </span>
                          </div>
                       </div>
@@ -1427,7 +1468,7 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                  ) : (
                    <div className="col-span-full flex flex-col items-center justify-center py-16 px-4 text-center">
                       {showRecentOnly ? (
-                        recentViewedIds.length === 0 ? (
+                        visibleRecentIds.length === 0 ? (
                           <div className="max-w-md flex flex-col items-center">
                             <div className="w-16 h-16 bg-gray-100 dark:bg-zinc-800 text-gray-400 dark:text-zinc-500 rounded-2xl flex items-center justify-center mb-4 border border-gray-200/50 dark:border-white/5">
                               <Clock className="w-8 h-8 opacity-60" />
@@ -1516,6 +1557,29 @@ const TargetLibrary: React.FC<TargetLibraryProps> = ({ role = 'teacher', current
                    </div>
                  )}
               </div>
+              {filteredPrograms.length > 0 && (
+                <div className="flex flex-wrap items-center justify-center gap-2 px-2 pt-4 pb-2 flex-shrink-0 text-sm text-gray-600 dark:text-zinc-400" aria-label={isEn ? 'Program pagination' : '项目分页'}>
+                  {totalPages > 1 && (
+                    <>
+                      <button type="button" aria-label={isEn ? 'Previous page' : '上一页'} disabled={visiblePage === 1} onClick={() => setCurrentPage(visiblePage - 1)} className="px-3 py-2 rounded-lg border border-gray-200 bg-white dark:bg-zinc-900 dark:border-white/10 disabled:opacity-40">‹ {isEn ? 'Previous' : '上一页'}</button>
+                      {Array.from({ length: totalPages }, (_, index) => index + 1).filter(page => page === 1 || page === totalPages || Math.abs(page - visiblePage) <= 2).map((page, index, pages) => (
+                        <React.Fragment key={page}>
+                          {index > 0 && page - pages[index - 1] > 1 && <span aria-hidden="true" className="px-1">…</span>}
+                          <button type="button" aria-label={isEn ? `Page ${page}` : `第 ${page} 页`} aria-current={page === visiblePage ? 'page' : undefined} onClick={() => setCurrentPage(page)} style={page === visiblePage ? { backgroundColor: mainHex } : undefined} className={`min-w-9 px-3 py-2 rounded-lg ${page === visiblePage ? 'text-white' : 'bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10'}`}>{page}</button>
+                        </React.Fragment>
+                      ))}
+                      <button type="button" aria-label={isEn ? 'Next page' : '下一页'} disabled={visiblePage === totalPages} onClick={() => setCurrentPage(visiblePage + 1)} className="px-3 py-2 rounded-lg border border-gray-200 bg-white dark:bg-zinc-900 dark:border-white/10 disabled:opacity-40">{isEn ? 'Next' : '下一页'} ›</button>
+                    </>
+                  )}
+                  <label className="ml-auto flex items-center gap-2 text-xs">
+                    {isEn ? 'Per page' : '每页显示'}
+                    <select aria-label={isEn ? 'Programs per page' : '每页显示条数'} value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); setCurrentPage(1); }} className="rounded-lg border border-gray-200 bg-white dark:bg-zinc-900 dark:border-white/10 px-2 py-2">
+                      <option value={5}>5</option><option value={10}>10</option><option value={20}>20</option>
+                    </select>
+                    {isEn ? `${filteredPrograms.length} total` : `共 ${filteredPrograms.length} 条`}
+                  </label>
+                </div>
+              )}
            </div>
         </div>
       ) : (

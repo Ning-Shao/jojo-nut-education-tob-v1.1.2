@@ -293,6 +293,8 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
   const [isDirectEditing, setIsDirectEditing] = useState(false);
   const [isEditingPrompt, setIsEditingPrompt] = useState(false);
   const [promptDraft, setPromptDraft] = useState('');
+  const [wordLimitDraft, setWordLimitDraft] = useState('');
+  const [deadlineDraft, setDeadlineDraft] = useState('');
   
   // Editor Refs & Selection
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -997,15 +999,42 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
 
   const handleStartPromptEdit = () => {
     setPromptDraft(activeEssay.prompt);
+    setWordLimitDraft(String(activeEssay.wordLimit));
+    setDeadlineDraft(/^\d{4}-\d{2}-\d{2}$/.test(activeEssay.deadline) ? activeEssay.deadline : '');
     setIsEditingPrompt(true);
   };
 
   const handleSavePrompt = () => {
-    setEssays(prev => prev.map(essay =>
-      essay.id === activeEssayId ? { ...essay, prompt: promptDraft.trim() } : essay
-    ));
+    const wordLimit = Number(wordLimitDraft);
+    if (!Number.isInteger(wordLimit) || wordLimit < 1 || wordLimit > 10000) {
+      showToast(isEn ? 'Enter a word limit from 1 to 10,000.' : '字数限制请输入 1–10000 的整数');
+      return;
+    }
+    const nextTask = { ...activeEssay, prompt: promptDraft.trim(), wordLimit, deadline: deadlineDraft || 'TBD' };
+    const fields: Array<'prompt' | 'wordLimit' | 'deadline'> = [];
+    if (nextTask.prompt !== activeEssay.prompt) fields.push('prompt');
+    if (nextTask.wordLimit !== activeEssay.wordLimit) fields.push('wordLimit');
+    if (nextTask.deadline !== activeEssay.deadline) fields.push('deadline');
+    if (fields.length === 0) {
+      setIsEditingPrompt(false);
+      return;
+    }
+    const saved = saveEssayTask(student.id, {
+      ...nextTask,
+      lastChange: {
+        id: `essay-task-change-${Date.now()}`,
+        fields,
+        previous: { prompt: activeEssay.prompt, wordLimit: activeEssay.wordLimit, deadline: activeEssay.deadline },
+        current: { prompt: nextTask.prompt, wordLimit: nextTask.wordLimit, deadline: nextTask.deadline }
+      }
+    });
+    if (!saved) {
+      showToast(isEn ? 'Task update failed. Please try again.' : '任务修改保存失败，请重试');
+      return;
+    }
+    setEssays(prev => prev.map(essay => essay.id === activeEssayId ? nextTask : essay));
     setIsEditingPrompt(false);
-    showToast(isEn ? 'Task requirements updated' : '任务要求已更新');
+    showToast(isEn ? 'Essay task updated' : '文书任务已更新');
   };
 
   const handleCancelPromptEdit = () => {
@@ -1712,6 +1741,11 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
         showToast(isEn ? 'Please fill in required fields.' : '请填写必要信息。');
         return;
     }
+    const assignedWordLimit = Number(newTask.wordLimit);
+    if (!Number.isInteger(assignedWordLimit) || assignedWordLimit < 1 || assignedWordLimit > 10000) {
+      showToast(isEn ? 'Enter a word limit from 1 to 10,000.' : '字数限制请输入 1–10000 的整数');
+      return;
+    }
 
     const newTaskObj: EssayTask = {
         id: `essay-${Date.now()}`,
@@ -1719,7 +1753,7 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
         school: newTask.school,
         type: newTask.type as any,
         prompt: newTask.prompt,
-        wordLimit: parseInt(newTask.wordLimit) || 650,
+        wordLimit: assignedWordLimit,
         deadline: newTask.deadline || 'TBD',
         status: 'Not Started',
         contextKeywords: '',
@@ -2690,20 +2724,26 @@ const StudentEssays: React.FC<StudentEssaysProps> = ({ student, onAddFile }) => 
                            </button>
                          )}
                        </div>
-                       {isEditingPrompt ? (
-                         <textarea
-                           autoFocus
-                           rows={5}
-                           value={promptDraft}
-                           onChange={(event) => setPromptDraft(event.target.value)}
-                           placeholder={isEn ? 'Add the essay prompt or task requirements...' : '请输入文书题目或具体任务要求…'}
-                           className="w-full p-4 bg-white rounded-lg border border-primary-300 text-sm text-gray-700 font-serif leading-relaxed resize-y outline-none focus:ring-2 focus:ring-primary-100"
-                         />
-                       ) : (
-                         <div className={`p-4 bg-gray-50 rounded-lg border border-gray-100 text-sm font-serif leading-relaxed whitespace-pre-wrap ${activeEssay.prompt ? 'text-gray-700' : 'text-gray-400 italic'}`}>
-                            {activeEssay.prompt || (isEn ? 'No task requirements yet. Click Add to provide them.' : '暂未添加任务要求，点击“添加”进行补充。')}
+                       <div className="space-y-4">
+                         <div>
+                           <div className="mb-1.5 text-xs font-bold text-gray-500">{isEn ? 'Prompt' : '题目要求'}</div>
+                           {isEditingPrompt ? (
+                             <textarea autoFocus rows={5} value={promptDraft} onChange={event => setPromptDraft(event.target.value)} placeholder={isEn ? 'Add the essay prompt or task requirements...' : '请输入文书题目或具体任务要求…'} className="w-full p-4 bg-white rounded-lg border border-primary-300 text-sm text-gray-700 font-serif leading-relaxed resize-y outline-none focus:ring-2 focus:ring-primary-100" />
+                           ) : (
+                             <div className={`p-4 bg-gray-50 rounded-lg border border-gray-100 text-sm font-serif leading-relaxed whitespace-pre-wrap ${activeEssay.prompt ? 'text-gray-700' : 'text-gray-400 italic'}`}>{activeEssay.prompt || (isEn ? 'No task requirements yet. Click Add to provide them.' : '暂未添加任务要求，点击“添加”进行补充。')}</div>
+                           )}
                          </div>
-                       )}
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                           <div>
+                             <label htmlFor="essay-task-word-limit" className="mb-1.5 block text-xs font-bold text-gray-500">{isEn ? 'Word Limit' : '字数限制'}</label>
+                             {isEditingPrompt ? <input id="essay-task-word-limit" type="number" min="1" max="10000" step="1" value={wordLimitDraft} onChange={event => setWordLimitDraft(event.target.value)} className="w-full rounded-lg border border-primary-300 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-100" /> : <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-700">{activeEssay.wordLimit} {isEn ? 'words' : '字'}</div>}
+                           </div>
+                           <div>
+                             <label htmlFor="essay-task-deadline" className="mb-1.5 block text-xs font-bold text-gray-500">{isEn ? 'Deadline' : '截止日期'}</label>
+                             {isEditingPrompt ? <input id="essay-task-deadline" type="date" value={deadlineDraft} onChange={event => setDeadlineDraft(event.target.value)} className="w-full rounded-lg border border-primary-300 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary-100" /> : <div className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-700">{activeEssay.deadline === 'TBD' ? (isEn ? 'Not set' : '未设置') : activeEssay.deadline}</div>}
+                           </div>
+                         </div>
+                       </div>
                     </div>
                     {/* Input Area */}
                     <div className="bg-white p-1 rounded-xl border border-gray-200 shadow-sm mb-8 focus-within:ring-2 focus-within:ring-primary-100 focus-within:border-primary-300 transition-all">
